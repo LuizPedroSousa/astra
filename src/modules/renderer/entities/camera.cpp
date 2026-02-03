@@ -8,6 +8,7 @@
 #include "events/mouse.hpp"
 #include "glm/geometric.hpp"
 #include "log.hpp"
+#include "managers/window-manager.hpp"
 #include "time.hpp"
 
 namespace astralix {
@@ -31,6 +32,8 @@ void Camera::update() {
   if (transform == nullptr || !transform->is_active()) {
     return;
   }
+
+  using namespace astralix::input;
 
   switch (m_mode) {
   case CameraMode::Free: {

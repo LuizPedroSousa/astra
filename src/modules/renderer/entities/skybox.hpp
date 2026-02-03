@@ -1,25 +1,26 @@
 #include "entities/entity.hpp"
 #include "guid.hpp"
+#include "targets/render-target.hpp"
 #include <imgui.h>
 
 namespace astralix {
-  class Skybox : public Entity<Skybox> {
-  public:
-    Skybox(ENTITY_INIT_PARAMS, const ResourceID cubemap_id,
-      const ResourceID shader_id);
-    Skybox() {};
+class Skybox : public Entity<Skybox> {
+public:
+  Skybox(ENTITY_INIT_PARAMS, const ResourceDescriptorID cubemap_id,
+         const ResourceDescriptorID shader_id);
+  Skybox() {};
 
-    void start();
-    void pre_update();
-    void update();
-    void post_update();
+  void start(Ref<RenderTarget> render_target);
+  void pre_update();
+  void update(Ref<RenderTarget> render_target);
+  void post_update();
 
-    void on_enable() override {};
-    void on_disable() override {};
+  void on_enable() override {};
+  void on_disable() override {};
 
-  private:
-    ResourceID m_cubemap_id;
-    ResourceID m_shader_id;
-  };
+private:
+  ResourceDescriptorID m_cubemap_id;
+  ResourceDescriptorID m_shader_id;
+};
 
 } // namespace astralix

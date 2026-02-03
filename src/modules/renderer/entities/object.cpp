@@ -1,6 +1,5 @@
 #include "object.hpp"
 #include "base.hpp"
-#include "components/material/material-component.hpp"
 #include "components/mesh/mesh-component.hpp"
 #include "components/resource/resource-component.hpp"
 #include "components/transform/transform-component.hpp"
@@ -15,7 +14,7 @@ Object::Object(ENTITY_INIT_PARAMS, glm::vec3 position, glm::vec3 scale)
   add_component<TransformComponent>(position, scale);
 }
 
-void Object::start() {
+void Object::start(Ref<RenderTarget> render_target) {
   CHECK_ACTIVE(this);
 
   auto resource = get_component<ResourceComponent>();
@@ -25,7 +24,7 @@ void Object::start() {
   if (resource != nullptr && resource->is_active())
     resource->start();
 
-  auto shader = resource->get_shader();
+  auto shader = resource->shader();
 
   if (shader != nullptr) {
     // shader->bind();
@@ -36,7 +35,7 @@ void Object::start() {
     transform->start();
 
   if (mesh != nullptr && mesh->is_active())
-    mesh->start();
+    mesh->start(render_target);
 }
 
 } // namespace astralix

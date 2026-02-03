@@ -1,7 +1,7 @@
 #pragma once
 #include "entities/entity.hpp"
 #include "entities/ientity.hpp"
-#include "glm/glm.hpp"
+#include "targets/render-target.hpp"
 
 namespace astralix {
 
@@ -18,12 +18,12 @@ public:
 
   Object() {};
 
-  void start();
+  void start(Ref<RenderTarget> render_target);
+
   virtual void update() {};
   virtual void fixed_update(float dt) {};
 
   void on_enable() override {};
   void on_disable() override {};
 };
-
 } // namespace astralix

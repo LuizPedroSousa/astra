@@ -1,18 +1,23 @@
 #pragma once
 
 #include "entities/entity.hpp"
+#include "guid.hpp"
+#include "targets/render-target.hpp"
 
 namespace astralix {
 
-  class PostProcessing : public Entity<PostProcessing> {
-  public:
-    PostProcessing(ENTITY_INIT_PARAMS, ResourceID shader_id);
-    ~PostProcessing() = default;
+class PostProcessing : public Entity<PostProcessing> {
+public:
+  PostProcessing(ENTITY_INIT_PARAMS, ResourceDescriptorID shader_id);
+  ~PostProcessing() = default;
 
-    void start();
-    void post_update();
+  void start(Ref<RenderTarget> render_target);
+  void post_update(Ref<RenderTarget> render_target);
 
-    void on_enable() override {};
-    void on_disable() override {};
-  };
+  void on_enable() override {};
+  void on_disable() override {};
+
+private:
+  ResourceDescriptorID m_shader_descriptor_id;
+};
 } // namespace astralix
