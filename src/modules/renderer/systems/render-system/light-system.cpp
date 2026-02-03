@@ -4,30 +4,25 @@
 #include "components/camera/camera-component.hpp"
 #include "components/light/light-component.hpp"
 #include "components/material/material-component.hpp"
-#include "components/mesh/mesh-component.hpp"
 #include "components/resource/resource-component.hpp"
 #include "components/transform/transform-component.hpp"
 #include "entities/camera.hpp"
-#include "entities/object.hpp"
-#include "events/event.hpp"
 #include "glad//glad.h"
-#include "log.hpp"
 #include "managers/component-manager.hpp"
 #include "managers/entity-manager.hpp"
-#include "managers/resource-manager.hpp"
 #include "systems/render-system/shadow-mapping-system.hpp"
 #include "trace.hpp"
-#include <cmath>
 
 namespace astralix {
 
-LightSystem::LightSystem() {}
+LightSystem::LightSystem(Ref<RenderTarget> render_target)
+    : m_render_target(render_target) {}
 
 void LightSystem::pre_update(double dt) {}
 
 void LightSystem::fixed_update(double fixed_dt) {}
 
-void LightSystem::start() { auto resource_manager = ResourceManager::get(); }
+void LightSystem::start() {}
 
 void LightSystem::update(double dt) {
   CHECK_ACTIVE(this);
@@ -43,7 +38,7 @@ void LightSystem::update(double dt) {
 
     auto camera = target->get_component<CameraComponent>();
 
-    camera->recalculate_projection_matrix();
+    camera->recalculate_projection_matrix(m_render_target);
     camera->recalculate_view_matrix();
   });
 
@@ -85,7 +80,7 @@ void LightSystem::update(double dt) {
       light_components[i]->update(object, i);
     }
 
-    auto shader = resource->get_shader();
+    auto shader = resource->shader();
 
     shader->set_matrix("view", camera->get_view_matrix());
     shader->set_vec3("view_position", transform->position);

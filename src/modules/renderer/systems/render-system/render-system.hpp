@@ -1,19 +1,23 @@
-#include "entities/entity.hpp"
-#include "entities/ientity.hpp"
+#pragma once
+
+#include "project.hpp"
 #include "systems/system.hpp"
-#include "glm/glm.hpp"
 
 namespace astralix {
+class RenderSystem : public System<RenderSystem> {
+public:
+  RenderSystem(RenderSystemConfig &config);
+  ~RenderSystem();
 
-  class RenderSystem : public System<RenderSystem> {
-  public:
-    RenderSystem();
-    ~RenderSystem();
+  void start() override;
+  void fixed_update(double fixed_dt) override;
+  void pre_update(double dt) override;
+  void update(double dt) override;
 
-    void start() override;
-    void fixed_update(double fixed_dt) override;
-    void pre_update(double dt) override;
-    void update(double dt) override;
-  };
+private:
+  Ref<RenderTarget> m_render_target;
+
+  RenderSystemConfig m_config;
+};
 
 } // namespace astralix

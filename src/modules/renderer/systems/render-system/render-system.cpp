@@ -2,7 +2,6 @@
 #include "components/post-processing/post-processing-component.hpp"
 #include "entities/ientity.hpp"
 #include "events/event-scheduler.hpp"
-#include "framebuffer.hpp"
 #include "glad/glad.h"
 #include "managers/entity-manager.hpp"
 
@@ -12,37 +11,60 @@
 #include "entities/post-processing.hpp"
 #include "entities/skybox.hpp"
 #include "entities/text.hpp"
-#include "renderer-api.hpp"
+#include "managers/resource-manager.hpp"
+#include "project.hpp"
+#include "resources/descriptors/font-descriptor.hpp"
+#include "resources/descriptors/material-descriptor.hpp"
+#include "resources/descriptors/shader-descriptor.hpp"
+#include "resources/descriptors/texture-descriptor.hpp"
 #include "systems/render-system/hdr-system.hpp"
 #include "systems/render-system/light-system.hpp"
 #include "systems/render-system/mesh-system.hpp"
 #include "systems/render-system/shadow-mapping-system.hpp"
+#include "targets/render-target.hpp"
 #include "trace.hpp"
-#include <sys/mman.h>
 
 namespace astralix {
-RenderSystem::RenderSystem() {};
+RenderSystem::RenderSystem(RenderSystemConfig &config)
+    : m_config(config) {
+
+      };
 
 void RenderSystem::start() {
-  Engine::get()->renderer_api->init();
+  m_render_target = RenderTarget::create(m_config.backend_to_api(),
+                                         m_config.msaa_to_render_target_msaa(),
+                                         m_config.window_id);
 
   auto entity_manager = EntityManager::get();
 
+  m_render_target->init();
+
+  resource_manager()
+      ->load_from_descriptors<ShaderDescriptor, Texture2DDescriptor,
+                              Texture3DDescriptor, MaterialDescriptor,
+                              FontDescriptor>(
+          m_render_target->renderer_api()->get_backend());
+
   EntityManager::get()->for_each<Skybox>(
-      [&](Skybox *skybox) { skybox->start(); });
-  entity_manager->for_each<Object>([](Object *object) { object->start(); });
+      [&](Skybox *skybox) { skybox->start(m_render_target); });
 
-  entity_manager->for_each<Text>([&](Text *text) { text->start(); });
+  entity_manager->for_each<Object>(
+      [&](Object *object) { object->start(m_render_target); });
 
-  add_subsystem<HDRSystem>()->start();
+  entity_manager->for_each<Text>(
+      [&](Text *text) { text->start(m_render_target); });
+
+  add_subsystem<HDRSystem>(m_render_target)->start();
 
   entity_manager->for_each<PostProcessing>(
-      [](PostProcessing *post_processing) { post_processing->start(); });
+      [&](PostProcessing *post_processing) {
+        post_processing->start(m_render_target);
+      });
 
-  add_subsystem<ShadowMappingSystem>()->start();
-  add_subsystem<DebugSystem>()->start();
-  add_subsystem<LightSystem>()->start();
-  add_subsystem<MeshSystem>()->start();
+  add_subsystem<ShadowMappingSystem>(m_render_target)->start();
+  add_subsystem<DebugSystem>(m_render_target)->start();
+  add_subsystem<LightSystem>(m_render_target)->start();
+  add_subsystem<MeshSystem>(m_render_target)->start();
 }
 
 void RenderSystem::fixed_update(double fixed_dt) {
@@ -78,15 +100,7 @@ void RenderSystem::pre_update(double dt) {
     }
   }
 
-  if (has_post_processing) {
-    engine->framebuffer->bind();
-  } else {
-    engine->framebuffer->bind(FramebufferBindType::Default, 0);
-  }
-
-  engine->renderer_api->enable_buffer_testing();
-  engine->renderer_api->clear_color();
-  engine->renderer_api->clear_buffers();
+  m_render_target->bind(has_post_processing);
 
   EntityManager::get()->for_each<Skybox>(
       [&](Skybox *skybox) { skybox->pre_update(); });
@@ -108,7 +122,7 @@ void RenderSystem::update(double dt) {
   }
 
   EntityManager::get()->for_each<Skybox>(
-      [&](Skybox *skybox) { skybox->update(); });
+      [&](Skybox *skybox) { skybox->update(m_render_target); });
 
   light->update(dt);
 
@@ -121,7 +135,7 @@ void RenderSystem::update(double dt) {
   if (debug != nullptr)
     debug->update(dt);
 
-  Engine::get()->framebuffer->unbind();
+  m_render_target->unbind();
 
   if (hdr != nullptr)
     hdr->update(dt);
@@ -130,7 +144,9 @@ void RenderSystem::update(double dt) {
       [&](Skybox *skybox) { skybox->post_update(); });
 
   entity_manager->for_each<PostProcessing>(
-      [&](PostProcessing *post_processing) { post_processing->post_update(); });
+      [&](PostProcessing *post_processing) {
+        post_processing->post_update(m_render_target);
+      });
 
   scheduler->bind(SchedulerType::REALTIME);
 };

@@ -9,20 +9,19 @@
 #include "glad//glad.h"
 #include "glm/gtc/type_ptr.hpp"
 #include "guid.hpp"
-#include "log.hpp"
 #include "managers/entity-manager.hpp"
 #include "managers/resource-manager.hpp"
 #include "renderer-api.hpp"
 #include "storage-buffer.hpp"
 #include "trace.hpp"
-#include <cmath>
 #include <cstdint>
 
 #include <unordered_map>
 
 namespace astralix {
 
-MeshSystem::MeshSystem() {}
+MeshSystem::MeshSystem(Ref<RenderTarget> render_target)
+    : m_render_target(render_target) {}
 
 void MeshSystem::pre_update(double dt) {}
 
@@ -31,7 +30,8 @@ void MeshSystem::fixed_update(double fixed_dt) {}
 void MeshSystem::start() {
   auto resource_manager = ResourceManager::get();
 
-  m_storage_buffer = StorageBuffer::create(1024 * sizeof(glm::mat4));
+  m_storage_buffer = StorageBuffer::create(
+      m_render_target->renderer_api()->get_backend(), 1024 * sizeof(glm::mat4));
 }
 
 void MeshSystem::update(double dt) {
@@ -59,7 +59,7 @@ void MeshSystem::update(double dt) {
 
     auto meshes = mesh_component->get_meshes();
 
-    auto batch_id = compute_group_id(meshes, resource->get_shader()->get_id());
+    auto batch_id = compute_group_id(meshes, resource->shader()->id().index);
 
     auto batch_exists = m_batches.find(batch_id);
 
@@ -105,7 +105,7 @@ void MeshSystem::update(double dt) {
 
     if (batch.sources.size() == 1) {
       for (auto &[_, source] : batch.sources) {
-        auto shader = source->get_component<ResourceComponent>()->get_shader();
+        auto shader = source->get_component<ResourceComponent>()->shader();
         auto transform = source->get_component<TransformComponent>();
 
         shader->bind();
@@ -114,7 +114,8 @@ void MeshSystem::update(double dt) {
         shader->set_matrix("g_model", transform->matrix);
 
         for (auto mesh : batch.meshes) {
-          engine->renderer_api->draw_indexed(mesh.vertex_array, mesh.draw_type);
+          m_render_target->renderer_api()->draw_indexed(mesh.vertex_array,
+                                                        mesh.draw_type);
         }
 
         shader->unbind();
@@ -148,7 +149,7 @@ void MeshSystem::update(double dt) {
   for (auto [_, batch] : m_batches) {
     auto shader = batch.sources.begin()
                       ->second->get_component<ResourceComponent>()
-                      ->get_shader();
+                      ->shader();
 
     shader->bind();
     shader->set_bool("use_instacing", true);
@@ -162,8 +163,8 @@ void MeshSystem::update(double dt) {
 
       uint32_t count = vertex_array->get_index_buffer()->get_count();
 
-      engine->renderer_api->draw_instanced_indexed(mesh.draw_type, count,
-                                                   batch.transforms.size());
+      m_render_target->renderer_api()->draw_instanced_indexed(
+          mesh.draw_type, count, batch.transforms.size());
 
       vertex_array->unbind();
     }

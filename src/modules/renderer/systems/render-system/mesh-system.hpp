@@ -1,8 +1,11 @@
+#pragma once
+
 #include "entities/object.hpp"
 #include "guid.hpp"
 #include "resources/mesh.hpp"
 #include "storage-buffer.hpp"
 #include "systems/system.hpp"
+#include "targets/render-target.hpp"
 #include <unordered_map>
 #include <vector>
 
@@ -17,7 +20,7 @@ struct Batch {
 
 class MeshSystem : public System<MeshSystem> {
 public:
-  MeshSystem();
+  MeshSystem(Ref<RenderTarget> render_target);
   ~MeshSystem();
 
   void start() override;
@@ -31,6 +34,8 @@ private:
   std::unordered_map<MeshGroupID, Batch> m_batches;
 
   Ref<StorageBuffer> m_storage_buffer;
+
+  Ref<RenderTarget> m_render_target = nullptr;
 };
 
 } // namespace astralix
