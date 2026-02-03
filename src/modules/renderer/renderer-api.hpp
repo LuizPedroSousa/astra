@@ -7,10 +7,12 @@
 
 namespace astralix {
 
-class RendererAPI {
+enum class RendererBackend { None = 0, OpenGL = 1 };
 
+class VertexArray;
+
+class RendererAPI {
 public:
-  enum class API { None = 0, OpenGL = 1 };
   enum DrawPrimitive { POINTS = 0, LINES = 1, TRIANGLES = 2 };
 
   virtual void init() = 0;
@@ -32,23 +34,24 @@ public:
   virtual void draw_lines(const Ref<VertexArray> &vertex_array,
                           uint32_t vertex_count) = 0;
 
-  API get_api() { return m_api; };
+  RendererBackend get_backend() { return m_backend; };
 
   void set_clear_color(const glm::vec4 &p_clear_color) {
     m_clear_color = p_clear_color;
   };
 
-  static Scope<RendererAPI> create(const API &p_api);
+  static Scope<RendererAPI> create(const RendererBackend &p_backend);
 
 protected:
   glm::vec4 m_clear_color = glm::vec4(0.5f, 0.5f, 1.0f, 0.0f);
-  API m_api;
+  RendererBackend m_backend;
 };
 
 template <typename T, typename O, typename... Args>
-Ref<T> create_renderer_component_ref(RendererAPI::API api, Args &&...params) {
-  switch (api) {
-  case RendererAPI::API::OpenGL:
+Ref<T> create_renderer_component_ref(RendererBackend backend,
+                                     Args &&...params) {
+  switch (backend) {
+  case RendererBackend::OpenGL:
     return create_ref<O>(std::forward<Args>(params)...);
 
   default:
@@ -57,10 +60,10 @@ Ref<T> create_renderer_component_ref(RendererAPI::API api, Args &&...params) {
 }
 
 template <typename T, typename O, typename... Args>
-Scope<T> create_renderer_component_scope(RendererAPI::API api,
+Scope<T> create_renderer_component_scope(RendererBackend api,
                                          Args &&...params) {
   switch (api) {
-  case RendererAPI::API::OpenGL:
+  case RendererBackend::OpenGL:
     return create_scope<O>(std::forward<Args>(params)...);
 
   default:
