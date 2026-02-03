@@ -1,160 +1,101 @@
 #include "resource-manager.hpp"
 #include "assert.hpp"
 #include "glad/glad.h"
+#include "guid.hpp"
 #include "log.hpp"
-#include <numeric>
+#include "resources/descriptors/texture-descriptor.hpp"
+#include "resources/shader.hpp"
 
 namespace astralix {
 static int count = 0;
 
-#define RESOURCE_MANAGER_SUGGESTION_NAME "ResourceManager"
-
-Ref<Texture> ResourceManager::load_texture(Ref<Texture> texture) {
-  LOG_DEBUG(texture->get_resource_id());
-
-  auto texture_id = texture->get_resource_id();
-
-  texture->set_slot(m_texture_table.size());
-  auto inserted_texture =
-      m_texture_table.emplace(texture_id, std::move(texture));
-
-  ASTRA_ENSURE(!inserted_texture.second, "can't insert texture");
-
-  return m_texture_table[texture_id];
+Ref<Texture2DDescriptor>
+ResourceManager::register_texture(Ref<Texture2DDescriptor> descriptor) {
+  return m_texture_2d_descriptor_pool.get(
+      m_texture_2d_descriptor_pool.register_or_get(descriptor));
 }
 
-void ResourceManager::load_textures(
-    std::initializer_list<Ref<Texture>> textures) {
-  for (auto texture : textures) {
-    load_texture(texture);
+Ref<Texture3DDescriptor>
+ResourceManager::register_texture(Ref<Texture3DDescriptor> descriptor) {
+  return m_texture_3d_descriptor_pool.get(
+      m_texture_3d_descriptor_pool.register_or_get(descriptor));
+}
+
+void ResourceManager::register_textures(
+    std::initializer_list<Ref<Texture2DDescriptor>> descriptors) {
+  for (auto texture : descriptors) {
+    register_texture(texture);
   }
 }
 
-Ref<Shader> ResourceManager::load_shader(Ref<Shader> shader) {
-  auto shader_id = shader->get_resource_id();
-
-  LOG_DEBUG(shader_id);
-
-  shader->attach();
-
-  auto inserted_shader = m_shader_table.emplace(shader_id, std::move(shader));
-
-  ASTRA_ENSURE(!inserted_shader.second, "can't insert shader");
-
-  return m_shader_table[shader_id];
-}
-
-void ResourceManager::load_shaders(std::initializer_list<Ref<Shader>> shaders) {
-  for (auto shader : shaders) {
-    load_shader(shader);
+void ResourceManager::register_textures(
+    std::initializer_list<Ref<Texture3DDescriptor>> descriptors) {
+  for (auto texture : descriptors) {
+    register_texture(texture);
   }
 }
 
-Ref<Model> ResourceManager::load_model(Ref<Model> model) {
-  auto model_id = model->get_resource_id();
-
-  auto inserted_model = m_model_table.emplace(model_id, std::move(model));
-
-  ASTRA_ENSURE(!inserted_model.second, "can't insert model");
-
-  return m_model_table[model_id];
+Ref<ShaderDescriptor>
+ResourceManager::register_shader(Ref<ShaderDescriptor> descriptor) {
+  return m_shader_descriptor_pool.get(
+      m_shader_descriptor_pool.register_or_get(descriptor));
 }
 
-void ResourceManager::load_models(std::initializer_list<Ref<Model>> models) {
+void ResourceManager::register_shaders(
+    std::initializer_list<Ref<ShaderDescriptor>> descriptors) {
+  for (auto descriptor : descriptors) {
+    register_shader(descriptor);
+  }
+}
+
+Ref<ModelDescriptor>
+ResourceManager::register_model(Ref<ModelDescriptor> descriptor) {
+  return m_model_descriptor_pool.get(
+      m_model_descriptor_pool.register_or_get(descriptor));
+}
+
+void ResourceManager::register_models(
+    std::initializer_list<Ref<ModelDescriptor>> models) {
   for (auto &model : models) {
-    load_model(model);
+    register_model(model);
   }
 }
 
-void ResourceManager::load_fonts(std::initializer_list<Ref<Font>> fonts) {
+void ResourceManager::register_fonts(
+    std::initializer_list<Ref<FontDescriptor>> fonts) {
   for (auto font : fonts) {
-    load_font(font);
+    register_font(font);
   }
 }
 
-Ref<Material> ResourceManager::load_material(Ref<Material> material) {
-  auto material_id = material->get_resource_id();
-
-  auto inserted_material =
-      m_material_table.emplace(material_id, std::move(material));
-
-  ASTRA_ENSURE(!inserted_material.second, "Can't insert material");
-
-  return m_material_table[material_id];
+Ref<FontDescriptor>
+ResourceManager::register_font(Ref<FontDescriptor> descriptor) {
+  return m_font_descriptor_pool.get(
+      m_font_descriptor_pool.register_or_get(descriptor));
 }
 
-void ResourceManager::load_materials(
-    std::initializer_list<Ref<Material>> materials) {
+Ref<MaterialDescriptor>
+ResourceManager::register_material(Ref<MaterialDescriptor> material) {
+  return m_material_descriptor_pool.get(
+      m_material_descriptor_pool.register_or_get(material));
+}
+
+void ResourceManager::register_materials(
+    std::initializer_list<Ref<MaterialDescriptor>> materials) {
   for (auto material : materials) {
-    load_material(material);
+    register_material(material);
   }
 };
 
-Ref<Font> ResourceManager::load_font(Ref<Font> font) {
-  auto font_id = font->get_resource_id();
-
-  auto inserted_font = m_font_table.emplace(font_id, std::move(font));
-
-  ASTRA_ENSURE(!inserted_font.second, "Can't insert font");
-
-  return m_font_table[font_id];
-}
-
-Ref<Material> ResourceManager::get_material_by_id(ResourceID id) {
-  auto it = m_material_table.find(id);
-
-  ASTRA_ENSURE_WITH_SUGGESTIONS(it == m_material_table.end(), m_material_table,
-                                id, "Material",
-                                RESOURCE_MANAGER_SUGGESTION_NAME);
-
-  return it->second;
-}
-
-Ref<Shader> ResourceManager::get_shader_by_id(ResourceID id) {
-  auto it = m_shader_table.find(id);
-
-  ASTRA_ENSURE_WITH_SUGGESTIONS(it == m_shader_table.end(), m_shader_table, id,
-                                "Shader", RESOURCE_MANAGER_SUGGESTION_NAME);
-
-  return it->second;
-}
-
-Ref<Texture> ResourceManager::get_texture_by_id(ResourceID id) {
-  auto it = m_texture_table.find(id);
-
-  ASTRA_ENSURE_WITH_SUGGESTIONS(it == m_texture_table.end(), m_texture_table,
-                                id, "Texture",
-                                RESOURCE_MANAGER_SUGGESTION_NAME);
-
-  return it->second;
-}
-
-Model *ResourceManager::get_model_by_id(ResourceID id) {
-  auto it = m_model_table.find(id);
-
-  ASTRA_ENSURE_WITH_SUGGESTIONS(it == m_model_table.end(), m_model_table, id,
-                                "Model", RESOURCE_MANAGER_SUGGESTION_NAME);
-
-  return it->second.get();
-}
-
-Ref<Font> ResourceManager::get_font_by_id(ResourceID id) {
-  auto it = m_font_table.find(id);
-
-  ASTRA_ENSURE_WITH_SUGGESTIONS(it == m_font_table.end(), m_font_table, id,
-                                "Font", RESOURCE_MANAGER_SUGGESTION_NAME);
-  return it->second;
-}
-
-std::vector<Model *>
-ResourceManager::get_models_by_ids(std::initializer_list<ResourceID> ids) {
+std::vector<Model *> ResourceManager::get_model_by_descriptor_ids(
+    std::initializer_list<ResourceDescriptorID> ids) {
   std::vector<Model *> models;
 
   for (auto id : ids) {
-    auto model = get_model_by_id(id);
+    auto model = get_by_descriptor_id<Model>(id);
 
     if (model != nullptr) {
-      models.push_back(model);
+      models.push_back(model.get());
     }
   }
 
