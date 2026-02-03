@@ -1,8 +1,8 @@
 #pragma once
 
-namespace astralix {
+namespace astralix::input {
 
-enum KeyCode : int {
+enum class KeyCode : int {
   // From glfw3.h
   Space = 32,
   Apostrophe = 39, /* ' */

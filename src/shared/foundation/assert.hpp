@@ -1,6 +1,7 @@
 #pragma once
 #include "base.hpp"
 #include "exceptions/base-exception.hpp"
+#include "log.hpp"
 #include <algorithm>
 #include <numeric>
 #include <vector>
@@ -56,7 +57,7 @@ static size_t levenshtein_distance(const std::string &s1,
                        return a.empty() ? b : a + "\n - " + b;                 \
                      }));                                                      \
                                                                                \
-      ASTRA_EXCEPTION(itemKey " with ID " BOLD, "[", item, "]", RESET,         \
+      ASTRA_EXCEPTION(itemKey, " with ID ", BOLD, "[", item, "]", RESET,       \
                       " not found in ", BOLD, sourceKey, RESET,                \
                       suggestion_msg);                                         \
                                                                                \

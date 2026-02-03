@@ -1,16 +1,20 @@
 #pragma once
 #include "event.hpp"
 #include "functional"
+#include "guid.hpp"
 #include "key-codes.hpp"
 #include "listener.hpp"
 
-#define BASE_FIELDS KeyCode key_code;
+#define BASE_FIELDS                                                            \
+  KeyCode key_code;                                                            \
+  WindowID window_id;
 
-namespace astralix {
+namespace astralix::input {
 
 class KeyPressedEvent : public Event {
 public:
-  KeyPressedEvent(KeyCode key_code) : key_code(key_code), Event() {}
+  KeyPressedEvent(KeyCode key_code, WindowID window_id)
+      : key_code(key_code), window_id(window_id), Event() {}
 
   BASE_FIELDS
   EVENT_TYPE(KeyPressed)
@@ -18,8 +22,10 @@ public:
 
 class KeyReleasedEvent : public Event {
 public:
+  KeyReleasedEvent(KeyCode key_code, WindowID window_id)
+      : key_code(key_code), window_id(window_id) {}
+
   BASE_FIELDS;
-  KeyReleasedEvent(KeyCode key_code) : key_code(key_code) {}
   EVENT_TYPE(KeyReleased)
 };
 
@@ -35,4 +41,4 @@ public:
 private:
   std::function<void(Event *)> m_callback;
 };
-} // namespace astralix
+} // namespace astralix::input

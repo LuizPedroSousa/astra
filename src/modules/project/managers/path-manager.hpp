@@ -16,4 +16,8 @@ private:
   std::filesystem::path resolve_project_path(std::string relative_path);
   std::filesystem::path resolve_engine_path(std::string relative_path);
 };
+
+inline const Ref<PathManager> path_manager() noexcept {
+  return PathManager::get();
+}
 } // namespace astralix

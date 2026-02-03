@@ -1,21 +1,16 @@
 #include "mouse.hpp"
-#include "window.hpp"
+#include "guid.hpp"
+#include "managers/window-manager.hpp"
 
-namespace astralix {
+namespace astralix::input {
 
-class Mouse *Mouse::m_instance = nullptr;
-
-Mouse::Mouse() {
-  m_last.x = WINDOW_HEIGHT() / 2;
-  m_last.y = WINDOW_WIDTH() / 2;
+Mouse::Mouse(WindowID &window_id, double initial_mouse_x,
+             double initial_mouse_y)
+    : m_window_id(window_id) {
+  m_last.x = initial_mouse_x;
+  m_last.y = initial_mouse_y;
 }
 
-void Mouse::init() {
-  if (m_instance == nullptr) {
-    m_instance = new Mouse;
-  }
-}
+Mouse::~Mouse() {}
 
-Mouse::~Mouse() { delete m_instance; }
-
-} // namespace astralix
+} // namespace astralix::input

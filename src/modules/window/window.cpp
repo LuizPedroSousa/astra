@@ -1,78 +1,76 @@
-#include "assert.hpp"
-#include "events/event-scheduler.hpp"
+#include "window.hpp"
+
 #include "events/keyboard.hpp"
-#include "guid.hpp"
+#include "events/mouse.hpp"
+
+#include "assert.hpp"
+
+#include "events/event-scheduler.hpp"
 
 #include "events/key-codes.hpp"
-#include "events/mouse.hpp"
-#include "glad/glad.h"
 
-#include "base.hpp"
-#include "engine.hpp"
 #include "event-dispatcher.hpp"
 #include "events/key-event.hpp"
 #include "events/mouse-event.hpp"
+#include "guid.hpp"
 #include "iostream"
-#include "log.hpp"
+#include "managers/window-manager.hpp"
 #include "stdio.h"
-#include "window.hpp"
-#include <GLFW/glfw3.h>
 
 namespace astralix {
-
-Window *Window::m_instance = nullptr;
 
 void Window::handle_errors(int, const char *description) {
   std::cout << description << std::endl;
 }
 
-void Window::init() {
-  if (m_instance == nullptr) {
-    m_instance = new Window;
-  }
-}
+GLFWwindow *Window::value() { return m_value; }
 
-Window *Window::get() { return m_instance; }
-
-Window::Window() {
-
+Window::Window(WindowID &id, std::string &title, int &width, int &height,
+               bool headless)
+    : m_id(id), m_title(title), m_width(width), m_height(height),
+      m_headless(headless) {
   glfwSetErrorCallback(handle_errors);
   glfwInit();
   glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
   glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
   glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-  auto engine = Engine::get();
-  if (engine->has_msaa_enabled())
-    glfwWindowHint(GLFW_SAMPLES, engine->msaa.samples);
+  auto initial_mouse_x = static_cast<double>(height) / 2;
+  auto initial_mouse_y = static_cast<double>(width) / 2;
+
+  m_keyboard = create_ref<input::Keyboard>(id);
+  m_mouse = create_ref<input::Mouse>(id, initial_mouse_x, initial_mouse_y);
+
+  // auto engine = Engine::get();
+  // if (engine->has_msaa_enabled())
+  //   glfwWindowHint(GLFW_SAMPLES, engine->msaa.samples);
 }
 
-GLFWwindow *Window::get_value() { return Window::get()->m_value; }
+Window::~Window() {}
+
+Ref<Window> Window::create(WindowID &id, std::string &title, int &width,
+                           int &height, bool headless) {
+  return create_ref<Window>(id, title, width, height, headless);
+}
 
 void Window::resizing(GLFWwindow *window, int width, int height) {
-  Window::get()->m_width = width;
-  Window::get()->m_height = height;
+  auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
+
+  self->m_width = width;
+  self->m_height = height;
+
   glViewport(0, 0, width, height);
 }
 
 static bool has_pressed = false;
 
-int Window::get_height() { return m_height; }
-int Window::get_width() { return m_width; }
-std::string Window::get_title() { return m_title; }
-
-void Window::open(std::string &title, int width, int height, bool offscreen) {
-  m_width = width;
-  m_height = height;
-  m_title = title;
-  m_offscreen = offscreen;
-
-  if (offscreen) {
+void Window::start() {
+  if (m_headless) {
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
   }
 
   GLFWwindow *window =
-      glfwCreateWindow(m_width, m_height, title.c_str(), NULL, NULL);
+      glfwCreateWindow(m_width, m_height, m_title.c_str(), NULL, NULL);
 
   m_value = window;
 
@@ -93,37 +91,39 @@ void Window::open(std::string &title, int width, int height, bool offscreen) {
 
   glViewport(0, 0, m_width, m_height);
 
-  if (!m_offscreen) {
+  glfwSetWindowUserPointer(window, this);
+
+  if (!m_headless) {
     glfwSetFramebufferSizeCallback(m_value, resizing);
-    EventDispatcher::get()->attach<KeyboardListener, KeyReleasedEvent>(
-        ASTRA_BIND_EVENT_FN(Window::toggle_view_mouse));
+    EventDispatcher::get()
+        ->attach<input::KeyboardListener, input::KeyReleasedEvent>(
+            ASTRA_BIND_EVENT_FN(Window::toggle_view_mouse));
 
     glfwSetCursorPosCallback(m_value, mouse_callback);
 
     glfwSetKeyCallback(m_value, key_callback);
   }
-
-  Keyboard::init();
-  Mouse::init();
 }
 
-void Window::toggle_view_mouse(KeyReleasedEvent *event) {
-  if (event->key_code == KeyCode::Escape) {
+void Window::toggle_view_mouse(input::KeyReleasedEvent *event) {
+  if (event->key_code == input::KeyCode::Escape) {
     has_pressed = !has_pressed;
 
-    auto window = Window::get();
+    if (auto window = window_manager()->get_window_by_id(event->window_id)) {
+      glfwSetCursorPos(window->value(), window->width() / 2.0f,
+                       window->height() / 2.0f);
 
-    glfwSetCursorPos(window->get_value(), window->get_width() / 2.0f,
-                     window->get_height() / 2.0f);
-
-    glfwSetInputMode(window->get_value(), GLFW_CURSOR,
-                     has_pressed ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+      glfwSetInputMode(window->value(), GLFW_CURSOR,
+                       has_pressed ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
+    }
   }
 }
 
 void Window::mouse_callback(GLFWwindow *window, double x, double y) {
   if (!has_pressed) {
-    Mouse::get()->set_position(Mouse::Position{.x = x, .y = y});
+    auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
+
+    self->m_mouse->set_position(input::Mouse::Position{.x = x, .y = y});
 
     EventDispatcher::get()->dispatch(new MouseEvent(x, y));
   }
@@ -135,13 +135,16 @@ void Window::key_callback(GLFWwindow *window, int key, int scancode, int action,
 
   switch (action) {
   case GLFW_PRESS: {
-    auto event = KeyCode(key);
+    auto event = input::KeyCode(key);
 
-    auto scheduler_id =
-        scheduler->schedule<KeyPressedEvent>(SchedulerType::POST_FRAME, event);
+    auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
 
-    Keyboard::get()->attach_key(
-        event, Keyboard::KeyState{.event = Keyboard::KeyEvent::KeyDown,
+    auto scheduler_id = scheduler->schedule<input::KeyPressedEvent>(
+        SchedulerType::POST_FRAME, event, self->id());
+
+    self->m_keyboard->attach_key(
+        event,
+        input::Keyboard::KeyState{.event = input::Keyboard::KeyEvent::KeyDown,
                                   .scheduler_id = scheduler_id});
     break;
   }
@@ -153,21 +156,18 @@ void Window::key_callback(GLFWwindow *window, int key, int scancode, int action,
 void Window::update() {
   glfwPollEvents();
 
-  if (!m_offscreen)
-    Keyboard::get()->release_keys();
+  if (!m_headless)
+    m_keyboard->release_keys();
 }
 
 void Window::swap() {
-  Mouse::get()->reset_delta();
-  Keyboard::get()->destroy_release_keys();
+  m_mouse->reset_delta();
+  m_keyboard->destroy_release_keys();
 
   glfwSwapBuffers(m_value);
 }
 
-void Window::close() {
-  glfwTerminate();
-  delete m_instance;
-}
+void Window::close() { glfwTerminate(); }
 
 bool Window::is_open() { return !glfwWindowShouldClose(m_value); }
 

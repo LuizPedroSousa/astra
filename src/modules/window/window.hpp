@@ -1,36 +1,44 @@
 #pragma once
 
-#include "GLFW/glfw3.h"
+#include "base.hpp"
 #include "events/key-event.hpp"
 #include "guid.hpp"
-#include <unordered_map>
+
+#include "events/keyboard.hpp"
+#include "events/mouse.hpp"
+
+#include "glad/glad.h"
+
+#include "GLFW/glfw3.h"
 
 namespace astralix {
 
 class Window {
-
 public:
-  static void init();
-  static Window *get();
+  Window(WindowID &id, std::string &title, int &width, int &height,
+         bool headless);
+  ~Window();
 
-  void open(std::string &title, int width, int height, bool offscreen = false);
+  static Ref<Window> create(WindowID &id, std::string &title, int &width,
+                            int &height, bool headless);
 
-  int get_width();
-  int get_height();
-  std::string get_title();
+  void start();
+
+  WindowID id() const noexcept { return m_id; }
+  int height() const noexcept { return m_height; }
+  int width() const noexcept { return m_width; }
+  GLFWwindow *value() const noexcept { return m_value; }
+  std::string title() const noexcept { return m_title; }
 
   void update();
   void swap();
 
-  static GLFWwindow *get_value();
-
+  GLFWwindow *value();
   bool is_open();
   void close();
 
-  void destroy_key(int key);
-
-protected:
-  Window();
+  Ref<input::Mouse> const mouse() const { return m_mouse; }
+  Ref<input::Keyboard> const keyboard() const { return m_keyboard; }
 
 private:
   static void resizing(GLFWwindow *window, int width, int height);
@@ -38,17 +46,19 @@ private:
   static void mouse_callback(GLFWwindow *window, double xpos, double ypos);
   static void key_callback(GLFWwindow *window, int key, int scancode,
                            int action, int mods);
-  static void toggle_view_mouse(KeyReleasedEvent *event);
+  static void toggle_view_mouse(input::KeyReleasedEvent *event);
 
   GLFWwindow *m_value;
-  static Window *m_instance;
 
   int m_height = 0;
   int m_width = 0;
   std::string m_title;
-  bool m_offscreen;
-};
 
-#define WINDOW_WIDTH() Window::get()->get_width()
-#define WINDOW_HEIGHT() Window::get()->get_height()
+  WindowID m_id;
+
+  Ref<input::Keyboard> m_keyboard;
+  Ref<input::Mouse> m_mouse;
+
+  bool m_headless = false;
+};
 } // namespace astralix

@@ -1,15 +1,11 @@
 #include "application.hpp"
-#include "arena.hpp"
 #include "engine.hpp"
 #include "event-dispatcher.hpp"
 #include "event-scheduler.hpp"
-#include "framebuffer.hpp"
-#include "log.hpp"
 #include "managers/project-manager.hpp"
 #include "managers/system-manager.hpp"
+#include "managers/window-manager.hpp"
 #include "time.hpp"
-#include "trace.hpp"
-#include "window.hpp"
 
 namespace astralix {
 Application *Application::m_instance = nullptr;
@@ -20,43 +16,36 @@ Application *Application::init() {
   EventDispatcher::init();
   EventScheduler::init();
   Time::init();
-  SystemManager::init();
+  ProjectManager::init();
   Engine::init();
-  Window::init();
+  SystemManager::init();
+  WindowManager::init();
 
   return m_instance;
 }
 
-#define SIZE 1920 * 1080 * 4;
-
 void Application::start() {
-  auto project_config =
-      ProjectManager::get()->get_active_project()->get_config();
-
-  for (auto window : project_config.windows) {
-    Window::get()->open(window.title, window.width, window.height);
-  }
-
+  WindowManager::get()->start();
   Engine::get()->start();
   SystemManager::get()->start();
 }
 
 void Application::run() {
-  Window *window = Window::get();
+  auto wm = WindowManager::get();
   Engine *engine = Engine::get();
   auto system = SystemManager::get();
   Time *time = Time::get();
 
   auto scheduler = EventScheduler::get();
 
-  while (window->is_open()) {
+  while (wm->is_open()) {
     time->update();
-    window->update();
+    wm->update();
     scheduler->bind(SchedulerType::POST_FRAME);
     system->fixed_update(1 / 60.0f);
     system->update(Time::get()->get_deltatime());
     scheduler->bind(SchedulerType::IMMEDIATE);
-    window->swap();
+    wm->swap();
   }
 
   delete m_instance;
@@ -67,7 +56,7 @@ void Application::end() { delete m_instance; }
 Application::~Application() {
   Engine::get()->end();
   Time::get()->end();
-  Window::get()->close();
+  WindowManager::get()->end();
 }
 
 } // namespace astralix
