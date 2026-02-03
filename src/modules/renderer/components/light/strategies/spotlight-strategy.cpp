@@ -17,7 +17,7 @@ void SpotLightStrategy::update(IEntity *source, Object *object,
   auto camera_transform = camera->get_component<TransformComponent>();
   auto camera_component = camera->get_component<CameraComponent>();
 
-  auto shader = resource->get_shader();
+  auto shader = resource->shader();
 
   shader->set_vec3("spot_light.position", camera_transform->position);
   shader->set_vec3("spot_light.direction", camera_component->front);

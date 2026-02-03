@@ -1,22 +1,20 @@
 #pragma once
-#include "assimp/scene.h"
 #include "components/component.hpp"
-#include "filesystem"
-#include "resources/model.hpp"
+#include "guid.hpp"
 #include "vector"
 
 namespace astralix {
 
-  class ModelComponent : public Component<ModelComponent>
-  {
-  public:
-    ModelComponent(COMPONENT_INIT_PARAMS);
+class ModelComponent : public Component<ModelComponent> {
+public:
+  ModelComponent(COMPONENT_INIT_PARAMS);
 
-    Model* attach_model(ResourceID id);
-    std::vector<Model*> attach_models(std::initializer_list<ResourceID> ids);
+  void attach_model(ResourceDescriptorID id);
 
-  private:
-    std::vector<ResourceID> m_models;
-  };
+  void attach_models(std::initializer_list<ResourceDescriptorID> ids);
+
+private:
+  std::vector<ResourceDescriptorID> m_models;
+};
 
 } // namespace astralix

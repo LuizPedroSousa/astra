@@ -92,7 +92,7 @@ void DirectionalStrategy::update(IEntity *source, Object *object,
   auto resource = object->get_component<ResourceComponent>();
   auto transform = source->get_component<TransformComponent>();
 
-  auto shader = resource->get_shader();
+  auto shader = resource->shader();
 
   glm::mat4 lightProjection, lightView;
   glm::mat4 lightSpaceMatrix;

@@ -3,44 +3,35 @@
 #include "components/mesh/mesh-component.hpp"
 #include "components/model/model-component.hpp"
 #include "components/model/serializers/model-component-serializer.hpp"
-#include "entities/object.hpp"
+#include "guid.hpp"
 #include "managers/resource-manager.hpp"
 
 namespace astralix {
 
-  ModelComponent::ModelComponent(COMPONENT_INIT_PARAMS)
+ModelComponent::ModelComponent(COMPONENT_INIT_PARAMS)
     : COMPONENT_INIT(ModelComponent, "model", true,
-      create_ref<ModelComponentSerializer>(this)) {
-  }
+                     create_ref<ModelComponentSerializer>(this)) {}
 
-  Model* ModelComponent::attach_model(ResourceID id) {
-    auto resource_manager = ResourceManager::get();
+void ModelComponent::attach_model(ResourceDescriptorID id) {
+  auto resource_manager = ResourceManager::get();
 
-    auto model = resource_manager->get_model_by_id(id);
+  auto model = resource_manager->get_by_descriptor_id<Model>(id);
 
-    auto owner = get_owner();
+  auto owner = get_owner();
 
-    owner->get_or_add_component<MeshComponent>()->attach_meshes(model->meshes);
+  owner->get_or_add_component<MeshComponent>()->attach_meshes(model->meshes);
 
-    owner->get_or_add_component<MaterialComponent>()->attach_materials(
+  owner->get_or_add_component<MaterialComponent>()->attach_materials(
       model->materials);
 
-    m_models.push_back(id);
+  m_models.push_back(id);
+};
 
-    return model;
-  };
-
-  std::vector<Model*>
-    ModelComponent::attach_models(std::initializer_list<ResourceID> ids) {
-
-    std::vector<Model*> models;
-
-    for (auto& id : ids) {
-      auto model = attach_model(id);
-      models.push_back(model);
-    }
-
-    return models;
-  };
+void ModelComponent::attach_models(
+    std::initializer_list<ResourceDescriptorID> ids) {
+  for (auto &id : ids) {
+    attach_model(id);
+  }
+};
 
 } // namespace astralix

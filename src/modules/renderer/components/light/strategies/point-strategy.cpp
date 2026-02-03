@@ -19,7 +19,7 @@ void PointStrategy::update(IEntity *source, Object *object, EntityID &camera_id,
   auto resource = object->get_component<ResourceComponent>();
   auto transform = source->get_component<TransformComponent>();
 
-  auto shader = resource->get_shader();
+  auto shader = resource->shader();
 
   shader->set_int("light_type", 1);
   shader->set_float(get_name("point_lights", "attenuation.constant", index),
