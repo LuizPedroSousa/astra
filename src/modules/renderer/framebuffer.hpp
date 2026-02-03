@@ -5,6 +5,8 @@
 
 namespace astralix {
 
+enum class RendererBackend;
+
 enum class FramebufferTextureFormat {
   None = 0,
 
@@ -68,7 +70,8 @@ public:
 
   virtual const FramebufferSpecification &get_specification() const = 0;
 
-  static Ref<Framebuffer> create(const FramebufferSpecification &spec);
+  static Ref<Framebuffer> create(RendererBackend backend,
+                                 const FramebufferSpecification &spec);
 };
 
 } // namespace astralix

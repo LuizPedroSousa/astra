@@ -6,6 +6,8 @@
 
 namespace astralix {
 
+enum class RendererBackend;
+
 class VertexArray {
 public:
   virtual ~VertexArray() = default;
@@ -19,7 +21,7 @@ public:
   virtual const std::vector<Ref<VertexBuffer>> &get_vertex_buffers() const = 0;
   virtual const Ref<IndexBuffer> &get_index_buffer() const = 0;
 
-  static Ref<VertexArray> create();
+  static Ref<VertexArray> create(RendererBackend backend);
 };
 
 } // namespace astralix

@@ -2,12 +2,14 @@
 
 #include "engine.hpp"
 #include "platform/OpenGL/opengl-storage-buffer.hpp"
+#include "renderer-api.hpp"
 
 namespace astralix {
 
-Ref<StorageBuffer> StorageBuffer::create(uint32_t size) {
+Ref<StorageBuffer> StorageBuffer::create(RendererBackend backend,
+                                         uint32_t size) {
   return create_renderer_component_ref<StorageBuffer, OpenGLStorageBuffer>(
-      Engine::get()->renderer_api->get_api(), size);
+      backend, size);
 }
 
 } // namespace astralix

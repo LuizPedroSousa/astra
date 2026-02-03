@@ -4,7 +4,7 @@ namespace astralix {
 
 class OpenGLRendererAPI : public RendererAPI {
 public:
-  OpenGLRendererAPI() { m_api = API::OpenGL; }
+  OpenGLRendererAPI() { m_backend = RendererBackend::OpenGL; }
 
   void init() override;
   void set_viewport(uint32_t x, uint32_t y, uint32_t width,

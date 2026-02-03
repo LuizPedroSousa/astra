@@ -1,7 +1,10 @@
 #pragma once
 
 #include "base.hpp"
+
 namespace astralix {
+
+enum class RendererBackend;
 
 class IndexBuffer {
 public:
@@ -14,7 +17,8 @@ public:
 
   virtual void set_data(const void *data, uint32_t size) const = 0;
 
-  static Ref<IndexBuffer> create(u_int32_t *indices, u_int32_t count);
+  static Ref<IndexBuffer> create(RendererBackend backend, u_int32_t *indices,
+                                 u_int32_t count);
 };
 
 } // namespace astralix

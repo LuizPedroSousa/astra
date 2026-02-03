@@ -1,18 +1,19 @@
 #include "vertex-buffer.hpp"
-#include "engine.hpp"
 #include "platform/OpenGL/opengl-vertex-buffer.hpp"
+#include "renderer-api.hpp"
 
 namespace astralix {
 
-Ref<VertexBuffer> VertexBuffer::create(uint32_t size) {
+Ref<VertexBuffer> VertexBuffer::create(RendererBackend backend, uint32_t size) {
   return create_renderer_component_ref<VertexBuffer, OpenGLVertexBuffer>(
-      Engine::get()->renderer_api->get_api(), size);
+      backend, size);
 };
 
-Ref<VertexBuffer> VertexBuffer::create(const void *vertices, uint32_t size,
+Ref<VertexBuffer> VertexBuffer::create(RendererBackend backend,
+                                       const void *vertices, uint32_t size,
                                        DrawType draw_type) {
   return create_renderer_component_ref<VertexBuffer, OpenGLVertexBuffer>(
-      Engine::get()->renderer_api->get_api(), vertices, size, draw_type);
+      backend, vertices, size, draw_type);
 };
 
 } // namespace astralix
