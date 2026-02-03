@@ -6,23 +6,25 @@
 #include "fstream"
 #include "iostream"
 #include "managers/path-manager.hpp"
+#include "resources/shader.hpp"
 #include "sstream"
 #include <cstring>
 
 namespace astralix {
 
-OpenGLShader::OpenGLShader(const ResourceID &resource_id,
-                           Ref<Path> fragment_path, Ref<Path> vertex_path,
-                           Ref<Path> geometry_path)
-    : Shader(resource_id) {
+OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
+                           Ref<ShaderDescriptor> descriptor)
+    : Shader(resource_id, descriptor->id) {
   m_renderer_id = glCreateProgram();
 
-  m_vertex_id = compile(vertex_path, GL_VERTEX_SHADER);
-  m_fragment_id = compile(fragment_path, GL_FRAGMENT_SHADER);
+  m_vertex_id = compile(descriptor->vertex_path, GL_VERTEX_SHADER);
+  m_fragment_id = compile(descriptor->fragment_path, GL_FRAGMENT_SHADER);
 
-  if (geometry_path != nullptr) {
-    m_geometry_id = compile(geometry_path, GL_GEOMETRY_SHADER);
+  if (descriptor->geometry_path != nullptr) {
+    m_geometry_id = compile(descriptor->geometry_path, GL_GEOMETRY_SHADER);
   }
+
+  attach();
 }
 
 OpenGLShader::~OpenGLShader() { glDeleteProgram(m_renderer_id); }

@@ -4,14 +4,14 @@
 
 namespace astralix {
 
-OpenGLTexture3D::OpenGLTexture3D(const ResourceID &resource_id,
-                                 const std::vector<Ref<Path>> &face_paths)
-    : Texture3D(resource_id), m_face_paths(face_paths) {
+OpenGLTexture3D::OpenGLTexture3D(const ResourceHandle &resource_id,
+                                 Ref<Texture3DDescriptor> descriptor)
+    : Texture3D(resource_id) {
   glGenTextures(1, &m_renderer_id);
   bind();
 
-  for (u_int i = 0; i < face_paths.size(); i++) {
-    auto image = this->load_image(face_paths[i], false);
+  for (u_int i = 0; i < descriptor->face_paths.size(); i++) {
+    auto image = this->load_image(descriptor->face_paths[i], false);
     m_width += image.width;
     m_height += image.height;
 

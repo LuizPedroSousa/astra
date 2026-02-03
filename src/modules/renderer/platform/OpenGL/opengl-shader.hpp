@@ -6,8 +6,7 @@ namespace astralix {
 
 class OpenGLShader : public Shader {
 public:
-  OpenGLShader(const ResourceID &resource_id, Ref<Path> fragment_path,
-               Ref<Path> vertex_path, Ref<Path> geometry_path = nullptr);
+  OpenGLShader(const ResourceHandle &id, Ref<ShaderDescriptor> descriptor);
 
   ~OpenGLShader();
 
@@ -20,7 +19,7 @@ public:
   void set_matrix(const std::string &name, glm::mat4 matrix) const override;
   void set_float(const std::string &name, float value) const override;
   void set_vec3(const std::string &name, glm::vec3 value) const override;
-  uint32_t get_id() const override { return m_renderer_id; };
+  uint32_t renderer_id() const override { return m_renderer_id; };
 
 private:
   uint32_t compile(Ref<Path> path, uint32_t type);

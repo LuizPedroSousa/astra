@@ -4,32 +4,32 @@
 
 namespace astralix {
 
-OpenGLTexture2D::OpenGLTexture2D(const ResourceID &resource_id,
-                                 TextureConfig config)
-    : Texture2D(resource_id), m_width(config.width), m_height(config.height),
-      m_format(formatToGl(config.format)), m_buffer(config.buffer) {
+OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id,
+                                 Ref<Texture2DDescriptor> descriptor)
+    : Texture2D(resource_id), m_format(formatToGl(descriptor->format)),
+      m_parameters(descriptor->parameters) {
 
-  if (config.load_image) {
-    auto image = load_image(config.load_image->path,
-                            config.load_image->flip_image_on_loading);
+  if (descriptor->image_load.has_value()) {
+    auto image_load = descriptor->image_load;
+    auto image =
+        load_image(image_load->path, image_load->flip_image_on_loading);
 
     m_format = get_image_format(image.nr_channels);
 
-    for (const auto &[param, value] : config.parameters) {
-
+    for (const auto &[param, value] : m_parameters) {
       if (param == TextureParameter::WrapS ||
           param == TextureParameter::WrapT) {
 
         if (m_format == 4) {
-          config.parameters[param] = TextureValue::Repeat;
+          m_parameters[param] = TextureValue::Repeat;
         } else {
-          config.parameters[param] = TextureValue::ClampToEdge;
+          m_parameters[param] = TextureValue::ClampToEdge;
         }
       }
     }
 
-    this->m_width = image.width;
-    this->m_height = image.height;
+    m_width = image.width;
+    m_height = image.height;
 
     m_buffer = image.data;
   }
@@ -38,11 +38,11 @@ OpenGLTexture2D::OpenGLTexture2D(const ResourceID &resource_id,
 
   bind();
 
-  if (config.bitmap) {
+  if (descriptor->bitmap) {
     glGenerateMipmap(GL_TEXTURE_2D);
   }
 
-  for (const auto &[param, value] : config.parameters) {
+  for (const auto &[param, value] : m_parameters) {
     glTexParameteri(GL_TEXTURE_2D, textureParameterToGL(param),
                     textureParameterValueToGL(value));
   }
@@ -50,7 +50,7 @@ OpenGLTexture2D::OpenGLTexture2D(const ResourceID &resource_id,
   glTexImage2D(GL_TEXTURE_2D, 0, m_format, m_width, m_height, 0, m_format,
                GL_UNSIGNED_BYTE, m_buffer);
 
-  if (m_buffer != nullptr && config.load_image) {
+  if (m_buffer != nullptr && descriptor->image_load.has_value()) {
     free_image(m_buffer);
   }
 }
