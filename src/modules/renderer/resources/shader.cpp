@@ -1,21 +1,32 @@
 #include "shader.hpp"
-#include "assert.hpp"
-#include "engine.hpp"
-#include "filesystem"
-#include "fstream"
 #include "glad/glad.h"
-#include "iostream"
+#include "guid.hpp"
+#include "managers/resource-manager.hpp"
 #include "platform/OpenGL/opengl-shader.hpp"
-#include <cstring>
+#include "renderer-api.hpp"
 
 namespace astralix {
 
-Ref<Shader> Shader::create(const ResourceID &resource_id,
-                           Ref<Path> fragment_path, Ref<Path> vertex_path,
-                           Ref<Path> geometry_path) {
+Ref<ShaderDescriptor> Shader::create(const ResourceDescriptorID &id,
+                                     Ref<Path> fragment_path,
+                                     Ref<Path> vertex_path,
+                                     Ref<Path> geometry_path) {
+  return resource_manager()->register_shader(
+      ShaderDescriptor::create(id, fragment_path, vertex_path, geometry_path));
+}
+
+Ref<ShaderDescriptor> Shader::define(const ResourceDescriptorID &id,
+                                     Ref<Path> fragment_path,
+                                     Ref<Path> vertex_path,
+                                     Ref<Path> geometry_path) {
+  return ShaderDescriptor::create(id, fragment_path, vertex_path,
+                                  geometry_path);
+}
+
+Ref<Shader> Shader::from_descriptor(const ResourceHandle &id,
+                                    Ref<ShaderDescriptor> descriptor) {
   return create_renderer_component_ref<Shader, OpenGLShader>(
-      Engine::get()->renderer_api->get_api(), resource_id, fragment_path,
-      vertex_path, geometry_path);
+      descriptor->backend, id, descriptor);
 }
 
 } // namespace astralix

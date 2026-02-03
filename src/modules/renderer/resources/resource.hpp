@@ -1,21 +1,20 @@
 #pragma once
 #include "guid.hpp"
-#include "either.hpp"
 
 namespace astralix {
 
-#define RESOURCE_INIT_PARAMS const ResourceID &id
+#define RESOURCE_INIT_PARAMS const ResourceHandle &id
 #define RESOURCE_INIT() Resource(id)
 
-  class Resource {
-  public:
-    Resource(RESOURCE_INIT_PARAMS) { m_resource_id = id; }
-    Resource() {}
+class Resource {
+public:
+  Resource(RESOURCE_INIT_PARAMS) { m_id = id; }
+  Resource() {}
 
-    inline const ResourceID get_resource_id() { return m_resource_id; };
+  inline const ResourceHandle id() const noexcept { return m_id; };
 
-  private:
-    ResourceID m_resource_id;
-  };
+protected:
+  ResourceHandle m_id;
+};
 
 } // namespace astralix

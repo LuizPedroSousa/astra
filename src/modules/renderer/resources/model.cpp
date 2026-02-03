@@ -3,37 +3,47 @@
 #include "assert.hpp"
 #include "assimp/Importer.hpp"
 #include "assimp/postprocess.h"
-#include "engine.hpp"
-#include "managers/project-manager.hpp"
+#include "guid.hpp"
+#include "managers/path-manager.hpp"
 #include "managers/resource-manager.hpp"
+#include "resources/descriptors/model-descriptor.hpp"
 #include <filesystem>
 #include <optional>
 
 namespace astralix {
 
-Ref<Model> Model::create(ResourceID id, const char *path) {
+Ref<ModelDescriptor> Model::create(const ResourceDescriptorID &id,
+                                   Ref<Path> path) {
+
+  auto full_path = path_manager()->resolve(path);
+
+  return resource_manager()->register_model(ModelDescriptor::create(id, path));
+};
+
+Ref<Model> Model::from_descriptor(const ResourceHandle &id,
+                                  Ref<ModelDescriptor> descriptor) {
   Assimp::Importer importer;
 
-  auto full_path = get_path(path);
+  auto full_path = path_manager()->resolve(descriptor->path);
 
   const aiScene *scene =
       importer.ReadFile(full_path, aiProcess_Triangulate | aiProcess_FlipUVs |
                                        aiProcess_GenNormals);
 
   ASTRA_ENSURE(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE,
-                  importer.GetErrorString());
+               importer.GetErrorString());
 
   std::vector<Mesh> meshes;
-  std::vector<ResourceID> materials;
+  std::vector<ResourceDescriptorID> materials;
 
   process_nodes(scene->mRootNode, scene, meshes, materials, full_path);
 
-  return create_ref<Model>(id, full_path.c_str(), meshes, materials);
+  return create_ref<Model>(id, meshes, materials);
 };
 
 void Model::process_nodes(const aiNode *current_node, const aiScene *scene,
                           std::vector<Mesh> &meshes,
-                          std::vector<ResourceID> &materials,
+                          std::vector<ResourceDescriptorID> &materials,
                           std::filesystem::path path) {
   for (u_int i = 0; i < current_node->mNumMeshes; i++) {
     aiMesh *mesh = scene->mMeshes[current_node->mMeshes[i]];
@@ -49,12 +59,11 @@ void Model::process_nodes(const aiNode *current_node, const aiScene *scene,
 }
 
 Mesh Model::process_mesh(aiMesh *node_mesh, const aiScene *scene,
-                         std::vector<ResourceID> &materials,
+                         std::vector<ResourceDescriptorID> &materials,
                          std::filesystem::path path) {
   std::vector<Vertex> vertices;
   std::vector<unsigned int> indices;
 
-  // get vertices
   for (u_int i = 0; i < node_mesh->mNumVertices; i++) {
     Vertex vertex;
 
@@ -93,9 +102,10 @@ Mesh Model::process_mesh(aiMesh *node_mesh, const aiScene *scene,
 
       std::string name = ai_material->GetName().C_Str();
 
-      std::string id = "materials::" + name;
+      ResourceDescriptorID id = "materials::" + name;
 
-      auto material_exists = resource_manager->get_material_by_id(id);
+      auto material_exists =
+          resource_manager->get_by_descriptor_id<Material>(id);
 
       if (material_exists == nullptr) {
         load_material(id, ai_material, path);
@@ -107,22 +117,21 @@ Mesh Model::process_mesh(aiMesh *node_mesh, const aiScene *scene,
 
   return Mesh(vertices, indices);
 }
-
-Ref<Material> Model::load_material(ResourceID material_id,
-                                   aiMaterial *ai_material,
-                                   std::filesystem::path path) {
+void Model::load_material(ResourceDescriptorID material_id,
+                          aiMaterial *ai_material, std::filesystem::path path) {
 
   auto manager = ResourceManager::get();
 
   auto get_texture = [&](aiTextureType type) {
-    std::vector<ResourceID> textures;
+    std::vector<ResourceDescriptorID> textures;
     for (unsigned int i = 0; i < ai_material->GetTextureCount(type); i++) {
       aiString filename_str;
       ai_material->GetTexture(type, i, &filename_str);
 
       const char *filename = filename_str.C_Str();
 
-      ResourceID texture_id = "textures::" + material_id + "::" + filename;
+      ResourceDescriptorID texture_id =
+          "textures::" + material_id + "::" + filename;
 
       auto get_name = [type]() -> std::string {
         std::string prefix = "materials[0].";
@@ -135,13 +144,11 @@ Ref<Material> Model::load_material(ResourceID material_id,
         return name;
       };
 
-      std::string texture_path =
-          std::filesystem::path(path).parent_path().append(filename);
+      std::string texture_path = path / filename;
 
-      Ref<Texture> texture_ptr = manager->load_texture(
-          Texture2D::create(texture_id, Path::create(texture_path)));
+      Texture2D::create(texture_id, Path::create(texture_path));
 
-      textures.push_back(texture_ptr->get_resource_id());
+      textures.push_back(texture_id);
     };
 
     return textures;
@@ -150,20 +157,6 @@ Ref<Material> Model::load_material(ResourceID material_id,
   auto diffuses = get_texture(aiTextureType_DIFFUSE);
   auto speculars = get_texture(aiTextureType_SPECULAR);
 
-  return manager->load_material(
-      Material::create(material_id, diffuses, speculars, std::nullopt)
-
-  );
+  Material::create(material_id, diffuses, speculars, std::nullopt);
 }
-
-std::filesystem::path Model::get_path(const char *path) {
-  auto project = ProjectManager::get()->get_active_project();
-
-  auto base_path =
-      std::filesystem::path(project->get_config().resources.directory)
-          .append(path);
-
-  return base_path;
-};
-
 } // namespace astralix

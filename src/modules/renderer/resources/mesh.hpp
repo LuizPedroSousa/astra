@@ -1,7 +1,6 @@
 #pragma once
 #include "glm/glm.hpp"
 #include "guid.hpp"
-#include "memory"
 #include "renderer-api.hpp"
 #include "vector"
 #include "vertex-array.hpp"

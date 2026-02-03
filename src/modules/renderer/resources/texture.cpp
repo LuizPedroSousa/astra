@@ -1,11 +1,13 @@
 #include "texture.hpp"
 #include "assert.hpp"
-#include "engine.hpp"
 #include "filesystem"
 #include "glad/glad.h"
+#include "guid.hpp"
 #include "managers/path-manager.hpp"
+#include "managers/resource-manager.hpp"
 #include "platform/OpenGL/opengl-texture2D.hpp"
 #include "platform/OpenGL/opengl-texture3D.hpp"
+#include "renderer-api.hpp"
 #include "stb_image/stb_image.h"
 
 namespace astralix {
@@ -43,33 +45,45 @@ Image Texture::load_image(Ref<Path> path, bool flip_image_on_loading) {
   return Image{width, height, nr_channels, data};
 };
 
-Ref<Texture2D> Texture2D::create(
-    const ResourceID &resource_id, Ref<Path> path,
+Ref<Texture2DDescriptor> Texture2D::create(
+    const ResourceDescriptorID &id, Ref<Path> path,
     const bool flip_image_on_loading,
     std::unordered_map<TextureParameter, TextureValue> parameters) {
 
-  return create_renderer_component_ref<Texture2D, OpenGLTexture2D>(
-      Engine::get()->renderer_api->get_api(), resource_id,
-      TextureConfig{
-          .load_image =
-              LoadImageConfig{
-                  .path = path,
-                  .flip_image_on_loading = flip_image_on_loading,
-              },
-          .parameters = parameters,
-      });
+  return resource_manager()->register_texture(
+      Texture2DDescriptor::create(id, path, flip_image_on_loading, parameters));
 };
 
-Ref<Texture2D> Texture2D::create(const ResourceID &resource_id,
-                                 TextureConfig config) {
-  return create_renderer_component_ref<Texture2D, OpenGLTexture2D>(
-      Engine::get()->renderer_api->get_api(), resource_id, config);
+Ref<Texture2DDescriptor>
+Texture2D::create(const ResourceDescriptorID &resource_id,
+                  TextureConfig config) {
+  return resource_manager()->register_texture(
+      Texture2DDescriptor::create(resource_id, config));
 };
 
-Ref<Texture3D> Texture3D::create(const ResourceID &resource_id,
-                                 const std::vector<Ref<Path>> &faces_path) {
+Ref<Texture2D> Texture2D::from_descriptor(const ResourceHandle &id,
+                                          Ref<Texture2DDescriptor> descriptor) {
+  return create_renderer_component_ref<Texture2D, OpenGLTexture2D>(
+      descriptor->backend, id, descriptor);
+};
+
+Ref<Texture3DDescriptor>
+Texture3D::create(const ResourceDescriptorID &id,
+                  const std::vector<Ref<Path>> &faces_path) {
+  return resource_manager()->register_texture(
+      Texture3DDescriptor::create(id, faces_path));
+};
+
+Ref<Texture3DDescriptor>
+Texture3D::define(const ResourceDescriptorID &id,
+                  const std::vector<Ref<Path>> &faces_path) {
+  return Texture3DDescriptor::create(id, faces_path);
+};
+
+Ref<Texture3D> Texture3D::from_descriptor(const ResourceHandle &id,
+                                          Ref<Texture3DDescriptor> descriptor) {
   return create_renderer_component_ref<Texture3D, OpenGLTexture3D>(
-      Engine::get()->renderer_api->get_api(), resource_id, faces_path);
+      descriptor->backend, id, descriptor);
 };
 
 } // namespace astralix
