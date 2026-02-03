@@ -3,15 +3,18 @@
 #include "assert.hpp"
 #include "base.hpp"
 #include "guid.hpp"
+#include "renderer-api.hpp"
 #include "serialization-context.hpp"
 #include "serializers/project-serializer.hpp"
+#include "targets/render-target.hpp"
+#include <glm/ext/vector_float3.hpp>
 #include <string>
 
 namespace astralix {
 
 class ProjectSerializer;
 
-#define RESOURCE_INIT_PARAMS const ResourceID &id
+#define RESOURCE_INIT_PARAMS const ResourceHandle &id
 
 struct ProjectSerializationConfig {
   SerializationFormat format;
@@ -36,15 +39,50 @@ struct ProjectResourceConfig {
 };
 
 struct WindowConfig {
+  WindowID id;
   std::string title;
+  bool headless;
   int height;
   int width;
 };
 
+enum SystemType { Physics, Render };
+
+struct PhysicsSystemConfig {
+  std::string backend;
+  glm::vec3 gravity;
+  std::string pvd_host = "127.0.0.1";
+  int pvd_port;
+  int pvd_timeout = 5;
+};
+
+struct MSAAConfig {
+  int samples;
+  bool is_enabled;
+};
+
+struct RenderSystemConfig {
+  std::string backend;
+  MSAAConfig msaa;
+  std::string window_id;
+  bool headless = false;
+
+  RendererBackend backend_to_api() {
+    if (backend == "opengl")
+      return RendererBackend::OpenGL;
+
+    return RendererBackend::None;
+  }
+
+  RenderTarget::MSAA msaa_to_render_target_msaa() {
+    return {.samples = msaa.samples, .is_enabled = msaa.is_enabled};
+  }
+};
+
 struct SystemConfig {
-  std::string title;
-  int height;
-  int width;
+  std::string name;
+  SystemType type;
+  std::variant<std::monostate, PhysicsSystemConfig, RenderSystemConfig> content;
 };
 
 struct ProjectConfig {

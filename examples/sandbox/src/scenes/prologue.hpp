@@ -27,5 +27,4 @@ private:
                         glm::vec3 scale = glm::vec3(1.0));
 
   void load_scene_components();
-  void load_resources();
 };

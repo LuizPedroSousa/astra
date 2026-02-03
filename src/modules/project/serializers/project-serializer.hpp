@@ -1,5 +1,7 @@
 #pragma once
 #include "base.hpp"
+#include "context-proxy.hpp"
+#include "path.hpp"
 #include "project.hpp"
 #include "serialization-context.hpp"
 #include "serializer.hpp"
@@ -20,6 +22,8 @@ public:
 
 private:
   Ref<Project> m_project = nullptr;
+
+  Ref<Path> parse_path(ContextProxy ctx);
 };
 
 } // namespace astralix

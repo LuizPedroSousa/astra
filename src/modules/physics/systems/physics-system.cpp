@@ -2,17 +2,13 @@
 #include "PxShape.h"
 #include "PxSimulationEventCallback.h"
 #include "assert.hpp"
-#include "components/resource/resource-component.hpp"
 #include "components/rigidbody/rigidbody-component.hpp"
 #include "components/transform/transform-component.hpp"
 #include "events/key-codes.hpp"
 #include "events/keyboard.hpp"
 #include "managers/entity-manager.hpp"
 
-#include "engine.hpp"
 #include "entities/object.hpp"
-#include "events/key-event.hpp"
-#include "iostream"
 
 #include "PxPhysics.h"
 #include "PxPhysicsAPI.h"
@@ -25,6 +21,8 @@
 #include <ctype.h>
 
 #include "foundation/PxPreprocessor.h"
+#include "managers/window-manager.hpp"
+#include "project.hpp"
 #include "utils/math.hpp"
 
 using namespace physx;
@@ -38,11 +36,14 @@ static PxScene *gScene = NULL;
 static PxMaterial *gMaterial = NULL;
 static PxPvd *gPvd = NULL;
 static bool gSimulate = false;
-#define PVD_HOST "127.0.0.1"
 
 namespace astralix {
 
-PhysicsSystem::PhysicsSystem() {};
+PhysicsSystem::PhysicsSystem(PhysicsSystemConfig &config)
+    : m_backend(config.backend), m_gravity(config.gravity),
+      m_pvd({.host = config.pvd_host,
+             .port = config.pvd_port,
+             .timeout = config.pvd_timeout}) {};
 
 void PhysicsSystem::start() {
   auto entity_manager = EntityManager::get();
@@ -53,18 +54,22 @@ void PhysicsSystem::start() {
   ASTRA_ENSURE(!gFoundation, "[PHYSICS SYSTEM] foundation failed!")
 
   gPvd = PxCreatePvd(*gFoundation);
-  PxPvdTransport *transport =
-      PxDefaultPvdSocketTransportCreate(PVD_HOST, 5425, 10);
+
+  PxPvdTransport *transport = PxDefaultPvdSocketTransportCreate(
+      m_pvd.host.c_str(), m_pvd.port, m_pvd.timeout);
   gPvd->connect(*transport, PxPvdInstrumentationFlag::eALL);
 
   gPhysics = PxCreatePhysics(PX_PHYSICS_VERSION, *gFoundation,
                              PxTolerancesScale(), true, gPvd);
 
   PxSceneDesc sceneDesc(gPhysics->getTolerancesScale());
-  sceneDesc.gravity = PxVec3(0.0f, -9.81f, 0.0f);
+  sceneDesc.gravity = PxVec3(m_gravity.x, m_gravity.y, m_gravity.z);
+
   gDispatcher = PxDefaultCpuDispatcherCreate(2);
+
   sceneDesc.cpuDispatcher = gDispatcher;
   sceneDesc.filterShader = PxDefaultSimulationFilterShader;
+
   gScene = gPhysics->createScene(sceneDesc);
 
   PxPvdSceneClient *pvdClient = gScene->getScenePvdClient();
@@ -164,7 +169,7 @@ void PhysicsSystem::pre_update(double dt) {
 };
 
 void PhysicsSystem::update(double dt) {
-  if (IS_KEY_RELEASED(KeyCode::F4)) {
+  if (IS_KEY_RELEASED(input::KeyCode::F4)) {
     gSimulate = !gSimulate;
   }
 

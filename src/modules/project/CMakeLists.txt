@@ -12,4 +12,4 @@ target_include_directories(project
     $<INSTALL_INTERFACE:include/astralix/modules/project>
 )
 
-target_link_libraries(project shared::foundation streams)
+target_link_libraries(project shared::foundation streams renderer)

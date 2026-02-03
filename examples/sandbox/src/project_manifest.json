@@ -1,17 +1,174 @@
 {
-  "name": "Sandbox",
-  "resources": {
-    "directory": "assets"
+  "project": {
+    "name": "Sandbox",
+    "resources": {
+      "directory": "assets"
+    },
+    "serialization": {
+      "format": "json"
+    }
   },
   "windows": [
     {
-      "name": "main",
+      "id": "main",
       "title": "sandbox",
       "width": 1920,
-      "height": 1080
+      "height": 1080,
+      "headless": false
     }
   ],
-  "serialization": {
-    "format": "json"
-  }
+  "resources": [
+    {
+      "id": "fonts::roboto",
+      "type": "Font",
+      "path": "fonts/roboto.ttf"
+    },
+    {
+      "id": "cubemaps::skybox",
+      "type": "Texture3D",
+      "faces": [
+        "textures/skybox/right.jpg",
+        "textures/skybox/left.jpg",
+        "textures/skybox/top.jpg",
+        "textures/skybox/bottom.jpg",
+        "textures/skybox/front.jpg",
+        "textures/skybox/back.jpg"
+      ]
+    },
+    {
+      "id": "textures::wood::diffuse",
+      "type": "Texture2D",
+      "path": "textures/wood.png",
+      "flip": false,
+      "parameters": [
+        {
+          "key": "wrap_s",
+          "value": "linear"
+        },
+        {
+          "key": "wrap_t",
+          "value": "linear"
+        },
+        {
+          "key": "mag_filter",
+          "value": "linear_mip_map"
+        },
+        {
+          "key": "min_filter",
+          "value": "linear"
+        }
+      ]
+    },
+    {
+      "id": "textures::wood::normal",
+      "type": "Texture2D",
+      "path": "textures/wood_normal.png",
+      "flip": false,
+      "parameters": [
+        {
+          "key": "wrap_s",
+          "value": "linear"
+        },
+        {
+          "key": "wrap_t",
+          "value": "linear"
+        },
+        {
+          "key": "mag_filter",
+          "value": "linear_mip_map"
+        },
+        {
+          "key": "min_filter",
+          "value": "linear"
+        }
+      ]
+    },
+    {
+      "id": "textures::wood::displacement",
+      "type": "Texture2D",
+      "path": "textures/wood_displacement.png",
+      "flip": false,
+      "parameters": [
+        {
+          "key": "wrap_s",
+          "value": "linear"
+        },
+        {
+          "key": "wrap_t",
+          "value": "linear"
+        },
+        {
+          "key": "mag_filter",
+          "value": "linear_mip_map"
+        },
+        {
+          "key": "min_filter",
+          "value": "linear"
+        }
+      ]
+    },
+    {
+      "id": "materials::wood",
+      "type": "Material",
+      "textures": {
+        "diffuse": [
+          "textures::wood::diffuse"
+        ],
+        "specular": [],
+        "normal": "textures::wood::normal",
+        "displacement": "textures::wood::displacement"
+      }
+    },
+    {
+      "id": "shaders::post_processing",
+      "type": "Shader",
+      "vertex": "@engine/shaders/vertex/postprocessing.glsl",
+      "fragment": "@engine/shaders/fragment/postprocessing.glsl"
+    },
+    {
+      "id": "shaders::lighting",
+      "type": "Shader",
+      "vertex": "@engine/shaders/vertex/light.glsl",
+      "fragment": "@engine/shaders/fragment/light.glsl"
+    },
+    {
+      "id": "shaders::skybox",
+      "type": "Shader",
+      "vertex": "@engine/shaders/vertex/skybox.glsl",
+      "fragment": "@engine/shaders/fragment/skybox.glsl"
+    },
+    {
+      "id": "shaders::glyph",
+      "type": "Shader",
+      "vertex": "@engine/shaders/vertex/glyph.glsl",
+      "fragment": "@engine/shaders/fragment/glyph.glsl"
+    }
+  ],
+  "systems": [
+    {
+      "name": "physics",
+      "content": {
+        "backend": "physx",
+        "pvd": {
+          "host": "127.0.0.1",
+          "port": 5425,
+          "timeout": 10
+        },
+        "scene": {
+          "gravity": {
+            "x": 0.8,
+            "z": -9.81,
+            "y": 0.0
+          }
+        }
+      }
+    },
+    {
+      "name": "render",
+      "content": {
+        "backend": "opengl",
+        "window": "main"
+      }
+    }
+  ]
 }

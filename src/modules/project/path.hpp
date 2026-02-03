@@ -6,7 +6,7 @@
 
 namespace astralix {
 
-#define RESOURCE_INIT_PARAMS const ResourceID &id
+#define RESOURCE_INIT_PARAMS const ResourceHandle &id
 
 enum class BaseDirectory : uint8_t { Unknown = 0, Engine = 1, Project = 2 };
 

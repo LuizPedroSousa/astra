@@ -1,11 +1,12 @@
 #include "project.hpp"
 
 #include "adapters/file/file-stream-reader.hpp"
-#include "adapters/file/file-stream-writer.hpp"
 #include "arena.hpp"
 #include "assert.hpp"
 #include "guid.hpp"
 #include "log.hpp"
+#include "managers/path-manager.hpp"
+#include "managers/resource-manager.hpp"
 #include "serialization-context.hpp"
 #include <filesystem>
 
@@ -15,12 +16,16 @@ Project::Project(ProjectConfig config)
     : m_config(config), m_project_id(ProjectID()) {}
 
 Ref<Project> Project::create(ProjectConfig config) {
+
   auto project = create_ref<Project>(config);
 
   ASTRA_ENSURE(config.directory.empty(), "Project path must be defined");
 
   project->m_serializer = create_scope<ProjectSerializer>(
       project, SerializationContext::create(config.serialization.format));
+
+  ResourceManager::init();
+  PathManager::init();
 
   auto manifest_path =
       std::filesystem::path(config.directory) / config.manifest;

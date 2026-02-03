@@ -2,27 +2,24 @@
 
 #include "astralix/modules/physics/components/mesh-collision/mesh-collision-component.hpp"
 #include "astralix/modules/physics/components/rigidbody/rigidbody-component.hpp"
-#include "astralix/modules/project/path.hpp"
 #include "astralix/modules/renderer/components/light/light-component.hpp"
 #include "astralix/modules/renderer/components/light/strategies/directional-strategy.hpp"
 #include "astralix/modules/renderer/components/material/material-component.hpp"
 #include "astralix/modules/renderer/components/mesh/mesh-component.hpp"
 #include "astralix/modules/renderer/components/resource/resource-component.hpp"
-#include "astralix/modules/renderer/components/transform/transform-component.hpp"
-#include "astralix/modules/renderer/entities/camera.hpp"
+#include "astralix/modules/renderer/components/transform/transform-component.hpp" #include "astralix/modules/renderer/entities/camera.hpp"
 #include "astralix/modules/renderer/entities/object.hpp"
 #include "astralix/modules/renderer/entities/serializers/scene-serializer.hpp"
 #include "astralix/modules/renderer/entities/skybox.hpp"
 #include "astralix/modules/renderer/entities/text.hpp"
-#include "astralix/modules/window/events/key-codes.hpp"
-#include "astralix/modules/window/events/keyboard.hpp"
+#include "astralix/modules/window/managers/window-manager.hpp"
+
 #include "base.hpp"
 #include "glad/glad.h"
 #include "glm/fwd.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
 #include "omp.h"
-#include "resources/material.hpp"
+#include <entities/camera.hpp>
 #include <glm/gtx/string_cast.hpp>
 
 Prologue::Prologue() : Scene("prologue") {}
@@ -33,82 +30,6 @@ Prologue::Prologue() : Scene("prologue") {}
   var->get_component<ResourceComponent>()->set_shader("shaders::lighting");    \
   var->get_or_add_component<MaterialComponent>()->attach_material(             \
       "materials::wood")
-
-void Prologue::load_resources() {
-  auto manager = ResourceManager::get();
-
-  manager->load_textures(
-      {Texture3D::create("cubemaps::skybox",
-                         {
-                             "textures/skybox/right.jpg"_project,
-                             "textures/skybox/left.jpg"_project,
-                             "textures/skybox/top.jpg"_project,
-                             "textures/skybox/bottom.jpg"_project,
-                             "textures/skybox/front.jpg"_project,
-                             "textures/skybox/back.jpg"_project,
-                         }),
-
-       Texture2D::create(
-           "textures::wood::diffuse", "textures/wood.png"_project, false,
-
-           {//
-            {TextureParameter::WrapS, TextureValue::Linear},
-            {TextureParameter::WrapT, TextureValue::Linear},
-
-            {TextureParameter::MagFilter, TextureValue::LinearMipMap},
-            {TextureParameter::MinFilter, TextureValue::Linear}
-
-           }
-
-           //
-           ),
-
-       Texture2D::create(
-           "textures::wood::normal", "textures/wood_normal.png"_project, false,
-
-           {//
-            {TextureParameter::WrapS, TextureValue::Linear},
-            {TextureParameter::WrapT, TextureValue::Linear},
-            {TextureParameter::MagFilter, TextureValue::LinearMipMap},
-            {TextureParameter::MinFilter, TextureValue::Linear}
-
-           }
-
-           ),
-       Texture2D::create(
-           "textures::wood::displacement",
-           "textures/wood_displacement.png"_project, false,
-
-           {//
-            {TextureParameter::WrapS, TextureValue::Linear},
-            {TextureParameter::WrapT, TextureValue::Linear},
-            {TextureParameter::MagFilter, TextureValue::LinearMipMap},
-            {TextureParameter::MinFilter, TextureValue::Linear}
-
-           })
-
-      });
-
-  manager->load_materials({Material::create(
-      "materials::wood", {"textures::wood::diffuse"}, {},
-      "textures::wood::normal", "textures::wood::displacement")});
-
-  manager->load_shaders(
-      {Shader::create("shaders::post_processing ",
-                      "shaders/fragment/postprocessing.glsl"_engine,
-
-                      "shaders/vertex/postprocessing.glsl"_engine),
-       Shader::create("shaders::lighting", "shaders/fragment/light.glsl"_engine,
-                      "shaders/vertex/light.glsl"_engine),
-       Shader::create("shaders::skybox", "shaders/fragment/skybox.glsl"_engine,
-                      "shaders/vertex/skybox.glsl"_engine),
-       Shader::create("shaders::glyph", "shaders/fragment/glyph.glsl"_engine,
-                      "shaders/vertex/glyph.glsl"_engine)
-
-      }
-
-  );
-}
 
 static std::vector<Tile> tiles;
 
@@ -191,12 +112,11 @@ void Prologue::load_scene_components() {
                    glm::vec3(0.025f));
 }
 
-void Prologue::start() {
-  load_resources();
-  load_scene_components();
-}
+void Prologue::start() { load_scene_components(); }
 
 void Prologue::update() {
+  using namespace astralix::input;
+
   if (IS_KEY_DOWN(KeyCode::F5)) {
     for (auto tile : tiles) {
       auto transform = tile.object->get_component<TransformComponent>();
