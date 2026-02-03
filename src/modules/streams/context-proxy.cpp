@@ -21,6 +21,10 @@ void ContextProxy::operator=(Ref<SerializationContext> ctx) {
 
 size_t ContextProxy::size() { return m_serialization_ctx->size(); };
 
+SerializationTypeKind ContextProxy::kind() {
+  return m_serialization_ctx->kind();
+};
+
 template <typename T> T ContextProxy::as() {
   if constexpr (std::is_same_v<T, std::string>) {
     return m_serialization_ctx->as_string();
@@ -30,6 +34,8 @@ template <typename T> T ContextProxy::as() {
     return m_serialization_ctx->as_float();
   } else if constexpr (std::is_same_v<T, bool>) {
     return m_serialization_ctx->as_bool();
+  } else if constexpr (std::is_same_v<T, std::vector<std::any>>) {
+    return m_serialization_ctx->as_array();
   }
 }
 

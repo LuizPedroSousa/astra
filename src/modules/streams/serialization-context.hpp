@@ -11,6 +11,16 @@ namespace astralix {
 
 enum SerializationFormat { Json };
 
+enum class SerializationTypeKind {
+  Unknown = 0,
+  String = 1,
+  Int = 2,
+  Float = 3,
+  Bool = 4,
+  Array = 5,
+  Object = 6,
+};
+
 class SerializationContext {
 public:
   virtual ~SerializationContext() = default;
@@ -32,6 +42,16 @@ public:
   virtual int as_int() = 0;
   virtual float as_float() = 0;
   virtual bool as_bool() = 0;
+  virtual std::vector<std::any> as_array() = 0;
+
+  virtual bool is_string() = 0;
+  virtual bool is_int() = 0;
+  virtual bool is_float() = 0;
+  virtual bool is_bool() = 0;
+  virtual bool is_array() = 0;
+  virtual bool is_object() = 0;
+
+  virtual SerializationTypeKind kind() = 0;
 
   static Ref<SerializationContext> create(SerializationFormat format);
   static Ref<SerializationContext> create(SerializationFormat format,

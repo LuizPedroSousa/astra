@@ -8,6 +8,7 @@ namespace astralix {
 
 class SerializationContext;
 class DeserializationContext;
+enum class SerializationTypeKind;
 
 class ContextProxy {
 
@@ -21,6 +22,8 @@ public:
   void operator=(Ref<SerializationContext> ctx);
 
   template <typename T> T as();
+
+  SerializationTypeKind kind();
 
   size_t size();
 
