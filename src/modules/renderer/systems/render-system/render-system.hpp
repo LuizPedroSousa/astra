@@ -2,6 +2,7 @@
 
 #include "project.hpp"
 #include "systems/system.hpp"
+#include "systems/render-system/passes/render-graph.hpp"
 
 namespace astralix {
 class RenderSystem : public System<RenderSystem> {
@@ -16,8 +17,8 @@ public:
 
 private:
   Ref<RenderTarget> m_render_target;
-
   RenderSystemConfig m_config;
+  Scope<RenderGraph> m_render_graph;
 };
 
 } // namespace astralix
