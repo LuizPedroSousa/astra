@@ -52,6 +52,9 @@ private:
   ElasticArena m_resource_allocator;
 
   friend class RenderGraphBuilder;
+  friend class GraphvizExporter;
+  friend class MermaidExporter;
+  friend class AsciiExporter;
 };
 
 } // namespace astralix
