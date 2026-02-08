@@ -32,7 +32,6 @@ Ref<Project> Project::create(ProjectConfig config) {
 
   if (std::filesystem::exists(manifest_path)) {
     auto stream = FileStreamReader(manifest_path);
-    LOG_DEBUG(manifest_path);
     stream.read();
 
     project->m_serializer->get_ctx()->from_buffer(stream.get_buffer());

@@ -3,6 +3,7 @@
 
 #include "components/camera/serializers/camera-component-serializer.hpp"
 #include "event-dispatcher.hpp"
+#include "framebuffer.hpp"
 
 namespace astralix {
 
@@ -19,11 +20,11 @@ void CameraComponent::use_orthographic() { m_is_orthographic = true; }
 void CameraComponent::use_perspective() { m_is_orthographic = false; }
 
 void CameraComponent::recalculate_projection_matrix(
-    Ref<RenderTarget> render_target) {
+    Framebuffer *target_framebuffer) {
   if (m_is_orthographic) {
     m_projection_matrix = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f);
   } else {
-    const auto &spec = render_target->framebuffer()->get_specification();
+    const auto &spec = target_framebuffer->get_specification();
 
     m_projection_matrix = glm::perspective(
         45.0f, (float)spec.width / (float)spec.height, 0.1f, 100.0f);
@@ -42,9 +43,9 @@ void CameraComponent::recalculate_view_matrix() {
 }
 
 void CameraComponent::update(Ref<Shader> &shader,
-                             Ref<RenderTarget> render_target) {
+                             Framebuffer *target_framebuffer) {
   recalculate_view_matrix();
-  recalculate_projection_matrix(render_target);
+  recalculate_projection_matrix(target_framebuffer);
 
   auto transform = get_owner()->get_component<TransformComponent>();
 

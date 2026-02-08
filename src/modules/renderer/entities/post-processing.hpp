@@ -17,7 +17,6 @@ public:
   void on_enable() override {};
   void on_disable() override {};
 
-private:
-  ResourceDescriptorID m_shader_descriptor_id;
+  ResourceDescriptorID shader_descriptor_id;
 };
 } // namespace astralix

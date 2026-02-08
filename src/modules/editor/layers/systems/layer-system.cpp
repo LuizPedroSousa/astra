@@ -20,7 +20,6 @@ LayerSystem::LayerSystem() { LayerManager::init(); }
 
 void LayerSystem::start() {
 
-  LOG_DEBUG("asd");
   auto layer_manager = LayerManager::get();
 
   layer_manager->add_overlay<DockspaceOverlay>();

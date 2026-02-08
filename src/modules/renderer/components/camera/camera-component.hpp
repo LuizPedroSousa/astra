@@ -1,7 +1,7 @@
 #pragma once
 #include "components/component.hpp"
+#include "framebuffer.hpp"
 #include "resources/shader.hpp"
-#include "targets/render-target.hpp"
 
 namespace astralix {
 
@@ -9,7 +9,7 @@ class CameraComponent : public Component<CameraComponent> {
 public:
   CameraComponent(COMPONENT_INIT_PARAMS);
 
-  void update(Ref<Shader> &shader, Ref<RenderTarget> render_target);
+  void update(Ref<Shader> &shader, Framebuffer *terget_framebuffer);
 
   void use_perspective();
   void use_orthographic();
@@ -23,7 +23,7 @@ public:
 
   glm::vec3 direction;
 
-  void recalculate_projection_matrix(Ref<RenderTarget> render_target);
+  void recalculate_projection_matrix(Framebuffer *terget_framebuffer);
   void recalculate_view_matrix();
 
 private:
