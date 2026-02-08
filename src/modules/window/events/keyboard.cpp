@@ -19,11 +19,7 @@ void Keyboard::release_keys() {
 
     auto state = glfwGetKey(window->value(), (int)key);
 
-    // LOG_INFO(" key ", key, " state ");
-
     if (state == GLFW_RELEASE) {
-      LOG_INFO("KeyReleased");
-
       auto keycode = KeyReleasedEvent(KeyCode(key), window->id());
 
       EventDispatcher::get()->dispatch(&keycode);
