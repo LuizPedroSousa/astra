@@ -1,5 +1,7 @@
 #include "opengl-renderer-api.hpp"
 #include "glad/glad.h"
+#include "renderer-api.hpp"
+#include <GL/gl.h>
 #include <iostream>
 
 namespace astralix {
@@ -43,6 +45,42 @@ OpenGLRendererAPI::map_draw_primitive_type(DrawPrimitive primitive_type) {
   }
 }
 
+uint32_t OpenGLRendererAPI::map_cull_face_mode(CullFaceMode mode) {
+  switch (mode) {
+  case CullFaceMode::Back: {
+    return GL_BACK;
+  }
+
+  case CullFaceMode::Front: {
+    return GL_FRONT;
+  }
+
+  case CullFaceMode::Left: {
+    return GL_LEFT;
+  }
+
+  case CullFaceMode::Right: {
+    return GL_RIGHT;
+  }
+  }
+}
+
+uint32_t OpenGLRendererAPI::map_depth_mode(DepthMode mode) {
+  switch (mode) {
+  case DepthMode::Less: {
+    return GL_LESS;
+  }
+
+  case DepthMode::LessEqual: {
+    return GL_LEQUAL;
+  }
+
+  case DepthMode::Equal: {
+    return GL_EQUAL;
+  }
+  }
+}
+
 void OpenGLRendererAPI::draw_indexed(const Ref<VertexArray> &vertex_array,
                                      DrawPrimitive primitive_type,
                                      uint32_t index_count) {
@@ -56,6 +94,14 @@ void OpenGLRendererAPI::draw_indexed(const Ref<VertexArray> &vertex_array,
                  GL_UNSIGNED_INT, 0);
 
   vertex_array->unbind();
+}
+
+void OpenGLRendererAPI::cull_face(CullFaceMode mode) {
+  glCullFace(map_cull_face_mode(mode));
+}
+
+void OpenGLRendererAPI::depth(DepthMode mode) {
+  glDepthFunc(map_depth_mode(mode));
 }
 
 void OpenGLRendererAPI::draw_instanced_indexed(DrawPrimitive primitive_type,

@@ -15,6 +15,9 @@ public:
 
   void clear_buffers() override;
 
+  void cull_face(CullFaceMode mode) override;
+  void depth(DepthMode mode) override;
+
   void draw_indexed(const Ref<VertexArray> &vertex_array,
                     DrawPrimitive primitive_type = DrawPrimitive::TRIANGLES,
                     uint32_t index_count = -1) override;
@@ -28,6 +31,8 @@ public:
 
 private:
   uint32_t map_draw_primitive_type(DrawPrimitive primitive_type);
+  uint32_t map_cull_face_mode(CullFaceMode mode);
+  uint32_t map_depth_mode(DepthMode mode);
 };
 
 } // namespace astralix
