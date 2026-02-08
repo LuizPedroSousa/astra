@@ -1,34 +1,32 @@
 #include "render-system.hpp"
 #include "components/post-processing/post-processing-component.hpp"
-#include "entities/ientity.hpp"
-#include "events/event-scheduler.hpp"
-#include "glad/glad.h"
-#include "managers/entity-manager.hpp"
-
-#include "debug-system.hpp"
-#include "engine.hpp"
 #include "entities/object.hpp"
 #include "entities/post-processing.hpp"
-#include "entities/skybox.hpp"
-#include "entities/text.hpp"
+#include "events/event-scheduler.hpp"
+#include "managers/entity-manager.hpp"
 #include "managers/resource-manager.hpp"
-#include "project.hpp"
+#include "managers/window-manager.hpp"
 #include "resources/descriptors/font-descriptor.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
 #include "resources/descriptors/texture-descriptor.hpp"
-#include "systems/render-system/hdr-system.hpp"
-#include "systems/render-system/light-system.hpp"
-#include "systems/render-system/mesh-system.hpp"
-#include "systems/render-system/shadow-mapping-system.hpp"
+#include "systems/render-system/collectors/mesh-collector.hpp"
+#include "systems/render-system/passes/debug-pass.hpp"
+#include "systems/render-system/passes/exporters/ascii-exporter.hpp"
+#include "systems/render-system/passes/exporters/graphviz-exporter.hpp"
+#include "systems/render-system/passes/exporters/mermaid-exporter.hpp"
+#include "systems/render-system/passes/geometry-pass.hpp"
+#include "systems/render-system/passes/mesh-pass.hpp"
+#include "systems/render-system/passes/post-process-pass.hpp"
+#include "systems/render-system/passes/render-graph-builder.hpp"
+#include "systems/render-system/passes/shadow-pass.hpp"
+#include "systems/render-system/passes/skybox-pass.hpp"
+#include "systems/render-system/passes/text-pass.hpp"
 #include "targets/render-target.hpp"
 #include "trace.hpp"
 
 namespace astralix {
-RenderSystem::RenderSystem(RenderSystemConfig &config)
-    : m_config(config) {
-
-      };
+RenderSystem::RenderSystem(RenderSystemConfig &config) : m_config(config) {};
 
 void RenderSystem::start() {
   m_render_target = RenderTarget::create(m_config.backend_to_api(),
@@ -45,48 +43,66 @@ void RenderSystem::start() {
                               FontDescriptor>(
           m_render_target->renderer_api()->get_backend());
 
-  EntityManager::get()->for_each<Skybox>(
-      [&](Skybox *skybox) { skybox->start(m_render_target); });
+  RenderGraphBuilder target_graph;
 
-  entity_manager->for_each<Object>(
-      [&](Object *object) { object->start(m_render_target); });
+  auto window =
+      window_manager()->get_window_by_id(m_render_target->window_id());
 
-  entity_manager->for_each<Text>(
-      [&](Text *text) { text->start(m_render_target); });
+  auto mesh_context =
+      target_graph.declare_logical_buffer<MeshContext>("mesh_context");
 
-  add_subsystem<HDRSystem>(m_render_target)->start();
+  auto mesh_collector_storage = target_graph.declare_storage_buffer(
+      "mesh_collector_storage", 1024 * sizeof(glm::mat4));
 
-  entity_manager->for_each<PostProcessing>(
-      [&](PostProcessing *post_processing) {
-        post_processing->start(m_render_target);
-      });
+  auto shadow_map = target_graph.declare_framebuffer(
+      "shadow_map", window->width(), window->height(),
+      FramebufferTextureFormat::DEPTH_ONLY);
 
-  add_subsystem<ShadowMappingSystem>(m_render_target)->start();
-  add_subsystem<DebugSystem>(m_render_target)->start();
-  add_subsystem<LightSystem>(m_render_target)->start();
-  add_subsystem<MeshSystem>(m_render_target)->start();
+  auto scene_color = target_graph.import_persistent_framebuffer(
+      "scene_color", m_render_target->framebuffer().get());
+
+  target_graph.add_pass(create_scope<SkyboxPass>()).write(scene_color);
+  target_graph.add_pass(create_scope<ShadowPass>()).write(shadow_map);
+  target_graph.add_pass(create_scope<GeometryPass>())
+      .read(shadow_map)
+      .write(scene_color);
+  target_graph.add_pass(create_scope<MeshPass>())
+      .read_write(mesh_context)
+      .read_write(mesh_collector_storage)
+      .read_write(scene_color);
+  target_graph.add_pass(create_scope<TextPass>()).read_write(scene_color);
+  target_graph.add_pass(create_scope<DebugPass>())
+      .read(shadow_map)
+      .read_write(mesh_context)
+      .read_write(mesh_collector_storage)
+      .read_write(scene_color);
+  target_graph.add_pass(create_scope<PostProcessPass>())
+      .read_write(mesh_context)
+      .read_write(mesh_collector_storage)
+      .read_write(scene_color);
+
+  m_render_graph = target_graph.build();
+  m_render_graph->compile(m_render_target);
+
+  GraphvizExporter graphviz_exporter;
+  m_render_graph->export_graph(graphviz_exporter, "render_graph.dot");
+  MermaidExporter mermaid_exporter;
+  m_render_graph->export_graph(mermaid_exporter, "render_graph.md");
+  AsciiExporter ascii_exporter;
+  m_render_graph->export_graph(ascii_exporter, "render_graph.txt");
 }
 
 void RenderSystem::fixed_update(double fixed_dt) {
   ASTRA_PROFILE_N("RenderSystem FixedUpdate");
-
-  auto entity_manager = EntityManager::get();
-
-  entity_manager->for_each<Object>(
-      [&](Object *object) { object->fixed_update(fixed_dt); });
 };
 
 void RenderSystem::pre_update(double dt) {
   ASTRA_PROFILE_N("RenderSystem PreUpdate");
 
-  auto engine = Engine::get();
-
   auto entity_manager = EntityManager::get();
-
   auto post_processings = entity_manager->get_entities<PostProcessing>();
 
   bool has_post_processing = false;
-
   for (auto post_processing : post_processings) {
     if (!post_processing->is_active()) {
       continue;
@@ -101,53 +117,16 @@ void RenderSystem::pre_update(double dt) {
   }
 
   m_render_target->bind(has_post_processing);
-
-  EntityManager::get()->for_each<Skybox>(
-      [&](Skybox *skybox) { skybox->pre_update(); });
 };
 
 void RenderSystem::update(double dt) {
   ASTRA_PROFILE_N("RenderSystem Update");
 
-  auto entity_manager = EntityManager::get();
-
-  auto shadow_mapping = get_subsystem<ShadowMappingSystem>();
-  auto debug = get_subsystem<DebugSystem>();
-  auto mesh = get_subsystem<MeshSystem>();
-  auto light = get_subsystem<LightSystem>();
-  auto hdr = get_subsystem<HDRSystem>();
-
-  if (shadow_mapping != nullptr) {
-    shadow_mapping->update(dt);
+  if (m_render_graph) {
+    m_render_graph->execute(dt);
   }
 
-  EntityManager::get()->for_each<Skybox>(
-      [&](Skybox *skybox) { skybox->update(m_render_target); });
-
-  light->update(dt);
-
-  entity_manager->for_each<Text>([&](Text *text) { text->update(); });
-
-  mesh->update(dt);
-
   auto scheduler = EventScheduler::get();
-
-  if (debug != nullptr)
-    debug->update(dt);
-
-  m_render_target->unbind();
-
-  if (hdr != nullptr)
-    hdr->update(dt);
-
-  entity_manager->for_each<Skybox>(
-      [&](Skybox *skybox) { skybox->post_update(); });
-
-  entity_manager->for_each<PostProcessing>(
-      [&](PostProcessing *post_processing) {
-        post_processing->post_update(m_render_target);
-      });
-
   scheduler->bind(SchedulerType::REALTIME);
 };
 

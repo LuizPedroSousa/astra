@@ -39,7 +39,6 @@ void OpenGLShader::attach() const {
   glAttachShader(m_renderer_id, m_fragment_id);
 
   if (m_geometry_id != -1) {
-    LOG_DEBUG(m_fragment_id, m_vertex_id, m_geometry_id);
     glAttachShader(m_renderer_id, m_geometry_id);
   }
 

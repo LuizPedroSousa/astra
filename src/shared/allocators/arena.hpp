@@ -176,11 +176,13 @@ public:
         m_max_capacity_increase(max_capacity_increase), m_allocated_memory(0),
         m_current_capacity_increased(0) {
     if (page_size == 0) {
-      ASTRA_ENSURE("page_size must be greater than 0");
+      ASTRA_EXCEPTION("page_size must be greater than 0");
     }
 
     m_pools.push_back(new BlockPool(page_size));
   }
+
+  ElasticArena() = default;
 
   ~ElasticArena() {
     for (auto pool : m_pools) {
@@ -201,7 +203,7 @@ public:
     }
 
     ASTRA_ENSURE(m_current_capacity_increased >= m_max_capacity_increase,
-                    "Arena out of capacity increase");
+                 "Arena out of capacity increase");
 
     size_t fixed_capacity = std::max(m_initial_page_size, block_size * 2);
 
@@ -257,14 +259,14 @@ public:
   size_t capacity() const { return m_capacity; }
 
 private:
-  size_t m_capacity;
-  size_t m_initial_page_size;
-  size_t m_allocated_memory;
+  size_t m_capacity = 0;
+  size_t m_initial_page_size = 0;
+  size_t m_allocated_memory = 0;
 
   std::list<BlockPool *> m_pools;
 
-  size_t m_max_capacity_increase;
-  size_t m_current_capacity_increased;
+  size_t m_max_capacity_increase = 12;
+  size_t m_current_capacity_increased = 0;
 };
 
 struct StackArena {

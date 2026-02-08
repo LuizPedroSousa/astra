@@ -11,10 +11,16 @@ ResourceComponent::ResourceComponent(COMPONENT_INIT_PARAMS)
     : COMPONENT_INIT(ResourceComponent, "resource", false,
                      create_ref<ResourceComponentSerializer>(this)) {};
 
-void ResourceComponent::start() {
-  if (!has_shader() && !m_shader_descriptor_id.empty()) {
+void ResourceComponent::ensure_resource_exists() {
+  if (!m_shader_descriptor_id.empty()) {
     m_shader = resource_manager()->get_by_descriptor_id<Shader>(
         m_shader_descriptor_id);
+  }
+}
+
+void ResourceComponent::start() {
+  if (!has_shader()) {
+    ensure_resource_exists();
   }
 
   if (has_shader()) {
@@ -70,8 +76,8 @@ ResourceComponent *ResourceComponent::set_shader(ResourceDescriptorID id) {
   resource_manager->ensure_exists_by_descriptor_id<ShaderDescriptor>(id);
 
   m_shader_descriptor_id = id;
-  m_shader =
-      resource_manager->get_by_descriptor_id<Shader>(m_shader_descriptor_id);
+
+  ensure_resource_exists();
 
   return this;
 }

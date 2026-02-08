@@ -10,7 +10,6 @@
 
 #include "base-manager.hpp"
 #include "base.hpp"
-#include "entity-manager.hpp"
 
 namespace astralix {
 

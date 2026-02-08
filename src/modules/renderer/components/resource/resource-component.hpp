@@ -24,9 +24,18 @@ public:
   ResourceComponent *attach_shader(ResourceDescriptorID id);
   ResourceComponent *set_shader(ResourceDescriptorID id);
 
+  void ensure_resource_exists();
+
   bool has_shader() { return m_shader != nullptr; };
 
-  Ref<Shader> &shader() { return m_shader; }
+  inline ResourceDescriptorID shader_descriptor_id() const {
+    return m_shader_descriptor_id;
+  }
+
+  Ref<Shader> &shader() {
+    ensure_resource_exists();
+    return m_shader;
+  }
 
 private:
   Ref<Shader> m_shader;

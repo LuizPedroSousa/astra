@@ -2,6 +2,7 @@
 
 #include "assert.hpp"
 #include "base.hpp"
+#include "framebuffer.hpp"
 #include "glm/glm.hpp"
 #include "vertex-array.hpp"
 
@@ -14,6 +15,8 @@ class VertexArray;
 class RendererAPI {
 public:
   enum DrawPrimitive { POINTS = 0, LINES = 1, TRIANGLES = 2 };
+  enum CullFaceMode { Front = 0, Left = 1, Right = 2, Back = 3 };
+  enum DepthMode { Equal = 0, Less = 1, LessEqual = 2 };
 
   virtual void init() = 0;
   virtual void set_viewport(uint32_t x, uint32_t y, uint32_t width,
@@ -22,6 +25,10 @@ public:
   virtual void clear_buffers() = 0;
   virtual void disable_buffer_testing() = 0;
   virtual void enable_buffer_testing() = 0;
+
+  virtual void cull_face(CullFaceMode mode) = 0;
+  virtual void depth(DepthMode mode) = 0;
+
   virtual void
   draw_indexed(const Ref<VertexArray> &vertex_array,
                DrawPrimitive primitive_type = DrawPrimitive::TRIANGLES,

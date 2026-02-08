@@ -75,8 +75,6 @@ void Prologue::create_tile_grid(int columns, int rows, float tile_size,
     tile->add_component<RigidBodyComponent>(type);
 
     tiles[i] = Tile{tile, position};
-
-    LOG_DEBUG(i);
   }
 }
 
