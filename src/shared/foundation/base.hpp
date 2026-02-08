@@ -16,6 +16,16 @@ extern float far_plane, near_plane;
   if (!t->is_active())                                                         \
   return
 
+template <typename... T> constexpr bool has_components(T *...ptrs) {
+  return ((ptrs != nullptr) && ...);
+}
+
+#define REQUIRE_COMPONENTS(...)                                                \
+  do {                                                                         \
+    if (!has_components(__VA_ARGS__))                                          \
+      return;                                                                  \
+  } while (0)
+
 template <typename T> using Scope = std::unique_ptr<T>;
 template <typename T, typename... Args>
 constexpr Scope<T> create_scope(Args &&...args) {
