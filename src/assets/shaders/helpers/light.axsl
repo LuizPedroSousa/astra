@@ -1,0 +1,122 @@
+@include "helpers/shadow.axsl";
+
+struct LightAttenuation {
+  float constant;
+  float linear;
+  float quadratic;
+};
+
+struct LightExposure {
+  vec3 ambient;
+  vec3 diffuse;
+  vec3 specular;
+};
+
+struct DirectionalLight {
+  LightExposure exposure;
+  vec3 direction;
+  vec3 position;
+};
+
+struct SpotLight {
+  LightExposure exposure;
+  vec3 direction;
+  vec3 position;
+  float inner_cut_off;
+  float outer_cut_off;
+};
+
+struct PointLight {
+  vec3 position;
+  LightExposure exposure;
+  LightAttenuation attenuation;
+};
+
+fn calc_directional_light(
+  sampler2D shadow_map,
+  sampler2D diffuse_map,
+  DirectionalLight light, 
+  vec3 normal, 
+  vec2 texture_coordinates,
+  vec3 tangent_light_position,
+  vec3 tangent_view_position,
+  vec3 tangent_fragment,
+  vec4 fragment_light_space
+) -> vec3 {
+    vec3 light_direction = normalize(tangent_light_position - tangent_fragment);
+    vec3 view_direction = normalize(tangent_view_position - tangent_fragment);
+
+    vec3 color = texture(diffuse_map, texture_coordinates).rgb;
+    vec3 ambient = light.exposure.ambient;
+    vec3 diffuse = light.exposure.diffuse * get_diffuse(light_direction, normal);
+    vec3 specular = light.exposure.specular * get_specular(light_direction, view_direction, normal);
+    float shadow = get_shadow(shadow_map, light_direction, normal, fragment_light_space);
+
+    return (ambient + shadow * (diffuse + specular)) * color;
+}
+
+fn calc_point_light(
+    PointLight light, 
+    sampler2D diffuse_map,
+    vec3 view_direction, 
+    vec3 normal, 
+    vec2 texture_coordinates,
+    vec3 tangent_light_position,
+    vec3 tangent_view_position,
+    vec3 tangent_fragment
+) -> vec3 {
+    vec3 direction = normalize(light.position - tangent_fragment);
+    vec3 color = texture(diffuse_map, texture_coordinates).rgb;
+    float distance = length(light.position - tangent_fragment);
+    float attenuation = get_attenuation(distance, light.attenuation);
+    vec3 ambient = light.exposure.ambient;
+    vec3 diffuse = light.exposure.diffuse * get_diffuse(direction, normal);
+    vec3 specular = light.exposure.specular * get_specular(direction, view_direction, normal);
+
+    return (ambient + diffuse + specular) * color;
+}
+
+fn parallax_mapping(
+    sampler2D displacement_map,
+    vec2 texture_coordinates, 
+    vec3 view_direction,
+    float height_scale
+) -> vec2 {
+    const float min_layers = 8.0;
+    const float max_layers = 32.0;
+    float layers = mix(max_layers, min_layers, max(dot(vec3(0.0, 0.0, 1.0), view_direction), 0.0));
+
+    float layer_depth = 1.0 / layers;
+    float current_layer_depth = 0.0;
+    vec2 p = view_direction.xy * height_scale;
+    vec2 delta_texture_coordinates = p / layers;
+    vec2 current_texture_coordinates = texture_coordinates;
+    float current_displacement_map = texture(displacement_map, current_texture_coordinates).r;
+
+    while (current_layer_depth < current_displacement_map) {
+        current_texture_coordinates -= delta_texture_coordinates;
+        current_displacement_map = texture(displacement_map, current_texture_coordinates).r;
+        current_layer_depth += layer_depth;
+    }
+
+    vec2 previous_texture_coordinates = current_texture_coordinates + delta_texture_coordinates;
+    float after_displacement = current_displacement_map - current_layer_depth;
+    float before_displacement = texture(displacement_map, previous_texture_coordinates).r - current_layer_depth + layer_depth;
+    float weight = after_displacement / (after_displacement - before_displacement);
+
+    return previous_texture_coordinates * weight + current_texture_coordinates * (1.0 - weight);
+}
+
+fn get_specular(vec3 light_direction, vec3 view_direction, vec3 normal) -> float {
+    vec3 halfway_direction = normalize(light_direction + view_direction);
+    float halfDot = max(dot(normal, halfway_direction), 0.0);
+    return pow(halfDot, 32.0);
+}
+
+fn get_diffuse(vec3 light_direction, vec3 normal) -> float {
+    return max(dot(light_direction, normal), 0.);
+}
+
+fn get_attenuation(float distance, LightAttenuation attenuation) -> float {
+    return 1. / (attenuation.constant + attenuation.linear * distance + attenuation.quadratic * (distance * distance));
+}

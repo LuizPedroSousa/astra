@@ -23,6 +23,7 @@ public:
 
 private:
   uint32_t compile(Ref<Path> path, uint32_t type);
+  uint32_t compile_glsl(const std::string &source, uint32_t type);
 
   uint32_t m_renderer_id = -1;
   uint32_t m_vertex_id = -1;

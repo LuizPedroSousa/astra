@@ -1,0 +1,22 @@
+@version 450;
+
+in vec2 texture_coordinates;
+
+uniform sampler2D screen_texture;
+uniform float gamma = 1.1;
+uniform float exposure = 1.1;
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    vec3 color = texture(screen_texture, texture_coordinates).rgb;
+
+    vec3 mapped = vec3(1.) - exp(-color * exposure);
+
+    mapped = pow(mapped, vec3(1.0 / gamma));
+
+    FragmentOutput(vec4(mapped, 1.0));
+}
