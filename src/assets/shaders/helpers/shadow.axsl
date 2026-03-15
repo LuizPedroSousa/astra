@@ -1,0 +1,28 @@
+fn get_shadow(
+    sampler2D shadow_map,
+    vec3 light_direction, 
+    vec3 normal, 
+    vec4 fragment_light_space
+) -> float {
+    vec3 projection_coordinates = fragment_light_space.xyz / fragment_light_space.w;
+
+    float current_depth = projection_coordinates.z;
+    float bias = max(0.05 * (1.0 - dot(normal, light_direction)), 0.05);
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
+
+    for (int x = -1; x <= 1; ++x) {
+        for (int y = -1; y <= 1; ++y) {
+            float pcfDepth = texture(shadow_map, projection_coordinates.xy + vec2(x, y) * texelSize).r;
+            shadow += current_depth - bias > pcfDepth ? 1.0 : 0.0;
+        }
+    }
+
+    shadow /= 9.0;
+
+    if (projection_coordinates.z > 1.0) {
+        shadow = 0.0;
+    }
+
+    return 1.0 - shadow;
+}

@@ -134,8 +134,8 @@
     {
       "id": "shaders::skybox",
       "type": "Shader",
-      "vertex": "@engine/shaders/vertex/skybox.glsl",
-      "fragment": "@engine/shaders/fragment/skybox.glsl"
+      "vertex": "@engine/shaders/skybox.axsl",
+      "fragment": "@engine/shaders/skybox.axsl"
     },
     {
       "id": "shaders::glyph",

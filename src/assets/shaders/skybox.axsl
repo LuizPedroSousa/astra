@@ -1,0 +1,41 @@
+@version 450;
+
+uniform mat4 view_without_transformation;
+uniform mat4 projection;
+
+@in
+interface VertexInput {
+  @location(0) 
+  vec3 position;
+}
+
+interface VertexOutput {
+  @location(0) 
+  vec3 texture_coordinate;
+}
+
+interface FragmentInput {
+  @uniform
+  samplerCube skybox;
+}
+
+interface FragmentOutput {
+  @location(0) 
+  vec4 color;
+}
+
+@vertex
+fn main(VertexInput input) -> VertexOutput {
+  vec4 pos = projection * view_without_transformation * vec4(input.position, 1.);
+
+  gl_Position = pos.xyww;
+
+  return VertexOutput(input.position);
+}
+
+@fragment 
+fn main(VertexOutput vertex, FragmentInput fragment) -> FragmentOutput {
+  vec4 color = texture(fragment.skybox, vertex.texture_coordinate);
+
+  return FragmentOutput(color);
+}
