@@ -3,10 +3,12 @@
 #include "glad/glad.h"
 #include "log.hpp"
 
+#include "filesystem"
 #include "fstream"
 #include "iostream"
 #include "managers/path-manager.hpp"
 #include "resources/shader.hpp"
+#include "shader-lang/compiler.hpp"
 #include "sstream"
 #include <cstring>
 
@@ -15,14 +17,147 @@ namespace astralix {
 OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
                            Ref<ShaderDescriptor> descriptor)
     : Shader(resource_id, descriptor->id) {
-  m_renderer_id = glCreateProgram();
 
-  m_vertex_id = compile(descriptor->vertex_path, GL_VERTEX_SHADER);
-  m_fragment_id = compile(descriptor->fragment_path, GL_FRAGMENT_SHADER);
+  Compiler compiler;
 
-  if (descriptor->geometry_path != nullptr) {
-    m_geometry_id = compile(descriptor->geometry_path, GL_GEOMETRY_SHADER);
+  auto vertex_path = PathManager::get()->resolve(descriptor->vertex_path);
+  auto fragment_path = PathManager::get()->resolve(descriptor->fragment_path);
+
+  auto validate_extension = [](const std::filesystem::path &resolved) {
+    auto extension = resolved.extension().string();
+
+    ASTRA_ENSURE(extension != ".axsl" && extension != ".glsl",
+                 "Unsupported shader file extension '" + extension + "' in '" +
+                     resolved.string() + "': expected .axsl or .glsl");
+  };
+
+  validate_extension(vertex_path);
+  validate_extension(fragment_path);
+
+  std::filesystem::path geometry_path;
+
+  if (descriptor->geometry_path) {
+    geometry_path = PathManager::get()->resolve(descriptor->geometry_path);
+    validate_extension(geometry_path);
   }
+
+  static constexpr std::pair<StageKind, const char *> stage_extensions[] = {
+      {StageKind::Vertex, "vert"},
+      {StageKind::Fragment, "frag"},
+      {StageKind::Geometry, "geom"},
+      {StageKind::Compute, "comp"},
+  };
+
+  auto cache_path = [&](const std::filesystem::path &resolved,
+                        const char *ext) {
+    return resolved.parent_path() /
+           (resolved.stem().string() + "." + ext + ".glsl");
+  };
+
+  std::map<std::string, CompileResult> axsl_results;
+
+  auto ensure_compiled = [&](const std::filesystem::path &resolved) {
+    if (resolved.extension() != ".axsl") {
+      return;
+    }
+
+    auto key = resolved.string();
+
+    if (axsl_results.count(key)) {
+      return;
+    }
+
+    auto source_mtime = std::filesystem::last_write_time(resolved);
+    bool any_exists = false;
+    bool any_stale = false;
+
+    for (auto [kind, ext] : stage_extensions) {
+      auto cached = cache_path(resolved, ext);
+      if (!std::filesystem::exists(cached))
+        continue;
+      any_exists = true;
+      if (std::filesystem::last_write_time(cached) < source_mtime) {
+        any_stale = true;
+        break;
+      }
+    }
+
+    if (any_exists && !any_stale) {
+      CompileResult cached_result;
+      for (auto [kind, ext] : stage_extensions) {
+        auto cached = cache_path(resolved, ext);
+        if (!std::filesystem::exists(cached))
+          continue;
+        std::ifstream file(cached);
+        std::ostringstream buffer;
+        buffer << file.rdbuf();
+        cached_result.stages[kind] = buffer.str();
+      }
+      axsl_results[key] = std::move(cached_result);
+      return;
+    }
+
+    std::ifstream file(resolved);
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    auto result = compiler.compile(
+        buffer.str(), resolved.parent_path().string(), resolved.string());
+
+    if (result.ok()) {
+      for (auto [kind, ext] : stage_extensions) {
+        auto it = result.stages.find(kind);
+
+        if (it == result.stages.end()) {
+          continue;
+        }
+        std::ofstream out(cache_path(resolved, ext));
+        out << it->second;
+      }
+    }
+
+    axsl_results[key] = std::move(result);
+  };
+
+  ensure_compiled(vertex_path);
+  ensure_compiled(fragment_path);
+
+  if (!geometry_path.empty()) {
+    ensure_compiled(geometry_path);
+  }
+
+  for (auto &[path, result] : axsl_results) {
+    if (!result.ok()) {
+      std::string error_message;
+
+      for (auto &error : result.errors) {
+        error_message += error + "\n";
+      }
+      ASTRA_EXCEPTION(error_message);
+    }
+  }
+
+  auto load_stage = [&](const std::filesystem::path &resolved, StageKind kind,
+                        uint32_t gl_type) -> uint32_t {
+    if (resolved.extension() == ".axsl") {
+      auto &stages = axsl_results.at(resolved.string()).stages;
+      auto it = stages.find(kind);
+      return it != stages.end() ? compile_glsl(it->second, gl_type)
+                                : static_cast<uint32_t>(-1);
+    }
+    std::ifstream file(resolved);
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return compile_glsl(buffer.str(), gl_type);
+  };
+
+  m_renderer_id = glCreateProgram();
+  m_vertex_id = load_stage(vertex_path, StageKind::Vertex, GL_VERTEX_SHADER);
+  m_fragment_id =
+      load_stage(fragment_path, StageKind::Fragment, GL_FRAGMENT_SHADER);
+
+  if (!geometry_path.empty())
+    m_geometry_id =
+        load_stage(geometry_path, StageKind::Geometry, GL_GEOMETRY_SHADER);
 
   attach();
 }
@@ -98,15 +233,11 @@ static std::string get_file_content_str(Ref<Path> filename) {
   return buffer.str();
 }
 
-uint32_t OpenGLShader::compile(Ref<Path> path, uint32_t type) {
+uint32_t OpenGLShader::compile_glsl(const std::string &source, uint32_t type) {
   uint32_t shader_id = glCreateShader(type);
 
-  auto source = get_file_content_str(path);
-
   const char *shader_source = source.c_str();
-
   glShaderSource(shader_id, 1, &shader_source, NULL);
-
   glCompileShader(shader_id);
 
   int success;
@@ -116,14 +247,14 @@ uint32_t OpenGLShader::compile(Ref<Path> path, uint32_t type) {
     std::vector<char> shader_error(1024);
     glGetShaderInfoLog(shader_id, shader_error.size(), nullptr,
                        shader_error.data());
-
-    std::string error = "Can't load shader from " + path->get_relative_path() +
-                        "\n" +
-                        std::string(shader_error.begin(), shader_error.end());
-    ASTRA_EXCEPTION(error);
-  };
+    ASTRA_EXCEPTION(std::string(shader_error.begin(), shader_error.end()));
+  }
 
   return shader_id;
-};
+}
+
+uint32_t OpenGLShader::compile(Ref<Path> path, uint32_t type) {
+  return compile_glsl(get_file_content_str(path), type);
+}
 
 } // namespace astralix
