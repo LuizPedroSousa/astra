@@ -2,6 +2,8 @@
 #include "shader-lang/diagnostics.hpp"
 #include "shader-lang/parser.hpp"
 #include "shader-lang/tokenizer.hpp"
+#include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -30,6 +32,16 @@ static void offset_node_ids(std::vector<ASTNode> &nodes, NodeID offset_id) {
     node.id += offset_id;
     std::visit([offset_id](auto &decl) { decl.visit_offset(offset_id); },
                node.data);
+  }
+}
+
+static void offset_program_ids(Program &program, NodeID offset_id) {
+  for (auto &global : program.globals) {
+    global += offset_id;
+  }
+
+  for (auto &stage : program.stages) {
+    stage += offset_id;
   }
 }
 
@@ -123,7 +135,8 @@ static const InterfaceDecl *
 find_interface_decl(const Program &program, const std::vector<ASTNode> &nodes,
                     std::string_view name) {
   for (NodeID global : program.globals) {
-    const auto *interface_decl = std::get_if<InterfaceDecl>(&nodes[global].data);
+    const auto *interface_decl =
+        std::get_if<InterfaceDecl>(&nodes[global].data);
     if (interface_decl && interface_decl->name == name) {
       return interface_decl;
     }
@@ -152,7 +165,8 @@ static bool is_output_interface_local(const ASTNode &node,
 
 static void push_output_local_error(LinkResult &result, const ASTNode &node,
                                     std::string message) {
-  result.errors.push_back(format_located_error(std::move(message), node.location));
+  result.errors.push_back(
+      format_located_error(std::move(message), node.location));
 }
 
 template <class Fn>
@@ -192,10 +206,10 @@ static void validate_output_local_usage(LinkResult &result,
     output_local_names.insert(var_decl.name);
 
     if (var_decl.init) {
-      push_output_local_error(
-          result, nodes[output_local_id],
-          "stage entry output accumulator '" + var_decl.name +
-              "' cannot have an initializer");
+      push_output_local_error(result, nodes[output_local_id],
+                              "stage entry output accumulator '" +
+                                  var_decl.name +
+                                  "' cannot have an initializer");
     }
   }
 
@@ -206,7 +220,8 @@ static void validate_output_local_usage(LinkResult &result,
             output_interface->name + "'");
   }
 
-  const auto &sink_decl = std::get<VarDecl>(nodes[output_local_ids.front()].data);
+  const auto &sink_decl =
+      std::get<VarDecl>(nodes[output_local_ids.front()].data);
   const std::string &sink_name = sink_decl.name;
 
   auto validator = [&](NodeID id, std::optional<NodeID> parent_id) {
@@ -216,10 +231,10 @@ static void validate_output_local_usage(LinkResult &result,
       if (const auto *lhs_identifier =
               std::get_if<IdentifierExpr>(&nodes[assign_expr->lhs].data)) {
         if (lhs_identifier->name == sink_name) {
-          push_output_local_error(
-              result, current_node,
-              "stage entry output accumulator '" + sink_name +
-                  "' cannot be assigned as a whole value");
+          push_output_local_error(result, current_node,
+                                  "stage entry output accumulator '" +
+                                      sink_name +
+                                      "' cannot be assigned as a whole value");
         }
       }
     }
@@ -241,7 +256,8 @@ static void validate_output_local_usage(LinkResult &result,
       }
     }
 
-    const auto *identifier_expr = std::get_if<IdentifierExpr>(&current_node.data);
+    const auto *identifier_expr =
+        std::get_if<IdentifierExpr>(&current_node.data);
     if (!identifier_expr || identifier_expr->name != sink_name) {
       return;
     }
@@ -283,22 +299,39 @@ static void validate_output_local_usage(LinkResult &result,
   visit_subtree(func_decl.body, nodes, std::nullopt, validator);
 }
 
-LinkResult Linker::link(Program &program, const std::vector<ASTNode> &nodes,
-                        std::string_view base_path) {
-  LinkResult result;
+static std::filesystem::path
+resolve_include_path(std::string_view include_path, std::string_view base_path) {
+  std::filesystem::path resolved(include_path);
+  if (resolved.is_absolute() || base_path.empty()) {
+    return resolved.lexically_normal();
+  }
 
-  result.all_nodes = nodes;
+  return (std::filesystem::path(base_path) / resolved).lexically_normal();
+}
 
+static bool load_program_includes(
+    Program &program, LinkResult &result, std::string_view base_path,
+    std::vector<std::filesystem::path> &include_stack,
+    std::unordered_set<std::string> &seen_dependencies) {
   for (const std::string &include_path : program.includes) {
-    std::string full_path = base_path.empty()
-                                ? include_path
-                                : std::string(base_path) + "/" + include_path;
+    const auto resolved_path = resolve_include_path(include_path, base_path);
+    const auto dependency_key = resolved_path.generic_string();
 
-    std::ifstream include_file(full_path);
+    if (seen_dependencies.insert(dependency_key).second) {
+      result.dependencies.push_back(resolved_path);
+    }
+
+    if (std::find(include_stack.begin(), include_stack.end(), resolved_path) !=
+        include_stack.end()) {
+      result.errors.push_back("circular include: '" + dependency_key + "'");
+      return false;
+    }
+
+    std::ifstream include_file(resolved_path);
 
     if (!include_file) {
-      PUSH_CANNOT_OPEN_INCLUDE(result, full_path);
-      return result;
+      PUSH_CANNOT_OPEN_INCLUDE(result, dependency_key);
+      return false;
     }
 
     std::ostringstream include_buffer;
@@ -306,30 +339,57 @@ LinkResult Linker::link(Program &program, const std::vector<ASTNode> &nodes,
     std::string include_src = include_buffer.str();
 
     auto [include_tokens, include_token_errors] =
-        tokenize_source(include_src, include_path);
+        tokenize_source(include_src, dependency_key);
 
     if (!include_token_errors.empty()) {
-      for (auto &e : include_token_errors)
-        PUSH_PREFIXED_INCLUDE_ERROR(result, include_path, e);
-      return result;
+      for (auto &e : include_token_errors) {
+        PUSH_PREFIXED_INCLUDE_ERROR(result, dependency_key, e);
+      }
+      return false;
     }
 
     Parser include_parser(std::move(include_tokens), include_src);
-    Program inc_prog = include_parser.parse();
+    Program include_program = include_parser.parse();
     if (!include_parser.errors().empty()) {
-      for (auto &e : include_parser.errors())
-        PUSH_PREFIXED_INCLUDE_ERROR(result, include_path, e);
-      return result;
+      for (auto &e : include_parser.errors()) {
+        PUSH_PREFIXED_INCLUDE_ERROR(result, dependency_key, e);
+      }
+      return false;
     }
 
     NodeID offset = static_cast<NodeID>(result.all_nodes.size());
-    auto inc_nodes = include_parser.nodes();
-    offset_node_ids(inc_nodes, offset);
-    result.all_nodes.insert(result.all_nodes.end(), inc_nodes.begin(),
-                            inc_nodes.end());
+    auto include_nodes = include_parser.nodes();
+    offset_node_ids(include_nodes, offset);
+    offset_program_ids(include_program, offset);
+    result.all_nodes.insert(result.all_nodes.end(), include_nodes.begin(),
+                            include_nodes.end());
 
-    for (NodeID gid : inc_prog.globals)
-      program.globals.push_back(gid + offset);
+    include_stack.push_back(resolved_path);
+    if (!load_program_includes(include_program, result, base_path,
+                               include_stack, seen_dependencies)) {
+      include_stack.pop_back();
+      return false;
+    }
+    include_stack.pop_back();
+
+    program.globals.insert(program.globals.end(), include_program.globals.begin(),
+                           include_program.globals.end());
+  }
+
+  return true;
+}
+
+LinkResult Linker::link(Program &program, const std::vector<ASTNode> &nodes,
+                        std::string_view base_path) {
+  LinkResult result;
+
+  result.all_nodes = nodes;
+
+  std::vector<std::filesystem::path> include_stack;
+  std::unordered_set<std::string> seen_dependencies;
+  if (!load_program_includes(program, result, base_path, include_stack,
+                             seen_dependencies)) {
+    return result;
   }
 
   static const std::unordered_set<std::string> glsl_builtins = {

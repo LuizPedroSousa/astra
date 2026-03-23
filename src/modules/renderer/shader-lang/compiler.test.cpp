@@ -1,4 +1,5 @@
 #include "shader-lang/compiler.hpp"
+#include "shader-lang/artifacts/shader-artifact-pipeline.hpp"
 #include "shader-lang/diagnostics.hpp"
 #include <filesystem>
 #include <fstream>
@@ -124,6 +125,37 @@ interface FragmentOutput {
   return source;
 }
 
+static bool same_plan(const ShaderArtifactPlan &lhs,
+                      const ShaderArtifactPlan &rhs) {
+  if (lhs.total_shaders != rhs.total_shaders ||
+      lhs.generated_shaders != rhs.generated_shaders ||
+      lhs.unchanged_shaders != rhs.unchanged_shaders ||
+      lhs.failed_shaders != rhs.failed_shaders ||
+      lhs.planned_removals != rhs.planned_removals ||
+      lhs.watched_paths != rhs.watched_paths || lhs.deletes != rhs.deletes ||
+      lhs.failures.size() != rhs.failures.size() ||
+      lhs.writes.size() != rhs.writes.size()) {
+    return false;
+  }
+
+  for (size_t i = 0; i < lhs.writes.size(); ++i) {
+    if (lhs.writes[i].path != rhs.writes[i].path ||
+        lhs.writes[i].content != rhs.writes[i].content) {
+      return false;
+    }
+  }
+
+  for (size_t i = 0; i < lhs.failures.size(); ++i) {
+    if (lhs.failures[i].canonical_id != rhs.failures[i].canonical_id ||
+        lhs.failures[i].source_path != rhs.failures[i].source_path ||
+        lhs.failures[i].message != rhs.failures[i].message) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 TEST(ShaderCompiler, CompileSucceeds) {
   Compiler compiler;
   auto result = compiler.compile(k_full_source);
@@ -131,6 +163,36 @@ TEST(ShaderCompiler, CompileSucceeds) {
   EXPECT_EQ(result.stages.size(), 2u);
   EXPECT_NE(result.stages.find(StageKind::Vertex), result.stages.end());
   EXPECT_NE(result.stages.find(StageKind::Fragment), result.stages.end());
+}
+
+TEST(ShaderCompiler, BuildArtifactPlanMatchesPipeline) {
+  const auto root =
+      std::filesystem::temp_directory_path() / "astralix-compiler-plan";
+  std::filesystem::remove_all(root);
+  std::filesystem::create_directories(root / "shaders");
+
+  const auto shader_path = root / "shaders" / "light.axsl";
+  {
+    std::ofstream shader(shader_path);
+    shader << k_full_source;
+  }
+
+  const std::vector<ShaderArtifactInput> inputs = {{
+      .canonical_id = "project/shaders/light.axsl",
+      .source_path = shader_path,
+      .output_root = root,
+      .umbrella_name = "project_shaders.hpp",
+  }};
+
+  Compiler compiler;
+  ShaderArtifactPipeline pipeline;
+
+  auto via_compiler = compiler.build_artifact_plan(inputs);
+  auto via_pipeline = pipeline.build_plan(inputs);
+
+  EXPECT_TRUE(same_plan(via_compiler, via_pipeline));
+
+  std::filesystem::remove_all(root);
 }
 
 TEST(ShaderCompiler, VersionHeader) {
@@ -357,6 +419,22 @@ TEST(ShaderCompiler, LocalVarDecl) {
   auto result = compiler.compile(src);
   ASSERT_TRUE(result.ok()) << errors_str(result);
   EXPECT_TRUE(contains(result.stages.at(StageKind::Fragment), "vec4 sample"));
+}
+
+TEST(ShaderCompiler, LocalArrayDeclAndArrayConstructor) {
+  Compiler compiler;
+  auto src = make_fragment_program(R"axsl(
+    vec2 poisson_disk[2] = vec2[](vec2(0.0, 1.0), vec2(1.0, 0.0));
+    vec2 sample = poisson_disk[1];
+    return FragmentOutput(vec4(sample, 0.0, 1.0));
+)axsl");
+  auto result = compiler.compile(src);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  const auto &frag = result.stages.at(StageKind::Fragment);
+  EXPECT_TRUE(
+      contains(frag, "vec2 poisson_disk[2] = vec2[](vec2(0, 1), vec2(1, 0));"));
+  EXPECT_TRUE(contains(frag, "vec2 sample = poisson_disk[1];"));
 }
 
 TEST(ShaderCompiler, ForLoopInit) {
@@ -1019,6 +1097,59 @@ fn main() -> FragmentOutput {
   EXPECT_LT(later_proto, later_def);
 }
 
+TEST(ShaderCompiler, ResolvesNestedIncludesRelativeToIncludingFile) {
+  Compiler compiler;
+
+  const std::filesystem::path include_dir =
+      std::filesystem::temp_directory_path() / "astralix-nested-include-tests";
+  const std::filesystem::path helpers_dir = include_dir / "helpers";
+  std::filesystem::create_directories(helpers_dir);
+
+  {
+    std::ofstream include_file(include_dir / "material.axsl");
+    include_file << R"axsl(
+@include "helpers/constants.axsl";
+
+struct Material {
+    float roughness = MATERIAL_ROUGHNESS;
+};
+)axsl";
+  }
+
+  {
+    std::ofstream include_file(helpers_dir / "constants.axsl");
+    include_file << R"axsl(
+const float MATERIAL_ROUGHNESS = 0.5;
+)axsl";
+  }
+
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+@include "material.axsl";
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    Material material;
+    return FragmentOutput(vec4(material.roughness));
+}
+)axsl";
+
+  auto result = compiler.compile(src, include_dir.string(), "main.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  EXPECT_TRUE(contains(result.stages.at(StageKind::Fragment),
+                       "const float MATERIAL_ROUGHNESS = 0.5;"));
+  EXPECT_EQ(result.dependencies.size(), 2u);
+  EXPECT_EQ(result.dependencies[0], include_dir / "material.axsl");
+  EXPECT_EQ(result.dependencies[1], helpers_dir / "constants.axsl");
+
+  std::filesystem::remove_all(include_dir);
+}
+
 TEST(ShaderCompiler, StageOnlyEmitsReachableGlobalFunctions) {
   Compiler compiler;
   static constexpr std::string_view src = R"axsl(
@@ -1647,6 +1778,140 @@ fn main(FragmentResources resources) -> FragmentOutput {
 
   EXPECT_FALSE(contains(vert, "_frag_light_color"));
   EXPECT_TRUE(contains(frag, "uniform vec3 _frag_light_color"));
+}
+
+TEST(ShaderCompiler, ReflectionCarriesLogicalAndEmittedNamesForUniformInterfaces) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+@uniform
+interface Entity {
+    mat4 view;
+    mat4 projection;
+}
+
+interface VertexOutput {
+    @location(0) vec4 color;
+}
+
+@vertex
+fn main(Entity entity) -> VertexOutput {
+    return VertexOutput(vec4(entity.view[0][0] + entity.projection[0][0]));
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "reflection.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  auto stage_it = result.reflection.stages.find(StageKind::Vertex);
+  ASSERT_NE(stage_it, result.reflection.stages.end());
+  ASSERT_EQ(stage_it->second.resources.size(), 1u);
+
+  const auto &resource = stage_it->second.resources.front();
+  ASSERT_EQ(resource.members.size(), 2u);
+  EXPECT_EQ(resource.members[0].logical_name, "entity.view");
+  ASSERT_TRUE(resource.members[0].compatibility_alias.has_value());
+  EXPECT_EQ(*resource.members[0].compatibility_alias, "view");
+  ASSERT_TRUE(resource.members[0].glsl.emitted_name.has_value());
+  EXPECT_EQ(*resource.members[0].glsl.emitted_name, "_view");
+  EXPECT_EQ(resource.members[1].logical_name, "entity.projection");
+  ASSERT_TRUE(resource.members[1].glsl.emitted_name.has_value());
+  EXPECT_EQ(*resource.members[1].glsl.emitted_name, "_projection");
+}
+
+TEST(ShaderCompiler, ReflectionKeepsDeclaredTreeForInactiveFieldsAndArrays) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+struct Bones {
+    mat4 matrices[2];
+};
+
+@uniform
+interface Entity {
+    Bones bones;
+    float intensity = 3.0;
+}
+
+interface VertexOutput {
+    @location(0) vec4 color;
+}
+
+@vertex
+fn main(Entity entity) -> VertexOutput {
+    return VertexOutput(vec4(entity.bones.matrices[0][0][0]));
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "reflection-arrays.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  auto stage_it = result.reflection.stages.find(StageKind::Vertex);
+  ASSERT_NE(stage_it, result.reflection.stages.end());
+  ASSERT_EQ(stage_it->second.resources.size(), 1u);
+
+  const auto &resource = stage_it->second.resources.front();
+  ASSERT_EQ(resource.members.size(), 2u);
+  EXPECT_EQ(resource.members[0].logical_name, "entity.bones.matrices[0]");
+  EXPECT_EQ(resource.members[0].binding_id,
+            shader_binding_id("entity.bones.matrices[0]"));
+  EXPECT_EQ(resource.members[1].logical_name, "entity.bones.matrices[1]");
+  EXPECT_EQ(resource.members[1].binding_id,
+            shader_binding_id("entity.bones.matrices[1]"));
+
+  ASSERT_EQ(resource.declared_fields.size(), 2u);
+  const auto &bones = resource.declared_fields[0];
+  ASSERT_EQ(bones.fields.size(), 1u);
+  const auto &matrices = bones.fields.front();
+  EXPECT_EQ(matrices.logical_name, "entity.bones.matrices");
+  EXPECT_EQ(matrices.array_size, 2u);
+  EXPECT_EQ(matrices.binding_id, shader_binding_id("entity.bones.matrices"));
+  EXPECT_EQ(matrices.active_stage_mask, shader_stage_mask(StageKind::Vertex));
+
+  const auto &intensity = resource.declared_fields[1];
+  ASSERT_TRUE(intensity.default_value.has_value());
+  EXPECT_EQ(std::get<float>(*intensity.default_value), 3.0f);
+  EXPECT_EQ(intensity.active_stage_mask, 0u);
+}
+
+TEST(ShaderCompiler, ReflectionSuppressesAmbiguousFlatAliases) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+@uniform
+interface MaterialA {
+    vec4 color;
+}
+
+@uniform
+interface MaterialB {
+    vec4 color;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main(MaterialA a, MaterialB b) -> FragmentOutput {
+    return FragmentOutput(a.color + b.color);
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "reflection-collision.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  auto stage_it = result.reflection.stages.find(StageKind::Fragment);
+  ASSERT_NE(stage_it, result.reflection.stages.end());
+  ASSERT_EQ(stage_it->second.resources.size(), 2u);
+
+  for (const auto &resource : stage_it->second.resources) {
+    ASSERT_EQ(resource.members.size(), 1u);
+    EXPECT_FALSE(resource.members.front().compatibility_alias.has_value());
+  }
 }
 
 static std::string first_error(const CompileResult &r) {

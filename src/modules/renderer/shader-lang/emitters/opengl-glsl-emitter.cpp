@@ -12,6 +12,28 @@ template <class... Ts> struct Overloaded : Ts... {
 
 template <class... Ts> Overloaded(Ts...) -> Overloaded<Ts...>;
 
+std::string array_suffix(const TypeRef &type_ref) {
+  if (type_ref.is_runtime_sized ||
+      (type_ref.array_size.has_value() && *type_ref.array_size == 0)) {
+    return "[]";
+  }
+
+  if (type_ref.array_size) {
+    return "[" + std::to_string(*type_ref.array_size) + "]";
+  }
+
+  return {};
+}
+
+std::string array_suffix(std::optional<uint32_t> array_size) {
+  if (!array_size) {
+    return {};
+  }
+
+  return *array_size == 0 ? "[]"
+                          : "[" + std::to_string(*array_size) + "]";
+}
+
 } // namespace
 
 std::string OpenGLGLSLEmitter::emit(const GLSLStage &stage) {
@@ -66,10 +88,8 @@ void OpenGLGLSLEmitter::emit_global_var(const GLSLGlobalVarDecl &decl) {
   }
 
   write(type_str(decl.type) + " " + decl.name);
-
-  if (decl.array_size) {
-    write("[" + std::to_string(*decl.array_size) + "]");
-  }
+  write(decl.array_size ? array_suffix(decl.array_size)
+                        : array_suffix(decl.type));
 
   if (decl.init) {
     write(" = ");
@@ -104,11 +124,8 @@ void OpenGLGLSLEmitter::emit_field(const GLSLFieldDecl &decl,
   }
 
   write(type_str(decl.type) + " " + decl.name);
-
-  if (decl.array_size) {
-    write(*decl.array_size == 0 ? "[]"
-                                : "[" + std::to_string(*decl.array_size) + "]");
-  }
+  write(decl.array_size ? array_suffix(decl.array_size)
+                        : array_suffix(decl.type));
 
   if (emit_initializer && decl.init) {
     write(" = ");
@@ -119,7 +136,8 @@ void OpenGLGLSLEmitter::emit_field(const GLSLFieldDecl &decl,
 }
 
 void OpenGLGLSLEmitter::emit_function(const GLSLFunctionDecl &decl) {
-  write(m_indent + type_str(decl.ret) + " " + decl.name + "(");
+  write(m_indent + type_str(decl.ret) + array_suffix(decl.ret) + " " +
+        decl.name + "(");
 
   for (size_t i = 0; i < decl.params.size(); ++i) {
     if (i) {
@@ -143,7 +161,7 @@ void OpenGLGLSLEmitter::emit_param(const GLSLParamDecl &decl) {
     write(std::string(param_qual_str(decl.qual)) + " ");
   }
 
-  write(type_str(decl.type) + " " + decl.name);
+  write(type_str(decl.type) + " " + decl.name + array_suffix(decl.type));
 }
 
 void OpenGLGLSLEmitter::emit_stmt(const GLSLStmt &stmt) {
@@ -204,7 +222,8 @@ void OpenGLGLSLEmitter::emit_stmt(const GLSLStmt &stmt) {
                           if (value.is_const) {
                             write("const ");
                           }
-                          write(type_str(value.type) + " " + value.name);
+                          write(type_str(value.type) + " " + value.name +
+                                array_suffix(value.type));
                           if (value.init) {
                             write(" = ");
                             emit_expr(*value.init);
@@ -250,7 +269,8 @@ void OpenGLGLSLEmitter::emit_for_init(const GLSLStmt *stmt) {
     if (var_decl->is_const) {
       write("const ");
     }
-    write(type_str(var_decl->type) + " " + var_decl->name);
+    write(type_str(var_decl->type) + " " + var_decl->name +
+          array_suffix(var_decl->type));
     if (var_decl->init) {
       write(" = ");
       emit_expr(*var_decl->init);
@@ -314,7 +334,7 @@ void OpenGLGLSLEmitter::emit_expr(const GLSLExpr &expr) {
                    write(value.field);
                  },
                  [&](const GLSLConstructExpr &value) {
-                   write(type_str(value.type));
+                   write(type_str(value.type) + array_suffix(value.type));
                    write("(");
                    emit_call_args(value.args);
                    write(")");

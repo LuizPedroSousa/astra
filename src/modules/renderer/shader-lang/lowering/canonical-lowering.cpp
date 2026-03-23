@@ -1,4 +1,5 @@
 #include "shader-lang/lowering/canonical-lowering.hpp"
+#include <limits>
 
 namespace astralix {
 
@@ -49,7 +50,8 @@ find_output_local_name(const std::vector<ASTNode> &nodes, NodeID id,
   std::optional<std::string> output_local_name;
   visit_child_ids(nodes[id], [&](NodeID child_id) {
     if (!output_local_name) {
-      output_local_name = find_output_local_name(nodes, child_id, interface_name);
+      output_local_name =
+          find_output_local_name(nodes, child_id, interface_name);
     }
   });
   return output_local_name;
@@ -169,10 +171,12 @@ collect_global_struct_ids(const Program &program,
 
 void collect_struct_dependencies_from_node(
     NodeID id, const std::unordered_map<std::string, NodeID> &struct_ids,
-    const std::vector<ASTNode> &nodes, std::unordered_set<NodeID> &struct_usage);
+    const std::vector<ASTNode> &nodes,
+    std::unordered_set<NodeID> &struct_usage);
 
 void collect_struct_dependencies_from_type(
-    const TypeRef &type, const std::unordered_map<std::string, NodeID> &struct_ids,
+    const TypeRef &type,
+    const std::unordered_map<std::string, NodeID> &struct_ids,
     const std::vector<ASTNode> &nodes,
     std::unordered_set<NodeID> &struct_usage) {
   if (type.kind != TokenKind::Identifier) {
@@ -211,7 +215,8 @@ void collect_struct_dependencies_from_node(
                  std::get_if<ParamDecl>(&current_node.data)) {
     collect_struct_dependencies_from_type(param_decl->type, struct_ids, nodes,
                                           struct_usage);
-  } else if (const auto *func_decl = std::get_if<FuncDecl>(&current_node.data)) {
+  } else if (const auto *func_decl =
+                 std::get_if<FuncDecl>(&current_node.data)) {
     collect_struct_dependencies_from_type(func_decl->ret, struct_ids, nodes,
                                           struct_usage);
   } else if (const auto *field_decl =
@@ -226,7 +231,8 @@ void collect_struct_dependencies_from_node(
                  std::get_if<ConstructExpr>(&current_node.data)) {
     collect_struct_dependencies_from_type(construct_expr->type, struct_ids,
                                           nodes, struct_usage);
-  } else if (const auto *call_expr = std::get_if<CallExpr>(&current_node.data)) {
+  } else if (const auto *call_expr =
+                 std::get_if<CallExpr>(&current_node.data)) {
     const ASTNode &callee_node = nodes[call_expr->callee];
 
     if (const auto *identifier_expr =
@@ -246,6 +252,436 @@ void collect_struct_dependencies_from_node(
     collect_struct_dependencies_from_node(child_id, struct_ids, nodes,
                                           struct_usage);
   });
+}
+
+const CanonicalStructDecl *
+find_canonical_struct(const std::vector<CanonicalStructDecl> &structs,
+                      const std::string &name) {
+  for (const auto &struct_decl : structs) {
+    if (struct_decl.name == name) {
+      return &struct_decl;
+    }
+  }
+
+  return nullptr;
+}
+
+const CanonicalStructDecl *find_canonical_struct(const CanonicalStage &stage,
+                                                 const std::string &name) {
+  return find_canonical_struct(stage.structs, name);
+}
+
+std::optional<uint32_t> find_annotation_slot(const Annotations &annotations,
+                                             AnnotationKind kind) {
+  for (const auto &annotation : annotations) {
+    if (annotation.kind != kind) {
+      continue;
+    }
+
+    if (kind == AnnotationKind::Set) {
+      return static_cast<uint32_t>(annotation.set);
+    }
+
+    return static_cast<uint32_t>(annotation.slot);
+  }
+
+  return std::nullopt;
+}
+
+BackendLayoutReflection make_layout_from_annotations(
+    const Annotations &annotations,
+    std::optional<std::string> storage = std::nullopt) {
+  BackendLayoutReflection layout;
+  layout.descriptor_set =
+      find_annotation_slot(annotations, AnnotationKind::Set);
+  layout.binding = find_annotation_slot(annotations, AnnotationKind::Binding);
+  layout.location = find_annotation_slot(annotations, AnnotationKind::Location);
+  layout.storage = std::move(storage);
+  return layout;
+}
+
+bool is_sampler_type(const TypeRef &type) {
+  return type.kind == TokenKind::Identifier &&
+         type.name.rfind("sampler", 0) == 0;
+}
+
+std::optional<uint32_t>
+effective_array_size(const TypeRef &type, std::optional<uint32_t> array_size) {
+  return array_size ? array_size : type.array_size;
+}
+
+void append_leaf_members(const CanonicalStage &stage, const TypeRef &type,
+                         std::optional<uint32_t> array_size,
+                         const std::string &logical_name,
+                         std::optional<std::string> compatibility_alias,
+                         std::vector<MemberReflection> &members) {
+  const auto resolved_array_size = effective_array_size(type, array_size);
+
+  if (const auto *struct_decl = find_canonical_struct(stage, type.name)) {
+    auto append_struct_fields = [&](const std::string &prefix) {
+      for (const auto &field : struct_decl->fields) {
+        append_leaf_members(stage, field.type, field.array_size,
+                            prefix + "." + field.name, std::nullopt, members);
+      }
+    };
+
+    if (resolved_array_size) {
+      for (uint32_t i = 0; i < *resolved_array_size; ++i) {
+        append_struct_fields(logical_name + "[" + std::to_string(i) + "]");
+      }
+      return;
+    }
+
+    append_struct_fields(logical_name);
+    return;
+  }
+
+  if (resolved_array_size) {
+    for (uint32_t i = 0; i < *resolved_array_size; ++i) {
+      TypeRef leaf_type = type;
+      leaf_type.array_size.reset();
+      members.push_back(MemberReflection{
+          logical_name + "[" + std::to_string(i) + "]",
+          std::nullopt,
+          leaf_type,
+          std::nullopt,
+          shader_binding_id(logical_name + "[" + std::to_string(i) + "]"),
+          {}});
+    }
+    return;
+  }
+
+  members.push_back(MemberReflection{logical_name,
+                                     std::move(compatibility_alias),
+                                     type,
+                                     std::nullopt,
+                                     shader_binding_id(logical_name),
+                                     {}});
+}
+
+void dedupe_stage_aliases(StageReflection &reflection) {
+  std::unordered_map<std::string, std::string> aliases;
+  std::unordered_set<std::string> ambiguous;
+
+  for (const auto &resource : reflection.resources) {
+    for (const auto &member : resource.members) {
+      if (!member.compatibility_alias) {
+        continue;
+      }
+
+      auto inserted =
+          aliases.emplace(*member.compatibility_alias, member.logical_name);
+      if (!inserted.second && inserted.first->second != member.logical_name) {
+        ambiguous.insert(*member.compatibility_alias);
+      }
+    }
+  }
+
+  if (ambiguous.empty()) {
+    return;
+  }
+
+  for (auto &resource : reflection.resources) {
+    for (auto &member : resource.members) {
+      if (member.compatibility_alias &&
+          ambiguous.count(*member.compatibility_alias) > 0) {
+        member.compatibility_alias.reset();
+      }
+    }
+  }
+}
+
+struct ReflectionPathSegment {
+  std::string name;
+  std::optional<uint32_t> array_size;
+};
+
+std::string
+join_reflection_logical_name(const std::vector<ReflectionPathSegment> &path) {
+  std::string logical_name;
+
+  for (const auto &segment : path) {
+    if (!logical_name.empty()) {
+      logical_name += ".";
+    }
+    logical_name += segment.name;
+  }
+
+  return logical_name;
+}
+
+void expand_reflection_logical_names(
+    const std::vector<ReflectionPathSegment> &path, size_t index,
+    std::string prefix, std::vector<std::string> &logical_names) {
+  if (index >= path.size()) {
+    logical_names.push_back(std::move(prefix));
+    return;
+  }
+
+  const auto &segment = path[index];
+  std::string base =
+      prefix.empty() ? segment.name : prefix + "." + segment.name;
+
+  if (segment.array_size) {
+    for (uint32_t i = 0; i < *segment.array_size; ++i) {
+      expand_reflection_logical_names(
+          path, index + 1, base + "[" + std::to_string(i) + "]", logical_names);
+    }
+    return;
+  }
+
+  expand_reflection_logical_names(path, index + 1, std::move(base),
+                                  logical_names);
+}
+
+std::vector<std::string> expand_reflection_logical_names(
+    const std::vector<ReflectionPathSegment> &path) {
+  std::vector<std::string> logical_names;
+  expand_reflection_logical_names(path, 0, {}, logical_names);
+  return logical_names;
+}
+
+std::optional<ShaderDefaultValue>
+literal_default_value(const CanonicalExprPtr &expr, const TypeRef &type) {
+  if (!expr || !std::holds_alternative<CanonicalLiteralExpr>(expr->data)) {
+    return std::nullopt;
+  }
+
+  const auto &literal = std::get<CanonicalLiteralExpr>(expr->data);
+
+  switch (type.kind) {
+    case TokenKind::TypeBool:
+      if (const auto *value = std::get_if<bool>(&literal.value)) {
+        return ShaderDefaultValue(*value);
+      }
+      return std::nullopt;
+    case TokenKind::TypeInt:
+      if (const auto *value = std::get_if<int64_t>(&literal.value)) {
+        if (*value < std::numeric_limits<int>::min() ||
+            *value > std::numeric_limits<int>::max()) {
+          return std::nullopt;
+        }
+        return ShaderDefaultValue(static_cast<int>(*value));
+      }
+      return std::nullopt;
+    case TokenKind::TypeFloat:
+      if (const auto *value = std::get_if<double>(&literal.value)) {
+        return ShaderDefaultValue(static_cast<float>(*value));
+      }
+      if (const auto *value = std::get_if<int64_t>(&literal.value)) {
+        return ShaderDefaultValue(static_cast<float>(*value));
+      }
+      return std::nullopt;
+    default:
+      return std::nullopt;
+  }
+}
+
+DeclaredFieldReflection build_declared_field_reflection(
+    const CanonicalFieldDecl &field,
+    const std::vector<CanonicalStructDecl> &reflection_structs,
+    const std::unordered_map<std::string, uint32_t> &active_leaf_stage_masks,
+    std::vector<ReflectionPathSegment> path) {
+  const auto resolved_array_size =
+      effective_array_size(field.type, field.array_size);
+
+  path.push_back(ReflectionPathSegment{field.name, resolved_array_size});
+
+  DeclaredFieldReflection reflection;
+  reflection.name = field.name;
+  reflection.logical_name = join_reflection_logical_name(path);
+  reflection.type = field.type;
+  reflection.array_size = resolved_array_size;
+  reflection.default_value = literal_default_value(field.init, field.type);
+  reflection.binding_id = shader_binding_id(reflection.logical_name);
+
+  if (const auto *struct_decl =
+          find_canonical_struct(reflection_structs, field.type.name)) {
+    for (const auto &child_field : struct_decl->fields) {
+      reflection.fields.push_back(build_declared_field_reflection(
+          child_field, reflection_structs, active_leaf_stage_masks, path));
+      reflection.active_stage_mask |=
+          reflection.fields.back().active_stage_mask;
+    }
+
+    return reflection;
+  }
+
+  for (const auto &logical_name : expand_reflection_logical_names(path)) {
+    auto stage_mask_it = active_leaf_stage_masks.find(logical_name);
+    if (stage_mask_it != active_leaf_stage_masks.end()) {
+      reflection.active_stage_mask |= stage_mask_it->second;
+    }
+  }
+
+  return reflection;
+}
+
+std::unordered_map<std::string, uint32_t>
+collect_active_leaf_stage_masks(const CanonicalStage &stage,
+                                const CanonicalInterfaceBinding &binding) {
+  std::unordered_map<std::string, uint32_t> active_stage_masks;
+
+  for (const auto &field : binding.fields) {
+    std::vector<MemberReflection> members;
+    append_leaf_members(stage, field.type, field.array_size,
+                        binding.param_name + "." + field.name, std::nullopt,
+                        members);
+
+    for (const auto &member : members) {
+      active_stage_masks[member.logical_name] |= shader_stage_mask(stage.stage);
+    }
+  }
+
+  return active_stage_masks;
+}
+
+StageReflection build_stage_reflection(const CanonicalStage &stage) {
+  StageReflection reflection;
+  reflection.stage = stage.stage;
+
+  for (const auto &binding : stage.entry.varying_inputs) {
+    for (const auto &field : binding.fields) {
+      reflection.stage_inputs.push_back(StageFieldReflection{
+          binding.param_name + "." + field.name, field.name,
+          binding.interface_name, field.type, field.array_size,
+          make_layout_from_annotations(field.annotations)});
+    }
+  }
+
+  if (stage.entry.output) {
+    for (const auto &field : stage.entry.output->fields) {
+      reflection.stage_outputs.push_back(StageFieldReflection{
+          field.name, field.name, stage.entry.output->interface_name,
+          field.type, field.array_size,
+          make_layout_from_annotations(field.annotations)});
+    }
+  }
+
+  for (const auto &decl : stage.declarations) {
+    std::visit(
+        Overloaded{
+            [&](const CanonicalUniformDecl &uniform_decl) {
+              ResourceReflection resource;
+              resource.logical_name = uniform_decl.name;
+              resource.kind = is_sampler_type(uniform_decl.type)
+                                  ? ShaderResourceKind::Sampler
+                                  : ShaderResourceKind::UniformValue;
+              resource.stage = stage.stage;
+              resource.declared_name = uniform_decl.name;
+              resource.type = uniform_decl.type;
+              resource.array_size = uniform_decl.array_size;
+              resource.glsl = make_layout_from_annotations(
+                  uniform_decl.annotations, "uniform");
+              append_leaf_members(stage, uniform_decl.type,
+                                  uniform_decl.array_size, uniform_decl.name,
+                                  std::nullopt, resource.members);
+              reflection.resources.push_back(std::move(resource));
+            },
+            [&](const CanonicalBufferDecl &buffer_decl) {
+              ResourceReflection resource;
+              resource.logical_name = buffer_decl.instance_name
+                                          ? *buffer_decl.instance_name
+                                          : buffer_decl.name;
+              resource.kind = buffer_decl.is_uniform
+                                  ? ShaderResourceKind::UniformBlock
+                                  : ShaderResourceKind::StorageBuffer;
+              resource.stage = stage.stage;
+              resource.declared_name = buffer_decl.name;
+              resource.type = TypeRef{TokenKind::Identifier, buffer_decl.name};
+              resource.glsl = make_layout_from_annotations(
+                  buffer_decl.annotations,
+                  buffer_decl.is_uniform ? "uniform" : "buffer");
+              resource.glsl.block_name = buffer_decl.name;
+              resource.glsl.instance_name = buffer_decl.instance_name;
+
+              for (const auto &field : buffer_decl.fields) {
+                append_leaf_members(stage, field.type, field.array_size,
+                                    resource.logical_name + "." + field.name,
+                                    std::nullopt, resource.members);
+              }
+
+              reflection.resources.push_back(std::move(resource));
+            },
+            [&](const CanonicalInterfaceBlockDecl &interface_decl) {
+              if (!interface_decl.is_storage_block) {
+                return;
+              }
+
+              ResourceReflection resource;
+              resource.logical_name = interface_decl.instance_name
+                                          ? *interface_decl.instance_name
+                                          : interface_decl.name;
+              resource.kind = ShaderResourceKind::StorageBuffer;
+              resource.stage = stage.stage;
+              resource.declared_name = interface_decl.name;
+              resource.type =
+                  TypeRef{TokenKind::Identifier, interface_decl.name};
+              resource.glsl = make_layout_from_annotations(
+                  interface_decl.annotations, "buffer");
+              resource.glsl.block_name = interface_decl.name;
+              resource.glsl.instance_name = interface_decl.instance_name;
+
+              for (const auto &field : interface_decl.fields) {
+                append_leaf_members(stage, field.type, field.array_size,
+                                    resource.logical_name + "." + field.name,
+                                    std::nullopt, resource.members);
+              }
+
+              reflection.resources.push_back(std::move(resource));
+            },
+            [&](const auto &) {}},
+        decl);
+  }
+
+  std::unordered_map<std::string, const CanonicalInterfaceBinding *>
+      active_resource_inputs;
+  for (const auto &binding : stage.entry.resource_inputs) {
+    active_resource_inputs.emplace(binding.param_name, &binding);
+  }
+
+  for (const auto &binding : stage.entry.declared_resource_inputs) {
+    ResourceReflection resource;
+    resource.logical_name = binding.param_name;
+    resource.kind = ShaderResourceKind::UniformInterface;
+    resource.stage = stage.stage;
+    resource.declared_name = binding.interface_name;
+    resource.type = TypeRef{TokenKind::Identifier, binding.interface_name};
+    resource.glsl.storage = "uniform";
+
+    std::unordered_map<std::string, uint32_t> active_leaf_stage_masks;
+
+    auto active_binding_it = active_resource_inputs.find(binding.param_name);
+    if (active_binding_it != active_resource_inputs.end()) {
+      const auto &active_binding = *active_binding_it->second;
+      active_leaf_stage_masks =
+          collect_active_leaf_stage_masks(stage, active_binding);
+
+      for (const auto &field : active_binding.fields) {
+        std::optional<std::string> compatibility_alias;
+        if (!find_canonical_struct(stage, field.type.name) &&
+            !field.array_size && !field.type.array_size) {
+          compatibility_alias = field.name;
+        }
+
+        append_leaf_members(stage, field.type, field.array_size,
+                            binding.param_name + "." + field.name,
+                            std::move(compatibility_alias), resource.members);
+      }
+    }
+
+    std::vector<ReflectionPathSegment> base_path = {
+        ReflectionPathSegment{binding.param_name, std::nullopt}};
+    for (const auto &field : binding.fields) {
+      resource.declared_fields.push_back(build_declared_field_reflection(
+          field, stage.reflection_structs, active_leaf_stage_masks, base_path));
+    }
+
+    reflection.resources.push_back(std::move(resource));
+  }
+
+  dedupe_stage_aliases(reflection);
+  return reflection;
 }
 
 class CanonicalStageBuilder {
@@ -279,19 +715,23 @@ public:
     std::unordered_set<NodeID> stage_function_ids =
         collect_stage_function_ids(m_program, m_nodes, entry);
     std::unordered_set<NodeID> stage_struct_ids =
-        collect_stage_struct_ids(entry, entry_ctx, stage_function_ids);
+        collect_stage_struct_ids(entry, entry_ctx, stage_function_ids, false);
+    std::unordered_set<NodeID> reflection_struct_ids =
+        collect_stage_struct_ids(entry, entry_ctx, stage_function_ids, true);
 
     for (NodeID global_id : m_program.globals) {
-      if (stage_struct_ids.count(global_id) == 0) {
-        continue;
-      }
-
       const auto *struct_decl = std::get_if<StructDecl>(&node(global_id).data);
       if (!struct_decl) {
         continue;
       }
 
-      result.stage.structs.push_back(lower_struct_decl(global_id));
+      if (stage_struct_ids.count(global_id) > 0) {
+        result.stage.structs.push_back(lower_struct_decl(global_id));
+      }
+
+      if (reflection_struct_ids.count(global_id) > 0) {
+        result.stage.reflection_structs.push_back(lower_struct_decl(global_id));
+      }
     }
 
     const auto used_uniforms_it = m_link_result.uniform_usage.find(m_stage);
@@ -310,14 +750,15 @@ public:
 
       if (const auto *func_decl = std::get_if<FuncDecl>(&global_node.data)) {
         if (stage_function_ids.count(global_id) > 0) {
-          result.stage.declarations.emplace_back(lower_function_decl(global_id));
+          result.stage.declarations.emplace_back(
+              lower_function_decl(global_id));
         }
         continue;
       }
 
       if (const auto *var_decl = std::get_if<VarDecl>(&global_node.data)) {
-        result.stage.declarations.emplace_back(lower_global_const_decl(
-            global_node.location, *var_decl));
+        result.stage.declarations.emplace_back(
+            lower_global_const_decl(global_node.location, *var_decl));
         continue;
       }
 
@@ -342,7 +783,8 @@ public:
         continue;
       }
 
-      if (const auto *uniform_decl = std::get_if<UniformDecl>(&global_node.data)) {
+      if (const auto *uniform_decl =
+              std::get_if<UniformDecl>(&global_node.data)) {
         if (used_uniforms.count(uniform_decl->name) > 0 &&
             !is_shadowed(uniform_decl->name)) {
           result.stage.declarations.emplace_back(
@@ -351,7 +793,8 @@ public:
         continue;
       }
 
-      if (const auto *buffer_decl = std::get_if<BufferDecl>(&global_node.data)) {
+      if (const auto *buffer_decl =
+              std::get_if<BufferDecl>(&global_node.data)) {
         if (buffer_decl->instance_name &&
             used_uniforms.count(*buffer_decl->instance_name) > 0 &&
             !is_shadowed(*buffer_decl->instance_name)) {
@@ -362,6 +805,7 @@ public:
     }
 
     result.stage.entry = lower_entry(*entry, entry_ctx);
+    result.reflection = build_stage_reflection(result.stage);
     return result;
   }
 
@@ -458,14 +902,15 @@ private:
     }
 
     if (declared_output_interface) {
-      ctx.output_local_name =
-          find_output_local_name(m_nodes, entry.body, declared_output_interface->name);
+      ctx.output_local_name = find_output_local_name(
+          m_nodes, entry.body, declared_output_interface->name);
     }
 
     std::unordered_set<std::string> resource_param_names;
     for (NodeID param_id : entry.params) {
       const auto &param_decl = std::get<ParamDecl>(node(param_id).data);
-      const InterfaceDecl *interface_decl = find_interface(param_decl.type.name);
+      const InterfaceDecl *interface_decl =
+          find_interface(param_decl.type.name);
       if (!interface_decl) {
         continue;
       }
@@ -488,7 +933,8 @@ private:
 
   std::unordered_set<NodeID>
   collect_stage_struct_ids(const FuncDecl *entry, const EntryContext &ctx,
-                           const std::unordered_set<NodeID> &stage_function_ids) const {
+                           const std::unordered_set<NodeID> &stage_function_ids,
+                           bool include_inactive_resource_fields) const {
     std::unordered_set<NodeID> stage_struct_ids;
     auto struct_ids = collect_global_struct_ids(m_program, m_nodes);
 
@@ -501,8 +947,8 @@ private:
       for (NodeID field_id : interface_decl->fields) {
         if (param_name) {
           const auto &field_decl = std::get<FieldDecl>(m_nodes[field_id].data);
-          if (ctx.used_resource_fields.count(*param_name + "." + field_decl.name) ==
-              0) {
+          if (ctx.used_resource_fields.count(*param_name + "." +
+                                             field_decl.name) == 0) {
             continue;
           }
         }
@@ -518,8 +964,8 @@ private:
 
       for (NodeID param_id : entry->params) {
         const auto &param_decl = std::get<ParamDecl>(node(param_id).data);
-        collect_struct_dependencies_from_type(param_decl.type, struct_ids, m_nodes,
-                                              stage_struct_ids);
+        collect_struct_dependencies_from_type(param_decl.type, struct_ids,
+                                              m_nodes, stage_struct_ids);
       }
 
       collect_struct_dependencies_from_node(entry->body, struct_ids, m_nodes,
@@ -534,7 +980,9 @@ private:
     }
 
     for (const auto &[param_name, interface_decl] : ctx.resource_inputs) {
-      collect_interface_structs(interface_decl, &param_name);
+      collect_interface_structs(interface_decl, include_inactive_resource_fields
+                                                    ? nullptr
+                                                    : &param_name);
     }
 
     for (NodeID function_id : stage_function_ids) {
@@ -579,7 +1027,8 @@ private:
         continue;
       }
 
-      if (const auto *uniform_decl = std::get_if<UniformDecl>(&global_node.data)) {
+      if (const auto *uniform_decl =
+              std::get_if<UniformDecl>(&global_node.data)) {
         if (used_uniforms.count(uniform_decl->name) > 0 &&
             !is_shadowed(uniform_decl->name)) {
           collect_struct_dependencies_from_node(global_id, struct_ids, m_nodes,
@@ -588,7 +1037,8 @@ private:
         continue;
       }
 
-      if (const auto *buffer_decl = std::get_if<BufferDecl>(&global_node.data)) {
+      if (const auto *buffer_decl =
+              std::get_if<BufferDecl>(&global_node.data)) {
         if (buffer_decl->instance_name &&
             used_uniforms.count(*buffer_decl->instance_name) > 0 &&
             !is_shadowed(*buffer_decl->instance_name)) {
@@ -655,8 +1105,9 @@ private:
     return lowered;
   }
 
-  CanonicalGlobalConstDecl lower_global_const_decl(SourceLocation location,
-                                                   const VarDecl &var_decl) const {
+  CanonicalGlobalConstDecl
+  lower_global_const_decl(SourceLocation location,
+                          const VarDecl &var_decl) const {
     CanonicalGlobalConstDecl lowered;
     lowered.location = location;
     lowered.type = var_decl.type;
@@ -668,8 +1119,8 @@ private:
     return lowered;
   }
 
-  CanonicalUniformDecl lower_uniform_decl(NodeID id,
-                                          const UniformDecl &uniform_decl) const {
+  CanonicalUniformDecl
+  lower_uniform_decl(NodeID id, const UniformDecl &uniform_decl) const {
     CanonicalUniformDecl lowered;
     lowered.location = node(id).location;
     lowered.type = uniform_decl.type;
@@ -700,7 +1151,8 @@ private:
 
   CanonicalInterfaceBlockDecl lower_inline_interface_decl(NodeID id) const {
     const ASTNode &interface_node = node(id);
-    const auto &interface_decl = std::get<InlineInterfaceDecl>(interface_node.data);
+    const auto &interface_decl =
+        std::get<InlineInterfaceDecl>(interface_node.data);
 
     CanonicalInterfaceBlockDecl lowered;
     lowered.location = interface_node.location;
@@ -721,7 +1173,8 @@ private:
   lower_interface_ref_decl(NodeID id) const {
     const ASTNode &interface_node = node(id);
     const auto &interface_ref = std::get<InterfaceRef>(interface_node.data);
-    const InterfaceDecl *interface_decl = find_interface(interface_ref.block_name);
+    const InterfaceDecl *interface_decl =
+        find_interface(interface_ref.block_name);
     if (!interface_decl) {
       return std::nullopt;
     }
@@ -787,12 +1240,19 @@ private:
 
       auto resource_it = ctx.resource_inputs.find(param_decl.name);
       if (resource_it != ctx.resource_inputs.end()) {
-        auto fields = lower_interface_fields(*resource_it->second, &ctx,
-                                             param_decl.name);
+        auto declared_fields =
+            lower_interface_fields(*resource_it->second, &ctx);
+        lowered.declared_resource_inputs.push_back(CanonicalInterfaceBinding{
+            node(param_id).location, param_decl.name, resource_it->second->name,
+            std::move(declared_fields), resource_it->second->role});
+
+        auto fields =
+            lower_interface_fields(*resource_it->second, &ctx, param_decl.name);
         if (!fields.empty()) {
           lowered.resource_inputs.push_back(CanonicalInterfaceBinding{
-              node(param_id).location, param_decl.name, resource_it->second->name,
-              std::move(fields), resource_it->second->role});
+              node(param_id).location, param_decl.name,
+              resource_it->second->name, std::move(fields),
+              resource_it->second->role});
         }
       }
     }
@@ -813,10 +1273,9 @@ private:
 
         body_stmts.push_back(make_stmt(
             field.location,
-            CanonicalOutputAssignStmt{
-                field.name,
-                lower_expr_from_canonical(*field.init),
-                TokenKind::Eq}));
+            CanonicalOutputAssignStmt{field.name,
+                                      lower_expr_from_canonical(*field.init),
+                                      TokenKind::Eq}));
       }
     }
 
@@ -831,8 +1290,8 @@ private:
       body_stmts.push_back(std::move(stmt));
     }
 
-    lowered.body =
-        make_stmt(body_node.location, CanonicalBlockStmt{std::move(body_stmts)});
+    lowered.body = make_stmt(body_node.location,
+                             CanonicalBlockStmt{std::move(body_stmts)});
     return lowered;
   }
 
@@ -854,7 +1313,8 @@ private:
         [&](const BinaryExpr &expr) -> CanonicalExprPtr {
           return make_expr(expr_node.location, expr_node.type,
                            CanonicalBinaryExpr{lower_expr(expr.lhs, ctx),
-                                               lower_expr(expr.rhs, ctx), expr.op});
+                                               lower_expr(expr.rhs, ctx),
+                                               expr.op});
         },
         [&](const UnaryExpr &expr) -> CanonicalExprPtr {
           return make_expr(expr_node.location, expr_node.type,
@@ -862,10 +1322,11 @@ private:
                                               expr.op, expr.prefix});
         },
         [&](const TernaryExpr &expr) -> CanonicalExprPtr {
-          return make_expr(expr_node.location, expr_node.type,
-                           CanonicalTernaryExpr{lower_expr(expr.cond, ctx),
-                                                lower_expr(expr.then_expr, ctx),
-                                                lower_expr(expr.else_expr, ctx)});
+          return make_expr(
+              expr_node.location, expr_node.type,
+              CanonicalTernaryExpr{lower_expr(expr.cond, ctx),
+                                   lower_expr(expr.then_expr, ctx),
+                                   lower_expr(expr.else_expr, ctx)});
         },
         [&](const CallExpr &expr) -> CanonicalExprPtr {
           CanonicalCallExpr lowered;
@@ -873,7 +1334,8 @@ private:
           for (NodeID arg_id : expr.args) {
             lowered.args.push_back(lower_expr(arg_id, ctx));
           }
-          return make_expr(expr_node.location, expr_node.type, std::move(lowered));
+          return make_expr(expr_node.location, expr_node.type,
+                           std::move(lowered));
         },
         [&](const IndexExpr &expr) -> CanonicalExprPtr {
           return make_expr(expr_node.location, expr_node.type,
@@ -904,9 +1366,9 @@ private:
             }
           }
 
-          return make_expr(expr_node.location, expr_node.type,
-                           CanonicalFieldExpr{lower_expr(expr.object, ctx),
-                                              expr.field});
+          return make_expr(
+              expr_node.location, expr_node.type,
+              CanonicalFieldExpr{lower_expr(expr.object, ctx), expr.field});
         },
         [&](const ConstructExpr &expr) -> CanonicalExprPtr {
           CanonicalConstructExpr lowered;
@@ -914,12 +1376,14 @@ private:
           for (NodeID arg_id : expr.args) {
             lowered.args.push_back(lower_expr(arg_id, ctx));
           }
-          return make_expr(expr_node.location, expr_node.type, std::move(lowered));
+          return make_expr(expr_node.location, expr_node.type,
+                           std::move(lowered));
         },
         [&](const AssignExpr &expr) -> CanonicalExprPtr {
           return make_expr(expr_node.location, expr_node.type,
                            CanonicalAssignExpr{lower_expr(expr.lhs, ctx),
-                                               lower_expr(expr.rhs, ctx), expr.op});
+                                               lower_expr(expr.rhs, ctx),
+                                               expr.op});
         },
         [&](const auto &) -> CanonicalExprPtr { return {}; }};
 
@@ -929,20 +1393,22 @@ private:
   CanonicalExprPtr lower_expr_from_canonical(const CanonicalExpr &expr) const {
     const auto expr_emitter = Overloaded{
         [&](const CanonicalLiteralExpr &data) -> CanonicalExprPtr {
-          return make_expr(expr.location, expr.type, CanonicalLiteralExpr{data.value});
+          return make_expr(expr.location, expr.type,
+                           CanonicalLiteralExpr{data.value});
         },
         [&](const CanonicalIdentifierExpr &data) -> CanonicalExprPtr {
           return make_expr(expr.location, expr.type,
                            CanonicalIdentifierExpr{data.name});
         },
         [&](const CanonicalStageInputFieldRef &data) -> CanonicalExprPtr {
-          return make_expr(expr.location, expr.type,
-                           CanonicalStageInputFieldRef{data.param_name, data.field});
+          return make_expr(
+              expr.location, expr.type,
+              CanonicalStageInputFieldRef{data.param_name, data.field});
         },
         [&](const CanonicalStageResourceFieldRef &data) -> CanonicalExprPtr {
-          return make_expr(expr.location, expr.type,
-                           CanonicalStageResourceFieldRef{data.param_name,
-                                                          data.field});
+          return make_expr(
+              expr.location, expr.type,
+              CanonicalStageResourceFieldRef{data.param_name, data.field});
         },
         [&](const CanonicalOutputFieldRef &data) -> CanonicalExprPtr {
           return make_expr(expr.location, expr.type,
@@ -950,15 +1416,15 @@ private:
         },
         [&](const CanonicalBinaryExpr &data) -> CanonicalExprPtr {
           return make_expr(expr.location, expr.type,
-                           CanonicalBinaryExpr{lower_expr_from_canonical(*data.lhs),
-                                               lower_expr_from_canonical(*data.rhs),
-                                               data.op});
+                           CanonicalBinaryExpr{
+                               lower_expr_from_canonical(*data.lhs),
+                               lower_expr_from_canonical(*data.rhs), data.op});
         },
         [&](const CanonicalUnaryExpr &data) -> CanonicalExprPtr {
-          return make_expr(expr.location, expr.type,
-                           CanonicalUnaryExpr{
-                               lower_expr_from_canonical(*data.operand), data.op,
-                               data.prefix});
+          return make_expr(
+              expr.location, expr.type,
+              CanonicalUnaryExpr{lower_expr_from_canonical(*data.operand),
+                                 data.op, data.prefix});
         },
         [&](const CanonicalTernaryExpr &data) -> CanonicalExprPtr {
           return make_expr(
@@ -976,15 +1442,16 @@ private:
           return make_expr(expr.location, expr.type, std::move(lowered));
         },
         [&](const CanonicalIndexExpr &data) -> CanonicalExprPtr {
-          return make_expr(expr.location, expr.type,
-                           CanonicalIndexExpr{
-                               lower_expr_from_canonical(*data.array),
-                               lower_expr_from_canonical(*data.index)});
+          return make_expr(
+              expr.location, expr.type,
+              CanonicalIndexExpr{lower_expr_from_canonical(*data.array),
+                                 lower_expr_from_canonical(*data.index)});
         },
         [&](const CanonicalFieldExpr &data) -> CanonicalExprPtr {
-          return make_expr(expr.location, expr.type,
-                           CanonicalFieldExpr{
-                               lower_expr_from_canonical(*data.object), data.field});
+          return make_expr(
+              expr.location, expr.type,
+              CanonicalFieldExpr{lower_expr_from_canonical(*data.object),
+                                 data.field});
         },
         [&](const CanonicalConstructExpr &data) -> CanonicalExprPtr {
           CanonicalConstructExpr lowered;
@@ -995,10 +1462,10 @@ private:
           return make_expr(expr.location, expr.type, std::move(lowered));
         },
         [&](const CanonicalAssignExpr &data) -> CanonicalExprPtr {
-          return make_expr(
-              expr.location, expr.type,
-              CanonicalAssignExpr{lower_expr_from_canonical(*data.lhs),
-                                  lower_expr_from_canonical(*data.rhs), data.op});
+          return make_expr(expr.location, expr.type,
+                           CanonicalAssignExpr{
+                               lower_expr_from_canonical(*data.lhs),
+                               lower_expr_from_canonical(*data.rhs), data.op});
         }};
 
     return std::visit(expr_emitter, expr.data);
@@ -1030,7 +1497,8 @@ private:
 
     const ASTNode &return_node = node(*stmt.value);
 
-    if (const auto *identifier_expr = std::get_if<IdentifierExpr>(&return_node.data)) {
+    if (const auto *identifier_expr =
+            std::get_if<IdentifierExpr>(&return_node.data)) {
       if (ctx->output_local_name &&
           identifier_expr->name == *ctx->output_local_name) {
         return make_stmt(location, CanonicalReturnStmt{});
@@ -1039,11 +1507,13 @@ private:
 
     const std::vector<NodeID> *args = nullptr;
 
-    if (const auto *construct_expr = std::get_if<ConstructExpr>(&return_node.data)) {
+    if (const auto *construct_expr =
+            std::get_if<ConstructExpr>(&return_node.data)) {
       if (construct_expr->type.name == ctx->output_interface->name) {
         args = &construct_expr->args;
       }
-    } else if (const auto *call_expr = std::get_if<CallExpr>(&return_node.data)) {
+    } else if (const auto *call_expr =
+                   std::get_if<CallExpr>(&return_node.data)) {
       const ASTNode &callee_node = node(call_expr->callee);
 
       if (const auto *identifier_expr =
@@ -1068,9 +1538,9 @@ private:
       const auto &field_decl =
           std::get<FieldDecl>(node(ctx->output_interface->fields[i]).data);
       stmts.push_back(make_stmt(
-          location, CanonicalOutputAssignStmt{
-                        field_decl.name, lower_expr((*args)[i], ctx),
-                        TokenKind::Eq}));
+          location, CanonicalOutputAssignStmt{field_decl.name,
+                                              lower_expr((*args)[i], ctx),
+                                              TokenKind::Eq}));
     }
     stmts.push_back(make_stmt(location, CanonicalReturnStmt{}));
 
@@ -1095,20 +1565,21 @@ private:
                            CanonicalBlockStmt{std::move(stmts)});
         },
         [&](const IfStmt &stmt) -> CanonicalStmtPtr {
-          return make_stmt(stmt_node.location,
-                           CanonicalIfStmt{lower_expr(stmt.cond, ctx),
-                                           lower_body_stmt(stmt.then_br, ctx),
-                                           stmt.else_br
-                                               ? lower_body_stmt(*stmt.else_br, ctx)
-                                               : nullptr});
+          return make_stmt(
+              stmt_node.location,
+              CanonicalIfStmt{lower_expr(stmt.cond, ctx),
+                              lower_body_stmt(stmt.then_br, ctx),
+                              stmt.else_br ? lower_body_stmt(*stmt.else_br, ctx)
+                                           : nullptr});
         },
         [&](const ForStmt &stmt) -> CanonicalStmtPtr {
           return make_stmt(
               stmt_node.location,
-              CanonicalForStmt{lower_for_init(stmt.init, ctx),
-                               stmt.cond ? lower_expr(*stmt.cond, ctx) : nullptr,
-                               stmt.step ? lower_expr(*stmt.step, ctx) : nullptr,
-                               lower_body_stmt(stmt.body, ctx)});
+              CanonicalForStmt{
+                  lower_for_init(stmt.init, ctx),
+                  stmt.cond ? lower_expr(*stmt.cond, ctx) : nullptr,
+                  stmt.step ? lower_expr(*stmt.step, ctx) : nullptr,
+                  lower_body_stmt(stmt.body, ctx)});
         },
         [&](const WhileStmt &stmt) -> CanonicalStmtPtr {
           return make_stmt(stmt_node.location,
@@ -1116,14 +1587,15 @@ private:
                                               lower_body_stmt(stmt.body, ctx)});
         },
         [&](const ReturnStmt &stmt) -> CanonicalStmtPtr {
-          if (auto lowered = try_lower_structured_return(stmt, stmt_node.location,
-                                                         ctx)) {
+          if (auto lowered =
+                  try_lower_structured_return(stmt, stmt_node.location, ctx)) {
             return lowered;
           }
 
-          return make_stmt(stmt_node.location,
-                           CanonicalReturnStmt{
-                               stmt.value ? lower_expr(*stmt.value, ctx) : nullptr});
+          return make_stmt(
+              stmt_node.location,
+              CanonicalReturnStmt{stmt.value ? lower_expr(*stmt.value, ctx)
+                                             : nullptr});
         },
         [&](const ExprStmt &stmt) -> CanonicalStmtPtr {
           CanonicalExprPtr expr = lower_expr(stmt.expr, ctx);
@@ -1131,16 +1603,17 @@ private:
             return nullptr;
           }
 
-          if (auto *assign_expr = std::get_if<CanonicalAssignExpr>(&expr->data)) {
+          if (auto *assign_expr =
+                  std::get_if<CanonicalAssignExpr>(&expr->data)) {
             if (assign_expr->lhs) {
               if (const auto *output_field =
                       std::get_if<CanonicalOutputFieldRef>(
                           &assign_expr->lhs->data)) {
-                return make_stmt(stmt_node.location,
-                                 CanonicalOutputAssignStmt{
-                                     output_field->field,
-                                     std::move(assign_expr->rhs),
-                                     assign_expr->op});
+                return make_stmt(
+                    stmt_node.location,
+                    CanonicalOutputAssignStmt{output_field->field,
+                                              std::move(assign_expr->rhs),
+                                              assign_expr->op});
               }
             }
           }
@@ -1159,11 +1632,12 @@ private:
             return nullptr;
           }
 
-          return make_stmt(stmt_node.location,
-                           CanonicalVarDeclStmt{
-                               stmt.type, stmt.name,
-                               stmt.init ? lower_expr(*stmt.init, ctx) : nullptr,
-                               stmt.is_const});
+          return make_stmt(
+              stmt_node.location,
+              CanonicalVarDeclStmt{stmt.type, stmt.name,
+                                   stmt.init ? lower_expr(*stmt.init, ctx)
+                                             : nullptr,
+                                   stmt.is_const});
         },
         [&](const BreakStmt &) -> CanonicalStmtPtr {
           return make_stmt(stmt_node.location, CanonicalBreakStmt{});

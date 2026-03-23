@@ -55,6 +55,8 @@ inline std::string_view attribute_kind_name(AttributeKind kind) {
 
     case AttributeKind::GeometryStage:
       return "@geometry";
+    case AttributeKind::ComputeStage:
+      return "@compute";
   }
 
   return "@<unknown>";

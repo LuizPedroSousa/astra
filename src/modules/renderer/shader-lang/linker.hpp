@@ -1,5 +1,6 @@
 #pragma once
 #include "shader-lang/ast.hpp"
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -11,6 +12,7 @@ namespace astralix {
 struct LinkResult {
   std::vector<ASTNode> all_nodes;
   std::unordered_map<StageKind, std::unordered_set<std::string>> uniform_usage;
+  std::vector<std::filesystem::path> dependencies;
   std::vector<std::string> errors;
   bool ok() const { return errors.empty(); }
 };

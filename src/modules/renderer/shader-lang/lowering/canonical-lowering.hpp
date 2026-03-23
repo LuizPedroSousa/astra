@@ -2,6 +2,7 @@
 
 #include "shader-lang/ast.hpp"
 #include "shader-lang/linker.hpp"
+#include "shader-lang/reflection.hpp"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -249,6 +250,7 @@ struct CanonicalEntryPoint {
   std::string name = "main";
   std::vector<CanonicalInterfaceBinding> varying_inputs;
   std::vector<CanonicalInterfaceBinding> resource_inputs;
+  std::vector<CanonicalInterfaceBinding> declared_resource_inputs;
   std::optional<CanonicalStageOutput> output;
   CanonicalStmtPtr body;
 };
@@ -257,12 +259,14 @@ struct CanonicalStage {
   int version = 450;
   StageKind stage = StageKind::Vertex;
   std::vector<CanonicalStructDecl> structs;
+  std::vector<CanonicalStructDecl> reflection_structs;
   std::vector<CanonicalDecl> declarations;
   CanonicalEntryPoint entry;
 };
 
 struct CanonicalLoweringResult {
   CanonicalStage stage;
+  StageReflection reflection;
   std::vector<std::string> errors;
 
   bool ok() const { return errors.empty(); }

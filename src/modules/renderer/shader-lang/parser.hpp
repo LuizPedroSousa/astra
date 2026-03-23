@@ -40,6 +40,7 @@ private:
   Annotations parse_annotations();
 
   TypeRef parse_type_ref();
+  void parse_type_array_suffix(TypeRef &type_ref, bool allow_runtime_sized);
 
   NodeID parse_stmt();
   NodeID parse_block_stmt();

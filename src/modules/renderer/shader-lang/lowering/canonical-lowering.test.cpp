@@ -70,7 +70,8 @@ CanonicalLoweringResult lower_stage(std::string_view source, StageKind stage) {
   return lowering.lower(linked.program, linked.link_result, stage);
 }
 
-std::vector<const CanonicalStmt *> top_level_stmts(const CanonicalStage &stage) {
+std::vector<const CanonicalStmt *>
+top_level_stmts(const CanonicalStage &stage) {
   std::vector<const CanonicalStmt *> stmts;
   const auto *block = std::get_if<CanonicalBlockStmt>(&stage.entry.body->data);
   if (!block) {
@@ -157,6 +158,59 @@ fn main(Entity entity) -> FragmentOutput {
   EXPECT_EQ(binding.fields.front().name, "view");
 }
 
+TEST(CanonicalLowering, ReflectionKeepsDeclaredUniformInterfaceTree) {
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+struct Exposure {
+    vec3 ambient;
+    vec3 diffuse;
+};
+
+@uniform
+interface Light {
+    Exposure exposure;
+    float intensity = 2.0;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main(Light light) -> FragmentOutput {
+    return FragmentOutput(vec4(light.exposure.ambient, 1.0));
+}
+)axsl";
+
+  auto result = lower_stage(src, StageKind::Fragment);
+  ASSERT_TRUE(result.ok());
+
+  ASSERT_EQ(result.reflection.resources.size(), 1u);
+  const auto &resource = result.reflection.resources.front();
+
+  ASSERT_EQ(resource.members.size(), 2u);
+  EXPECT_EQ(resource.members[0].logical_name, "light.exposure.ambient");
+  EXPECT_EQ(resource.members[1].logical_name, "light.exposure.diffuse");
+
+  ASSERT_EQ(resource.declared_fields.size(), 2u);
+  const auto &exposure = resource.declared_fields[0];
+  EXPECT_EQ(exposure.logical_name, "light.exposure");
+  ASSERT_EQ(exposure.fields.size(), 2u);
+  EXPECT_EQ(exposure.fields[0].logical_name, "light.exposure.ambient");
+  EXPECT_EQ(exposure.fields[0].active_stage_mask,
+            shader_stage_mask(StageKind::Fragment));
+  EXPECT_EQ(exposure.fields[1].logical_name, "light.exposure.diffuse");
+  EXPECT_EQ(exposure.fields[1].active_stage_mask,
+            shader_stage_mask(StageKind::Fragment));
+
+  const auto &intensity = resource.declared_fields[1];
+  EXPECT_EQ(intensity.logical_name, "light.intensity");
+  ASSERT_TRUE(intensity.default_value.has_value());
+  EXPECT_EQ(std::get<float>(*intensity.default_value), 2.0f);
+  EXPECT_EQ(intensity.active_stage_mask, 0u);
+}
+
 TEST(CanonicalLowering, OutputAccumulatorIsNormalizedIntoOutputAssignments) {
   static constexpr std::string_view src = R"axsl(
 @version 450;
@@ -178,7 +232,8 @@ fn main() -> VertexOutput {
 
   auto stmts = top_level_stmts(result.stage);
   ASSERT_EQ(stmts.size(), 2u);
-  EXPECT_TRUE(std::holds_alternative<CanonicalOutputAssignStmt>(stmts[0]->data));
+  EXPECT_TRUE(
+      std::holds_alternative<CanonicalOutputAssignStmt>(stmts[0]->data));
 
   const auto &assign = std::get<CanonicalOutputAssignStmt>(stmts[0]->data);
   EXPECT_EQ(assign.field, "position");
@@ -205,7 +260,8 @@ fn main() -> FragmentOutput {
 
   auto stmts = top_level_stmts(result.stage);
   ASSERT_EQ(stmts.size(), 2u);
-  EXPECT_TRUE(std::holds_alternative<CanonicalOutputAssignStmt>(stmts[0]->data));
+  EXPECT_TRUE(
+      std::holds_alternative<CanonicalOutputAssignStmt>(stmts[0]->data));
   ASSERT_TRUE(std::holds_alternative<CanonicalBlockStmt>(stmts[1]->data));
 
   const auto &default_assign =
@@ -223,6 +279,77 @@ fn main() -> FragmentOutput {
 
   EXPECT_EQ(default_assign.field, "bloom");
   EXPECT_EQ(return_assign.field, "color");
+}
+
+TEST(CanonicalLowering, UniformInterfaceProducesLogicalReflectionMembers) {
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+@uniform
+interface Entity {
+    mat4 view;
+    mat4 projection;
+    bool use_instancing = false;
+}
+
+interface VertexOutput {
+    @location(0) vec4 color;
+}
+
+@vertex
+fn main(Entity entity) -> VertexOutput {
+    return VertexOutput(vec4(entity.view[0][0] + entity.projection[0][0]));
+}
+)axsl";
+
+  auto result = lower_stage(src, StageKind::Vertex);
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.reflection.resources.size(), 1u);
+
+  const auto &resource = result.reflection.resources.front();
+  EXPECT_EQ(resource.logical_name, "entity");
+  EXPECT_EQ(resource.kind, ShaderResourceKind::UniformInterface);
+  ASSERT_EQ(resource.members.size(), 2u);
+  EXPECT_EQ(resource.members[0].logical_name, "entity.view");
+  ASSERT_TRUE(resource.members[0].compatibility_alias.has_value());
+  EXPECT_EQ(*resource.members[0].compatibility_alias, "view");
+  EXPECT_EQ(resource.members[1].logical_name, "entity.projection");
+  ASSERT_TRUE(resource.members[1].compatibility_alias.has_value());
+  EXPECT_EQ(*resource.members[1].compatibility_alias, "projection");
+}
+
+TEST(CanonicalLowering, ConflictingFlatAliasesAreSuppressedInReflection) {
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+@uniform
+interface MaterialA {
+    vec4 color;
+}
+
+@uniform
+interface MaterialB {
+    vec4 color;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main(MaterialA a, MaterialB b) -> FragmentOutput {
+    return FragmentOutput(a.color + b.color);
+}
+)axsl";
+
+  auto result = lower_stage(src, StageKind::Fragment);
+  ASSERT_TRUE(result.ok());
+  ASSERT_EQ(result.reflection.resources.size(), 2u);
+
+  for (const auto &resource : result.reflection.resources) {
+    ASSERT_EQ(resource.members.size(), 1u);
+    EXPECT_FALSE(resource.members.front().compatibility_alias.has_value());
+  }
 }
 
 } // namespace astralix

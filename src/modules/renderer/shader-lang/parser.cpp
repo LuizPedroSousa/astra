@@ -387,6 +387,7 @@ NodeID Parser::parse_prefix() {
       if (is_type_keyword(token.kind)) {
         advance();
         TypeRef type_ref = type_from_keyword(token.kind);
+        parse_type_array_suffix(type_ref, true);
 
         expect(TokenKind::LParen, "expected '(' after type constructor");
         std::vector<NodeID> args;
@@ -493,6 +494,7 @@ NodeID Parser::parse_var_decl() {
   SourceLocation location = peek().location;
   TypeRef ret = parse_type_ref();
   Token name = expect_name("expected name");
+  parse_type_array_suffix(ret, true);
 
   // if (check(TokenKind::LParen)) {
   //   return parse_function_decl(ret, name.lexeme, location);
@@ -579,6 +581,7 @@ NodeID Parser::parse_param() {
     qual = ParamQualifier::Const;
   TypeRef type = parse_type_ref();
   Token name = expect_name("expected parameter name");
+  parse_type_array_suffix(type, true);
   return push_node(ParamDecl{type, name.lexeme, qual}, location);
 }
 
@@ -1615,6 +1618,22 @@ TypeRef Parser::parse_type_ref() {
     m_errors.push_back(std::move(err));
   }
   return TypeRef{TokenKind::KeywordVoid, {}};
+}
+
+void Parser::parse_type_array_suffix(TypeRef &type_ref,
+                                     bool allow_runtime_sized) {
+  if (!match(TokenKind::LBracket)) {
+    return;
+  }
+
+  if (check(TokenKind::Int)) {
+    type_ref.array_size = static_cast<uint32_t>(advance().int_val);
+  } else if (allow_runtime_sized) {
+    type_ref.array_size = 0;
+    type_ref.is_runtime_sized = true;
+  }
+
+  expect(TokenKind::RBracket, "expected ']'");
 }
 
 NodeID Parser::parse_block_stmt() {

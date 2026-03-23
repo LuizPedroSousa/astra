@@ -40,7 +40,9 @@ public:
     std::unordered_map<std::string, std::string> resource_aliases;
   };
 
-  explicit GLSLStageBuilder(const CanonicalStage &stage) : m_stage(stage) {}
+  GLSLStageBuilder(const CanonicalStage &stage,
+                   const StageReflection &reflection)
+      : m_stage(stage), m_reflection(reflection) {}
 
   GlslLoweringResult lower() const {
     GlslLoweringResult result;
@@ -53,7 +55,8 @@ public:
     }
 
     for (const auto &decl : m_stage.declarations) {
-      if (const auto *function_decl = std::get_if<CanonicalFunctionDecl>(&decl)) {
+      if (const auto *function_decl =
+              std::get_if<CanonicalFunctionDecl>(&decl)) {
         result.stage.declarations.emplace_back(
             lower_function_decl(*function_decl, nullptr, true));
       }
@@ -68,7 +71,8 @@ public:
     }
 
     for (const auto &decl : m_stage.declarations) {
-      if (const auto *function_decl = std::get_if<CanonicalFunctionDecl>(&decl)) {
+      if (const auto *function_decl =
+              std::get_if<CanonicalFunctionDecl>(&decl)) {
         result.stage.declarations.emplace_back(
             lower_function_decl(*function_decl, nullptr, false));
       }
@@ -77,10 +81,120 @@ public:
     append_entry_signature(result.stage.declarations, entry_ctx);
     result.stage.declarations.emplace_back(
         lower_entry_function(m_stage.entry, entry_ctx));
+    result.reflection = lower_reflection(entry_ctx);
     return result;
   }
 
 private:
+  StageReflection lower_reflection(const EntryContext &ctx) const {
+    StageReflection reflection = m_reflection;
+
+    for (auto &input : reflection.stage_inputs) {
+      if (ctx.stage == StageKind::Vertex) {
+        auto alias_it = ctx.field_aliases.find(input.logical_name);
+        input.glsl.emitted_name =
+            alias_it != ctx.field_aliases.end()
+                ? std::optional<std::string>(alias_it->second)
+                : std::optional<std::string>(input.logical_name);
+      } else {
+        input.glsl.emitted_name = input.logical_name;
+      }
+
+      input.glsl.storage = "in";
+    }
+
+    for (auto &output : reflection.stage_outputs) {
+      if (ctx.stage == StageKind::Fragment) {
+        auto alias_it = ctx.output_aliases.find(output.logical_name);
+        if (alias_it != ctx.output_aliases.end()) {
+          output.glsl.emitted_name = alias_it->second;
+        }
+      } else {
+        output.glsl.emitted_name =
+            ctx.output_instance_name + "." + output.logical_name;
+      }
+
+      output.glsl.storage = "out";
+    }
+
+    for (auto &resource : reflection.resources) {
+      lower_resource_reflection(resource, ctx);
+    }
+
+    return reflection;
+  }
+
+  void lower_resource_reflection(ResourceReflection &resource,
+                                 const EntryContext &ctx) const {
+    switch (resource.kind) {
+      case ShaderResourceKind::UniformInterface:
+        resource.glsl.storage = "uniform";
+        for (auto &member : resource.members) {
+          member.glsl.storage = "uniform";
+          member.glsl.emitted_name = lower_resource_member_name(
+              resource.logical_name, member.logical_name, ctx);
+        }
+        return;
+
+      case ShaderResourceKind::UniformBlock:
+        resource.glsl.storage = "uniform";
+        if (!resource.glsl.emitted_name) {
+          resource.glsl.emitted_name = resource.logical_name;
+        }
+        for (auto &member : resource.members) {
+          member.glsl.storage = "uniform";
+          member.glsl.emitted_name = member.logical_name;
+        }
+        return;
+
+      case ShaderResourceKind::StorageBuffer:
+        resource.glsl.storage = "buffer";
+        if (!resource.glsl.emitted_name) {
+          resource.glsl.emitted_name = resource.logical_name;
+        }
+        for (auto &member : resource.members) {
+          member.glsl.storage = "buffer";
+          member.glsl.emitted_name = member.logical_name;
+        }
+        return;
+
+      case ShaderResourceKind::Sampler:
+      case ShaderResourceKind::UniformValue:
+        resource.glsl.storage = "uniform";
+        if (!resource.glsl.emitted_name) {
+          resource.glsl.emitted_name = resource.logical_name;
+        }
+        for (auto &member : resource.members) {
+          member.glsl.storage = "uniform";
+          member.glsl.emitted_name = member.logical_name;
+        }
+        return;
+    }
+  }
+
+  std::string lower_resource_member_name(const std::string &resource_name,
+                                         const std::string &member_name,
+                                         const EntryContext &ctx) const {
+    const std::string prefix = resource_name + ".";
+    if (member_name.rfind(prefix, 0) != 0) {
+      return member_name;
+    }
+
+    const std::string tail = member_name.substr(prefix.size());
+    const size_t boundary = tail.find_first_of(".[");
+    const std::string direct_field =
+        boundary == std::string::npos ? tail : tail.substr(0, boundary);
+    const auto alias_it =
+        ctx.resource_aliases.find(resource_name + "." + direct_field);
+    if (alias_it == ctx.resource_aliases.end()) {
+      return member_name;
+    }
+
+    const std::string suffix =
+        boundary == std::string::npos ? std::string{} : tail.substr(boundary);
+    return alias_it->second + suffix;
+  }
+
   EntryContext build_entry_context() const {
     EntryContext ctx;
     ctx.stage = m_stage.stage;
@@ -110,10 +224,9 @@ private:
       if (ctx.output->sink_name) {
         for (const auto &field : ctx.output->fields) {
           auto output_it = ctx.output_aliases.find(field.name);
-          std::string alias =
-              output_it != ctx.output_aliases.end()
-                  ? output_it->second
-                  : ctx.output_instance_name + "." + field.name;
+          std::string alias = output_it != ctx.output_aliases.end()
+                                  ? output_it->second
+                                  : ctx.output_instance_name + "." + field.name;
           ctx.field_aliases.emplace(*ctx.output->sink_name + "." + field.name,
                                     alias);
         }
@@ -136,7 +249,8 @@ private:
             }
           }
 
-          ctx.field_aliases.emplace(binding.param_name + "." + field.name, alias);
+          ctx.field_aliases.emplace(binding.param_name + "." + field.name,
+                                    alias);
         }
       }
     }
@@ -185,7 +299,8 @@ private:
     return lowered;
   }
 
-  GLSLStructDecl lower_struct_decl(const CanonicalStructDecl &struct_decl) const {
+  GLSLStructDecl
+  lower_struct_decl(const CanonicalStructDecl &struct_decl) const {
     GLSLStructDecl lowered;
     lowered.location = struct_decl.location;
     lowered.name = struct_decl.name;
@@ -340,9 +455,9 @@ private:
     }
   }
 
-  GLSLFunctionDecl lower_function_decl(const CanonicalFunctionDecl &function_decl,
-                                       const EntryContext *ctx,
-                                       bool prototype_only) const {
+  GLSLFunctionDecl
+  lower_function_decl(const CanonicalFunctionDecl &function_decl,
+                      const EntryContext *ctx, bool prototype_only) const {
     GLSLFunctionDecl lowered;
     lowered.location = function_decl.location;
     lowered.ret = function_decl.ret;
@@ -383,20 +498,23 @@ private:
 
     return make_expr(
         location, type,
-        GLSLFieldExpr{make_expr(location, TypeRef{TokenKind::Identifier,
-                                                  ctx.output_instance_name},
-                                GLSLIdentifierExpr{ctx.output_instance_name}),
-                      field});
+        GLSLFieldExpr{
+            make_expr(location,
+                      TypeRef{TokenKind::Identifier, ctx.output_instance_name},
+                      GLSLIdentifierExpr{ctx.output_instance_name}),
+            field});
   }
 
   GLSLExprPtr lower_expr(const CanonicalExpr &expr,
                          const EntryContext *ctx) const {
     const auto expr_emitter = Overloaded{
         [&](const CanonicalLiteralExpr &data) -> GLSLExprPtr {
-          return make_expr(expr.location, expr.type, GLSLLiteralExpr{data.value});
+          return make_expr(expr.location, expr.type,
+                           GLSLLiteralExpr{data.value});
         },
         [&](const CanonicalIdentifierExpr &data) -> GLSLExprPtr {
-          return make_expr(expr.location, expr.type, GLSLIdentifierExpr{data.name});
+          return make_expr(expr.location, expr.type,
+                           GLSLIdentifierExpr{data.name});
         },
         [&](const CanonicalStageInputFieldRef &data) -> GLSLExprPtr {
           if (ctx && ctx->stage == StageKind::Vertex) {
@@ -411,8 +529,8 @@ private:
           return make_expr(
               expr.location, expr.type,
               GLSLFieldExpr{
-                  make_expr(expr.location, TypeRef{TokenKind::Identifier,
-                                                   data.param_name},
+                  make_expr(expr.location,
+                            TypeRef{TokenKind::Identifier, data.param_name},
                             GLSLIdentifierExpr{data.param_name}),
                   data.field});
         },
@@ -431,7 +549,8 @@ private:
         },
         [&](const CanonicalOutputFieldRef &data) -> GLSLExprPtr {
           if (ctx) {
-            return lower_output_target(data.field, *ctx, expr.location, expr.type);
+            return lower_output_target(data.field, *ctx, expr.location,
+                                       expr.type);
           }
 
           return make_expr(expr.location, expr.type,
@@ -444,8 +563,8 @@ private:
         },
         [&](const CanonicalUnaryExpr &data) -> GLSLExprPtr {
           return make_expr(expr.location, expr.type,
-                           GLSLUnaryExpr{lower_expr(*data.operand, ctx), data.op,
-                                         data.prefix});
+                           GLSLUnaryExpr{lower_expr(*data.operand, ctx),
+                                         data.op, data.prefix});
         },
         [&](const CanonicalTernaryExpr &data) -> GLSLExprPtr {
           return make_expr(expr.location, expr.type,
@@ -467,9 +586,9 @@ private:
                                          lower_expr(*data.index, ctx)});
         },
         [&](const CanonicalFieldExpr &data) -> GLSLExprPtr {
-          return make_expr(expr.location, expr.type,
-                           GLSLFieldExpr{lower_expr(*data.object, ctx),
-                                         data.field});
+          return make_expr(
+              expr.location, expr.type,
+              GLSLFieldExpr{lower_expr(*data.object, ctx), data.field});
         },
         [&](const CanonicalConstructExpr &data) -> GLSLExprPtr {
           GLSLConstructExpr lowered;
@@ -501,11 +620,11 @@ private:
           return make_stmt(stmt.location, GLSLBlockStmt{std::move(stmts)});
         },
         [&](const CanonicalIfStmt &data) -> GLSLStmtPtr {
-          return make_stmt(stmt.location,
-                           GLSLIfStmt{lower_expr(*data.cond, ctx),
-                                      lower_stmt(*data.then_br, ctx),
-                                      data.else_br ? lower_stmt(*data.else_br, ctx)
-                                                   : nullptr});
+          return make_stmt(
+              stmt.location,
+              GLSLIfStmt{
+                  lower_expr(*data.cond, ctx), lower_stmt(*data.then_br, ctx),
+                  data.else_br ? lower_stmt(*data.else_br, ctx) : nullptr});
         },
         [&](const CanonicalForStmt &data) -> GLSLStmtPtr {
           return make_stmt(
@@ -522,26 +641,27 @@ private:
         },
         [&](const CanonicalReturnStmt &data) -> GLSLStmtPtr {
           return make_stmt(stmt.location,
-                           GLSLReturnStmt{data.value ? lower_expr(*data.value, ctx)
-                                                     : nullptr});
+                           GLSLReturnStmt{data.value
+                                              ? lower_expr(*data.value, ctx)
+                                              : nullptr});
         },
         [&](const CanonicalExprStmt &data) -> GLSLStmtPtr {
           return make_stmt(stmt.location,
                            GLSLExprStmt{lower_expr(*data.expr, ctx)});
         },
         [&](const CanonicalVarDeclStmt &data) -> GLSLStmtPtr {
-          return make_stmt(stmt.location,
-                           GLSLVarDeclStmt{data.type, data.name,
-                                           data.init ? lower_expr(*data.init, ctx)
-                                                     : nullptr,
-                                           data.is_const});
+          return make_stmt(
+              stmt.location,
+              GLSLVarDeclStmt{data.type, data.name,
+                              data.init ? lower_expr(*data.init, ctx) : nullptr,
+                              data.is_const});
         },
         [&](const CanonicalOutputAssignStmt &data) -> GLSLStmtPtr {
           return make_stmt(stmt.location,
                            GLSLOutputAssignStmt{
-                               lower_output_target(data.field, *ctx, stmt.location,
-                                                   TypeRef{TokenKind::Identifier,
-                                                           data.field}),
+                               lower_output_target(
+                                   data.field, *ctx, stmt.location,
+                                   TypeRef{TokenKind::Identifier, data.field}),
                                lower_expr(*data.value, ctx), data.op});
         },
         [&](const CanonicalBreakStmt &) -> GLSLStmtPtr {
@@ -558,12 +678,15 @@ private:
   }
 
   const CanonicalStage &m_stage;
+  const StageReflection &m_reflection;
 };
 
 } // namespace
 
-GlslLoweringResult GLSLLowering::lower(const CanonicalStage &stage) const {
-  GLSLStageBuilder builder(stage);
+GlslLoweringResult
+GLSLLowering::lower(const CanonicalStage &stage,
+                    const StageReflection &reflection) const {
+  GLSLStageBuilder builder(stage, reflection);
   return builder.lower();
 }
 
