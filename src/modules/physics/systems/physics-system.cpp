@@ -155,8 +155,8 @@ void PhysicsSystem::fixed_update(double fixed_dt) {
       glm::vec3 physicsPos(pose.p.x, pose.p.y, pose.p.z);
       glm::quat physicsQuat(pose.q.w, pose.q.x, pose.q.y, pose.q.z);
 
-      // Set absolute position and rotation
-      transform->translate(physicsPos);
+      // PhysX returns absolute world pose, so write it back as absolute state.
+      transform->set_position(physicsPos);
       transform->rotate(physicsQuat);
 
       transform->recalculate_transform(); // Ensure matrix is updated

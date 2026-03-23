@@ -40,7 +40,7 @@ void ConsoleLayer::update() {
     ImVec2 icon_size = ImVec2(14, 14);
     float spacing = 4.0f;
 
-    float line_height = GImGui->Font->FontSize + GImGui->Style.FramePadding.y;
+    float line_height = ImGui::GetFontSize() + GImGui->Style.FramePadding.y;
 
     float icon_position_y =
         ImGui::GetCursorPosY() + (line_height - icon_size.y) * 0.25f;

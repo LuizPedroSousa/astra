@@ -93,7 +93,7 @@ tree_node(const char *label, const char *icon_name,
 
   float spacing = 2.0f;
 
-  float line_height = GImGui->Font->FontSize + GImGui->Style.FramePadding.y;
+  float line_height = ImGui::GetFontSize() + GImGui->Style.FramePadding.y;
 
   float icon_position_y =
       ImGui::GetCursorPosY() + (line_height - icon_size.y) * 0.5f;
@@ -138,7 +138,7 @@ static void draw_vec3_control(const std::string &label, glm::vec3 &values,
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0, 0});
 
   float line_height =
-      GImGui->Font->FontSize + GImGui->Style.FramePadding.y * 2.0f;
+      ImGui::GetFontSize() + GImGui->Style.FramePadding.y * 2.0f;
   ImVec2 button_size = {line_height + 3.0f, line_height};
 
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.8f, 0.1f, 0.15f, 1.0f});

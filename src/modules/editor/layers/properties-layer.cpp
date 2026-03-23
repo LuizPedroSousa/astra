@@ -47,7 +47,7 @@ void PropertiesLayer::update() {
     auto entity = EntityManager::get()->get_entity(entity_id);
 
     float line_height =
-        GImGui->Font->FontSize + GImGui->Style.FramePadding.y * 0.25f;
+        ImGui::GetFontSize() + GImGui->Style.FramePadding.y * 0.25f;
 
     float spacing_y = ImGui::GetFrameHeight() + line_height - 14 * 0.5f;
     ImVec2 content_region_available = ImGui::GetContentRegionAvail();
@@ -90,7 +90,7 @@ void PropertiesLayer::draw_component(IEntity *entity, const char *icon_name,
     float spacing = 4.0f;
 
     float line_height =
-        GImGui->Font->FontSize + GImGui->Style.FramePadding.y * 0.25;
+        ImGui::GetFontSize() + GImGui->Style.FramePadding.y * 0.25f;
 
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(2, 2));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
@@ -175,7 +175,7 @@ void PropertiesLayer::draw_components(IEntity *entity) {
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0, 0});
 
         float line_height =
-            GImGui->Font->FontSize + GImGui->Style.FramePadding.y * 2.0f;
+            ImGui::GetFontSize() + GImGui->Style.FramePadding.y * 2.0f;
         ImVec2 button_size = {line_height + 3.0f, line_height};
 
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.1f, 0.25f, 0.8f, 1.0f});
