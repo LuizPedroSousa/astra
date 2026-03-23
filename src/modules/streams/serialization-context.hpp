@@ -9,7 +9,7 @@
 
 namespace astralix {
 
-enum SerializationFormat { Json };
+enum SerializationFormat { Json, Yaml, Toml, Xml };
 
 enum class SerializationTypeKind {
   Unknown = 0,
