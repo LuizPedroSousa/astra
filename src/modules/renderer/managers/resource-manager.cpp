@@ -41,6 +41,19 @@ ResourceManager::register_shader(Ref<ShaderDescriptor> descriptor) {
       m_shader_descriptor_pool.register_or_get(descriptor));
 }
 
+std::vector<Ref<ShaderDescriptor>> ResourceManager::shader_descriptors() const {
+  std::vector<Ref<ShaderDescriptor>> descriptors;
+  descriptors.reserve(m_shader_descriptor_pool.slots.size());
+
+  for (const auto &slot : m_shader_descriptor_pool.slots) {
+    if (slot.descriptor != nullptr) {
+      descriptors.push_back(slot.descriptor);
+    }
+  }
+
+  return descriptors;
+}
+
 void ResourceManager::register_shaders(
     std::initializer_list<Ref<ShaderDescriptor>> descriptors) {
   for (auto descriptor : descriptors) {

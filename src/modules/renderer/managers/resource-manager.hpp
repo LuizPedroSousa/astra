@@ -213,6 +213,7 @@ public:
   Ref<MaterialDescriptor> register_material(Ref<MaterialDescriptor> material);
   Ref<FontDescriptor> register_font(Ref<FontDescriptor> font);
   Ref<ModelDescriptor> register_model(Ref<ModelDescriptor> model);
+  std::vector<Ref<ShaderDescriptor>> shader_descriptors() const;
   void register_models(std::initializer_list<Ref<ModelDescriptor>> models);
 
   void

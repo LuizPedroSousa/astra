@@ -24,6 +24,22 @@ static void bind_texture(bool multisampled, uint32_t id) {
   glBindTexture(get_texture_target(multisampled), id);
 }
 
+static void attach_depth_texture(uint32_t id, uint32_t width,
+                                 uint32_t height) {
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, width, height, 0,
+               GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+  float border_color[] = {1.0f, 1.0f, 1.0f, 1.0f};
+  glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, border_color);
+
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
+                         id, 0);
+}
+
 static void attach_color_texture(uint32_t id, int samples,
                                  GLenum internal_format, GLenum format,
                                  uint32_t width, uint32_t height, int index) {
@@ -38,20 +54,12 @@ static void attach_color_texture(uint32_t id, int samples,
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
                     GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_R, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   }
 
-  switch (internal_format) {
-  case GL_DEPTH_COMPONENT:
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                           id, 0);
-    break;
-  default:
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
-                           get_texture_target(multisampled), id, 0);
-  }
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + index,
+                          get_texture_target(multisampled), id, 0);
 }
 
 static void attach_depth(uint32_t id, int samples, GLenum format,
@@ -229,10 +237,9 @@ void OpenGLFramebuffer::invalidate() {
       case FramebufferTextureFormat::DEPTH24STENCIL8:
         break;
       case FramebufferTextureFormat::DEPTH_ONLY:
-        utils::attach_color_texture(m_color_attachments[i],
-                                    m_specification.samples, GL_DEPTH_COMPONENT,
-                                    GL_DEPTH_COMPONENT, m_specification.width,
-                                    m_specification.height, i);
+        utils::attach_depth_texture(m_color_attachments[i],
+                                    m_specification.width,
+                                    m_specification.height);
         break;
       }
     }
