@@ -40,6 +40,8 @@ public:
   Ref<input::Mouse> const mouse() const { return m_mouse; }
   Ref<input::Keyboard> const keyboard() const { return m_keyboard; }
 
+  bool was_resized = false;
+
 private:
   static void resizing(GLFWwindow *window, int width, int height);
   static void handle_errors(int, const char *description);

@@ -60,6 +60,8 @@ void Window::resizing(GLFWwindow *window, int width, int height) {
   self->m_height = height;
 
   glViewport(0, 0, width, height);
+
+  self->was_resized = true;
 }
 
 static bool has_pressed = false;
@@ -134,22 +136,22 @@ void Window::key_callback(GLFWwindow *window, int key, int scancode, int action,
   auto scheduler = EventScheduler::get();
 
   switch (action) {
-  case GLFW_PRESS: {
-    auto event = input::KeyCode(key);
+    case GLFW_PRESS: {
+      auto event = input::KeyCode(key);
 
-    auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
+      auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
 
-    auto scheduler_id = scheduler->schedule<input::KeyPressedEvent>(
-        SchedulerType::POST_FRAME, event, self->id());
+      auto scheduler_id = scheduler->schedule<input::KeyPressedEvent>(
+          SchedulerType::POST_FRAME, event, self->id());
 
-    self->m_keyboard->attach_key(
-        event,
-        input::Keyboard::KeyState{.event = input::Keyboard::KeyEvent::KeyDown,
-                                  .scheduler_id = scheduler_id});
-    break;
-  }
-  default:
-    break;
+      self->m_keyboard->attach_key(
+          event,
+          input::Keyboard::KeyState{.event = input::Keyboard::KeyEvent::KeyDown,
+                                    .scheduler_id = scheduler_id});
+      break;
+    }
+    default:
+      break;
   }
 }
 
@@ -165,6 +167,10 @@ void Window::swap() {
   m_keyboard->destroy_release_keys();
 
   glfwSwapBuffers(m_value);
+
+  if (was_resized) {
+    was_resized = false;
+  }
 }
 
 void Window::close() { glfwTerminate(); }
