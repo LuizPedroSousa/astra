@@ -76,6 +76,41 @@ TEST(ElasticArenaTest, PoolIncreaseWhenBlockGreatherThanCapacity) {
   EXPECT_EQ(elastic_arena.capacity(), elastic_arena.page_size());
 }
 
+TEST(ElasticArenaTest, ReusesLargerFreeBlockWhenFrontBlockIsTooSmall) {
+  astralix::ElasticArena elastic_arena(40);
+
+  auto *first = elastic_arena.allocate(8);
+  auto *middle = elastic_arena.allocate(8);
+  auto *tail = elastic_arena.allocate(24);
+
+  elastic_arena.release(first);
+  elastic_arena.release(tail);
+
+  EXPECT_NO_THROW({
+    auto *reused = elastic_arena.allocate(16);
+    ASSERT_NE(reused, nullptr);
+    EXPECT_EQ(reused->pool, tail->pool);
+  });
+
+  elastic_arena.release(middle);
+}
+
+TEST(ElasticArenaTest, ResetClearsCapacityIncreaseCount) {
+  astralix::ElasticArena elastic_arena(16, 4);
+
+  auto *block = elastic_arena.allocate(64);
+
+  EXPECT_GT(elastic_arena.capacity_increase_count(), 0u);
+  EXPECT_GT(elastic_arena.capacity(), elastic_arena.page_size());
+
+  elastic_arena.release(block);
+  elastic_arena.reset();
+
+  EXPECT_EQ(elastic_arena.capacity_increase_count(), 0u);
+  EXPECT_EQ(elastic_arena.capacity(), elastic_arena.page_size());
+  EXPECT_EQ(elastic_arena.allocated_memory(), 0u);
+}
+
 TEST(ElasticStackArenaTest, SinglePushPop) {
   const auto page_size = faker::number::integer(32, 1024);
   astralix::ElasticArena elastic_arena(page_size);
@@ -164,6 +199,22 @@ TEST(ElasticStackArenaTest, MultiplePushWithPartialPop) {
   }
 
   EXPECT_EQ(stack_arena.allocated_memory(), total_allocated - popped_size);
+}
+
+TEST(ElasticStackArenaTest, ClearReleasesAllBlocks) {
+  astralix::ElasticArena elastic_arena(64);
+  astralix::ElasticStackArena stack_arena(elastic_arena);
+
+  stack_arena.push(16);
+  stack_arena.push(16);
+  stack_arena.push(16);
+
+  ASSERT_GT(stack_arena.allocated_memory(), 0u);
+
+  stack_arena.clear();
+
+  EXPECT_EQ(stack_arena.allocated_memory(), 0u);
+  EXPECT_EQ(elastic_arena.allocated_memory(), 0u);
 }
 
 TEST(Str, EnsureEquality) {

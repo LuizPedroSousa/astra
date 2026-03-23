@@ -15,9 +15,18 @@ namespace astralix {
 
 struct FixedBlockArena {
 public:
-  FixedBlockArena(size_t block_size, size_t size) : m_block_size(block_size) {
+  FixedBlockArena(size_t block_size, size_t size)
+      : m_capacity(size), m_block_size(block_size), m_allocated_memory(0) {
+    ASTRA_ENSURE(block_size == 0, "block_size must be greater than 0");
+    ASTRA_ENSURE(size < block_size,
+                 "arena capacity must be at least one block");
+
     m_pool = new char[size];
-    m_free_blocks.push_back(m_pool);
+
+    for (size_t offset = 0; offset + m_block_size <= size;
+         offset += m_block_size) {
+      m_free_blocks.push_back(m_pool + offset);
+    }
   }
 
   ~FixedBlockArena() { delete[] m_pool; }
@@ -43,9 +52,9 @@ public:
   size_t allocated_memory() { return m_allocated_memory; }
 
 private:
-  size_t m_capacity;
+  size_t m_capacity = 0;
   size_t m_block_size;
-  size_t m_allocated_memory;
+  size_t m_allocated_memory = 0;
 
   char *m_pool;
 
@@ -76,75 +85,63 @@ public:
     }
 
     void release(Block *block) {
+      size_t released_size = block->size;
+
       auto it = m_free_blocks.begin();
       while (it != m_free_blocks.end() && (*it)->data < block->data) {
         ++it;
       }
 
-      auto inserted_it = m_free_blocks.insert(it, block);
+      auto current = m_free_blocks.insert(it, block);
 
-      auto left = inserted_it;
-      while (left != m_free_blocks.begin()) {
-        auto prev = std::prev(left);
-        if ((*prev)->data + (*prev)->size == (*left)->data) {
-          left = prev;
-        } else {
-          break;
+      if (current != m_free_blocks.begin()) {
+        auto prev = std::prev(current);
+        if ((*prev)->data + (*prev)->size == (*current)->data) {
+          (*prev)->size += (*current)->size;
+          delete *current;
+          current = m_free_blocks.erase(current);
+          current = prev;
         }
       }
 
-      // Find the rightmost adjacent block
-      auto right = inserted_it;
-
-      while (std::next(right) != m_free_blocks.end()) {
-        auto next = std::next(right);
-        if ((*right)->data + (*right)->size == (*next)->data) {
-          right = next; // Move right if adjacent
-        } else {
-          break;
-        }
+      auto next = std::next(current);
+      while (next != m_free_blocks.end() &&
+             (*current)->data + (*current)->size == (*next)->data) {
+        (*current)->size += (*next)->size;
+        delete *next;
+        next = m_free_blocks.erase(next);
       }
 
-      //  Merge all blocks from left to right into a single block
-      char *start = (*left)->data;
-      char *end = (*right)->data + (*right)->size;
-
-      size_t total_size = end - start;
-
-      Block *merged_block = new Block{this, start, total_size};
-
-      // Remove the old blocks from left to right (inclusive)
-      auto remove_start = left;
-      auto remove_end = std::next(right);
-
-      for (auto i = remove_start; i != remove_end; ++i) {
-        *i = 0;
-      }
-
-      auto new_it = m_free_blocks.erase(remove_start, remove_end);
-
-      m_free_blocks.insert(new_it, merged_block);
-
-      allocated_memory -= block->size;
+      allocated_memory -= released_size;
     }
 
     bool is_full(size_t block_size) {
-      return m_free_blocks.empty() || allocated_memory + block_size > page_size;
+      for (Block *block : m_free_blocks) {
+        if (block->size >= block_size) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
     Block *allocate(size_t block_size) {
-      Block *block = m_free_blocks.front();
+      auto it = m_free_blocks.begin();
+      while (it != m_free_blocks.end() && (*it)->size < block_size) {
+        ++it;
+      }
 
-      ASTRA_ENSURE(block->size < block_size, "No block large enough");
+      ASTRA_ENSURE(it == m_free_blocks.end(), "No block large enough");
 
-      m_free_blocks.pop_front();
+      Block *block = *it;
+      auto next = m_free_blocks.erase(it);
 
       if (block->size > block_size) {
         char *remaining_start = block->data + block_size;
 
         size_t remaining_size = block->size - block_size;
-        m_free_blocks.push_front(
-            new Block{this, remaining_start, remaining_size});
+        m_free_blocks.insert(next, new Block{this, remaining_start,
+                                             remaining_size});
       }
 
       block->size = block_size;
@@ -224,8 +221,9 @@ public:
   void release(Block *block) {
     for (auto pool : m_pools) {
       if (block->pool == pool) {
+        size_t released_size = block->size;
         pool->release(block);
-        m_allocated_memory -= block->size;
+        m_allocated_memory -= released_size;
         return;
       }
     }
@@ -245,6 +243,7 @@ public:
 
     m_allocated_memory = 0;
     m_capacity = m_initial_page_size;
+    m_current_capacity_increased = 0;
   }
 
   size_t pool_size() { return m_pools.size(); }
@@ -339,7 +338,9 @@ public:
 
   size_t allocated_memory() { return m_arena.allocated_memory(); }
 
-  size_t curr_memory_allocated() { return m_position->size; }
+  size_t curr_memory_allocated() {
+    return m_position != nullptr ? m_position->size : 0;
+  }
 
   void pop() {
     auto block = m_stack.top();
@@ -352,21 +353,13 @@ public:
   }
 
   void release() {
-    if (m_stack.empty())
-      return;
-
     while (!m_stack.empty()) {
-
-      auto block = m_stack.top();
-
-      block->pool->release(block);
+      pop();
     }
   }
 
   void clear() {
-    while (!m_stack.empty()) {
-      release();
-    }
+    release();
   }
 
 private:

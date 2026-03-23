@@ -2,6 +2,8 @@
 
 #include "memory"
 
+#define ASTRALIX_ENGINE_BINDINGS_HEADER "engine_shaders.hpp"
+
 namespace astralix {
 
 extern float distance;
