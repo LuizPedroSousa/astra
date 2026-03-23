@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build Engine
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libgl-dev \
+            libopengl-dev \
+            libx11-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxext-dev \
+            libwayland-dev \
+            libxkbcommon-dev
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: vcpkg.json
+
+      - name: Configure
+        run: cmake --preset=debug
+        env:
+          CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
+
+      - name: Build
+        run: cmake --build builds/debug
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Setup vcpkg and install gtest
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: vcpkg.json
+
+      - name: Install vcpkg packages
+        run: vcpkg install gtest --triplet x64-linux --x-install-root=${{ github.workspace }}/vcpkg_installed
+
+      - name: Configure tests
+        run: |
+          cmake -S tests -B builds/tests \
+            -G Ninja \
+            -DCMAKE_CXX_STANDARD=20
+
+      - name: Build tests
+        run: cmake --build builds/tests
+
+      - name: Run tests
+        run: ctest --test-dir builds/tests --verbose --output-on-failure

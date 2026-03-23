@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 import sys
 import subprocess
 from pathlib import Path
@@ -8,7 +9,7 @@ def run_step(description: str, command: list[str], cwd: Path | None = None) -> N
     """Run a command and print nice status messages"""
     print(f"\n→ {description}")
     print("   " + str(command))
-    
+
     try:
         result = subprocess.run(
             command,
@@ -26,6 +27,31 @@ def run_step(description: str, command: list[str], cwd: Path | None = None) -> N
         if e.stderr:
             print("STDERR:", e.stderr.strip())
         sys.exit(1)
+
+
+def collect_example_streams_formats(root: Path) -> list[str]:
+    examples_dir = root / "examples"
+    if not examples_dir.exists():
+        return []
+
+    format_pattern = re.compile(
+        r"set\s*\(\s*ASTRALIX_STREAMS_FORMATS\s+([^)]+)\)",
+        re.IGNORECASE | re.MULTILINE,
+    )
+
+    ordered_formats: list[str] = []
+
+    for cmake_file in sorted(examples_dir.glob("*/CMakeLists.txt")):
+        contents = cmake_file.read_text()
+        for match in format_pattern.finditer(contents):
+            for token in match.group(1).split():
+                clean = token.strip().strip('"')
+                if not clean or clean.startswith("${"):
+                    continue
+                if clean not in ordered_formats:
+                    ordered_formats.append(clean)
+
+    return ordered_formats
 
 
 def build_examples(root: str, preset: str, install_prefix: str):
@@ -61,8 +87,10 @@ def build_examples(root: str, preset: str, install_prefix: str):
 
         steps.append((f"Configuring example: {rel_example_src}", configure_example_cmd))
 
-        build_example_cmd = ["cmake", "--build", str(example_build), "--parallel"]
-        steps.append((f"Building example: {rel_example_src}", build_example_cmd))
+        build_example_cmd = ["cmake", "--build",
+                             str(example_build), "--parallel"]
+        steps.append(
+            (f"Building example: {rel_example_src}", build_example_cmd))
 
     if example_dirs:
         print(f"   Examples found: {', '.join(str(d) for d in example_dirs)}")
@@ -78,11 +106,17 @@ def build_examples(root: str, preset: str, install_prefix: str):
 
     return steps
 
-def build_main(root: str,  preset: str, install_prefix: str):
+
+def build_main(root: str,  preset: str, install_prefix: str,
+               streams_formats: list[str]):
     steps = []
     main_build_dir = root / "builds" / preset
 
     main_build_dir.mkdir(parents=True, exist_ok=True)
+
+    if not streams_formats:
+        print("Error: no consumer-defined ASTRALIX_STREAMS_FORMATS found in examples/")
+        sys.exit(1)
 
     configure_main_cmd = [
         "cmake",
@@ -91,8 +125,8 @@ def build_main(root: str,  preset: str, install_prefix: str):
         "--preset", preset,
         "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
         f"-DCMAKE_INSTALL_PREFIX={install_prefix}",
+        f"-DASTRALIX_STREAMS_FORMATS={';'.join(streams_formats)}",
     ]
-
 
     steps.append(("Configuring main project", configure_main_cmd))
 
@@ -114,6 +148,7 @@ def build_main(root: str,  preset: str, install_prefix: str):
 
     return steps
 
+
 def main():
     if len(sys.argv) != 2:
         print("Usage: build.py <preset-name>")
@@ -123,17 +158,25 @@ def main():
 
     preset = sys.argv[1].strip()
     root = Path(__file__).parent.parent.resolve()
+    streams_formats = collect_example_streams_formats(root)
 
+    if not streams_formats:
+        print("Error: no consumer-defined ASTRALIX_STREAMS_FORMATS found in examples/")
+        sys.exit(1)
+
+    run_step(
+        "Installing axgen",
+        ["./install.sh", "--formats", ";".join(streams_formats)],
+        cwd=root / "axgen",
+    )
 
     install_prefix = root / "install"
 
-
-    steps = build_main(root, preset, str(install_prefix))
+    steps = build_main(root, preset, str(install_prefix), streams_formats)
     steps += build_examples(root, preset, str(install_prefix))
 
     for description, command in steps:
         run_step(description, command)
-
 
     print("\n" + "="*60)
     print()

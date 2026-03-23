@@ -98,6 +98,19 @@ set(LIB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external
 include_directories(${LIB_INCLUDE_DIR})
 link_directories(${VCPKG_INSTALLED_ROOT}/lib)
 
+set(ASTRALIX_ASSETS_DIR_VALUE
+    "${CMAKE_INSTALL_PREFIX}/share/astralix/assets"
+)
+set(ASTRALIX_ENGINE_ASSETS_DIR
+    "${CMAKE_SOURCE_DIR}/src/assets"
+)
+set(ASTRALIX_ENGINE_GENERATED_ROOT
+    "${ASTRALIX_ENGINE_ASSETS_DIR}"
+)
+set(ASTRALIX_ENGINE_GENERATED_DIR
+    "${ASTRALIX_ENGINE_GENERATED_ROOT}/.astralix/generated"
+)
+
 add_subdirectory(src/shared/foundation)
 add_subdirectory(src/shared/allocators)
 
@@ -105,6 +118,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/shared/events)
   add_subdirectory(src/shared/ecs)
   add_subdirectory(src/modules/streams)
+  add_subdirectory(src/modules/renderer/shader-lang)
   add_subdirectory(src/modules/project)
   add_subdirectory(src/modules/window)
   add_subdirectory(src/modules/renderer)
@@ -185,10 +199,6 @@ target_compile_definitions(astra INTERFACE PX_PHYSX_STATIC_LIB)
 target_compile_definitions(astra INTERFACE ENABLE_LOGS)
 target_compile_definitions(astra INTERFACE LOG_TO_CONSOLE)
 
-set(ASTRALIX_ASSETS_DIR_VALUE
-    "${CMAKE_INSTALL_PREFIX}/share/astralix/assets"
-)
-
 target_compile_definitions(astra INTERFACE
   ASTRALIX_ASSETS_DIR=${ASTRALIX_ASSETS_DIR_VALUE}
 )
@@ -211,6 +221,9 @@ foreach(tgt
     )
 endforeach()
 
+if(NOT ASTRA_ENABLE_TESTS)
+  add_subdirectory(axgen)
+endif()
 
 if(BUILD_EXAMPLES)
   add_subdirectory(examples/sandbox)
@@ -225,6 +238,7 @@ install(TARGETS astra
         streams
         project
         window
+        shader-lang
         renderer
         physics
         engine
@@ -247,6 +261,7 @@ install(EXPORT astralixTargets
 )
 
 include(CMakePackageConfigHelpers)
+
 configure_package_config_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/cmake/astralixConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/astralixConfig.cmake
@@ -260,6 +275,7 @@ write_basic_package_version_file(
 install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/astralixConfig.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/astralixConfigVersion.cmake
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/astralixAxgen.cmake
   DESTINATION lib/cmake/astralix
 )
 
