@@ -288,61 +288,61 @@ void RenderGraph::create_transient_resources() {
     }
 
     switch (resource.desc.type) {
-    case RenderGraphResourceType::Framebuffer: {
-      const auto &spec = std::get<TextureSpec>(resource.desc.spec);
+      case RenderGraphResourceType::Framebuffer: {
+        const auto &spec = std::get<TextureSpec>(resource.desc.spec);
 
-      FramebufferSpecification fb_spec;
-      fb_spec.width = spec.width;
-      fb_spec.height = spec.height;
-      fb_spec.samples = spec.sample_count;
-      fb_spec.attachments = {spec.format};
+        FramebufferSpecification fb_spec;
+        fb_spec.width = spec.width;
+        fb_spec.height = spec.height;
+        fb_spec.samples = spec.sample_count;
+        fb_spec.attachments = {spec.format};
 
-      auto backend = m_render_target->renderer_api()->get_backend();
-      auto framebuffer = Framebuffer::create(backend, fb_spec);
-      Framebuffer *fb_ptr = framebuffer.get();
+        auto backend = m_render_target->renderer_api()->get_backend();
+        auto framebuffer = Framebuffer::create(backend, fb_spec);
+        Framebuffer *fb_ptr = framebuffer.get();
 
-      resource.set_content(fb_ptr);
-      group_framebuffers[resource.alias_group] = fb_ptr;
-      m_transient_framebuffers.push_back(std::move(framebuffer));
-      break;
-    }
-
-    case RenderGraphResourceType::StorageBuffer: {
-      const auto &spec = std::get<StorageBufferSpec>(resource.desc.spec);
-
-      auto backend = m_render_target->renderer_api()->get_backend();
-
-      auto storage_buffer = StorageBuffer::create(backend, spec.size);
-
-      StorageBuffer *sb_ptr = storage_buffer.get();
-
-      resource.set_content(sb_ptr);
-      group_storage_buffers[resource.alias_group] = sb_ptr;
-      m_transient_storage_buffers.push_back(std::move(storage_buffer));
-      break;
-    }
-
-    case RenderGraphResourceType::LogicalBuffer: {
-      const auto &spec = std::get<LogicalBufferSpec>(resource.desc.spec);
-
-      auto backend = m_render_target->renderer_api()->get_backend();
-
-      auto block = m_resource_allocator.allocate(spec.size_hint);
-
-      void *constructed = block;
-
-      if (spec.constructor) {
-        constructed = spec.constructor(block);
-      } else {
-        std::memset(block, 0, spec.size_hint);
+        resource.set_content(fb_ptr);
+        group_framebuffers[resource.alias_group] = fb_ptr;
+        m_transient_framebuffers.push_back(std::move(framebuffer));
+        break;
       }
 
-      resource.set_content(block);
-      break;
-    }
+      case RenderGraphResourceType::StorageBuffer: {
+        const auto &spec = std::get<StorageBufferSpec>(resource.desc.spec);
 
-    default:
-      break;
+        auto backend = m_render_target->renderer_api()->get_backend();
+
+        auto storage_buffer = StorageBuffer::create(backend, spec.size);
+
+        StorageBuffer *sb_ptr = storage_buffer.get();
+
+        resource.set_content(sb_ptr);
+        group_storage_buffers[resource.alias_group] = sb_ptr;
+        m_transient_storage_buffers.push_back(std::move(storage_buffer));
+        break;
+      }
+
+      case RenderGraphResourceType::LogicalBuffer: {
+        const auto &spec = std::get<LogicalBufferSpec>(resource.desc.spec);
+
+        auto backend = m_render_target->renderer_api()->get_backend();
+
+        auto block = m_resource_allocator.allocate(spec.size_hint);
+
+        void *constructed = block;
+
+        if (spec.constructor) {
+          constructed = spec.constructor(block->data);
+        } else {
+          std::memset(block->data, 0, spec.size_hint);
+        }
+
+        resource.set_content(block->data);
+        break;
+      }
+
+      default:
+        break;
     }
   }
 
@@ -402,33 +402,33 @@ bool RenderGraph::are_resources_compatible(
     return false;
 
   switch (resource_a.desc.type) {
-  case RenderGraphResourceType::Framebuffer:
-  case RenderGraphResourceType::Texture2D: {
+    case RenderGraphResourceType::Framebuffer:
+    case RenderGraphResourceType::Texture2D: {
 
-    const auto &spec_a = std::get<TextureSpec>(resource_a.desc.spec);
-    const auto &spec_b = std::get<TextureSpec>(resource_b.desc.spec);
+      const auto &spec_a = std::get<TextureSpec>(resource_a.desc.spec);
+      const auto &spec_b = std::get<TextureSpec>(resource_b.desc.spec);
 
-    return spec_a.width == spec_b.width && spec_a.height == spec_b.height &&
-           spec_a.format == spec_b.format &&
-           spec_a.sample_count == spec_b.sample_count;
-  }
+      return spec_a.width == spec_b.width && spec_a.height == spec_b.height &&
+             spec_a.format == spec_b.format &&
+             spec_a.sample_count == spec_b.sample_count;
+    }
 
-  case RenderGraphResourceType::StorageBuffer: {
-    const auto &spec_a = std::get<StorageBufferSpec>(resource_a.desc.spec);
-    const auto &spec_b = std::get<StorageBufferSpec>(resource_b.desc.spec);
+    case RenderGraphResourceType::StorageBuffer: {
+      const auto &spec_a = std::get<StorageBufferSpec>(resource_a.desc.spec);
+      const auto &spec_b = std::get<StorageBufferSpec>(resource_b.desc.spec);
 
-    return spec_a.size == spec_b.size;
-  }
+      return spec_a.size == spec_b.size;
+    }
 
-  case RenderGraphResourceType::LogicalBuffer: {
-    const auto &spec_a = std::get<LogicalBufferSpec>(resource_a.desc.spec);
-    const auto &spec_b = std::get<LogicalBufferSpec>(resource_b.desc.spec);
+    case RenderGraphResourceType::LogicalBuffer: {
+      const auto &spec_a = std::get<LogicalBufferSpec>(resource_a.desc.spec);
+      const auto &spec_b = std::get<LogicalBufferSpec>(resource_b.desc.spec);
 
-    return spec_a.size_hint == spec_b.size_hint;
-  }
+      return spec_a.size_hint == spec_b.size_hint;
+    }
 
-  default:
-    return false;
+    default:
+      return false;
   }
 }
 

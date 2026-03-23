@@ -9,6 +9,11 @@
 #include "renderer-api.hpp"
 #include <GL/gl.h>
 
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
+
 namespace astralix {
 
 class SkyboxPass : public RenderPass {
@@ -16,7 +21,9 @@ public:
   SkyboxPass() = default;
   ~SkyboxPass() override = default;
 
-  void setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource*>& resources) override {
+  void
+  setup(Ref<RenderTarget> render_target,
+        const std::vector<const RenderGraphResource *> &resources) override {
     m_render_target = render_target;
 
     auto entity_manager = EntityManager::get();
@@ -61,9 +68,19 @@ public:
 
         auto view_without_transformation =
             glm::mat4(glm::mat3(camera->get_view_matrix()));
+
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+        using namespace shader_bindings::engine_shaders_skybox_axsl;
+
+        shader->set_all(LightParams{
+            .view_without_transformation = view_without_transformation,
+            .projection = camera->get_projection_matrix(),
+        });
+#else
         shader->set_matrix("view_without_transformation",
                            view_without_transformation);
         shader->set_matrix("projection", camera->get_projection_matrix());
+#endif
       }
 
       mesh->update(m_render_target);

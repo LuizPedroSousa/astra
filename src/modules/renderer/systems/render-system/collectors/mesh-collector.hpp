@@ -5,11 +5,18 @@
 #include "components/transform/transform-component.hpp"
 #include "entities/object.hpp"
 #include "guid.hpp"
+#include "log.hpp"
 #include "renderer-api.hpp"
 #include "resources/mesh.hpp"
+#include "shaders/engine_shaders_light_axsl.hpp"
 #include "storage-buffer.hpp"
 #include <unordered_map>
 #include <vector>
+
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
 
 namespace astralix {
 
@@ -30,6 +37,16 @@ public:
   void draw(std::vector<T *> entities, RendererAPI *renderer_api,
             StorageBuffer *storage_buffer, MeshContext *mesh_ctx) {
     ASTRA_PROFILE_N("MeshCollector Update");
+
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    using namespace shader_bindings::engine_shaders_light_axsl;
+
+    EntityParams entity_params;
+#endif
+
+    for (auto &[_, batch] : mesh_ctx->batches) {
+      batch.is_dirty = false;
+    }
 
     for (auto entity_ptr : entities) {
       auto entity = static_cast<IEntity *>(entity_ptr);
@@ -78,12 +95,11 @@ public:
       } else {
 
         if (transform->matrix != batch_exists->second.transforms[entity_id]) {
+          batch_exists->second.transforms[entity_id] = transform->matrix;
           batch_exists->second.is_dirty = true;
           continue;
         }
       }
-
-      batch_exists->second.is_dirty = false;
     }
 
     for (auto it = mesh_ctx->batches.begin(); it != mesh_ctx->batches.end();) {
@@ -96,8 +112,14 @@ public:
 
           shader->bind();
 
-          shader->set_bool("use_instancing", false);
-          shader->set_matrix("g_model", transform->matrix);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+          entity_params.use_instancing = false;
+          entity_params.g_model = transform->matrix;
+          shader->set_all(entity_params);
+#else
+          shader->set_bool("entity.use_instancing", false);
+          shader->set_matrix("entity.g_model", transform->matrix);
+#endif
 
           for (auto mesh : batch.meshes) {
             renderer_api->draw_indexed(mesh.vertex_array, mesh.draw_type);
@@ -137,7 +159,12 @@ public:
                         ->shader();
 
       shader->bind();
-      shader->set_bool("use_instacing", true);
+
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+      shader->set(EntityUniform::use_instancing, true);
+#else
+      shader->set_bool("entity.use_instancing", true);
+#endif
 
       for (auto mesh : batch.meshes) {
 

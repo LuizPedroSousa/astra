@@ -16,6 +16,7 @@
 #include "systems/render-system/passes/exporters/graphviz-exporter.hpp"
 #include "systems/render-system/passes/exporters/mermaid-exporter.hpp"
 #include "systems/render-system/passes/geometry-pass.hpp"
+#include "systems/render-system/passes/grid-pass.hpp"
 #include "systems/render-system/passes/mesh-pass.hpp"
 #include "systems/render-system/passes/post-process-pass.hpp"
 #include "systems/render-system/passes/render-graph-builder.hpp"
@@ -70,6 +71,7 @@ void RenderSystem::start() {
       .read_write(mesh_context)
       .read_write(mesh_collector_storage)
       .read_write(scene_color);
+  target_graph.add_pass(create_scope<GridPass>()).write(scene_color);
   target_graph.add_pass(create_scope<TextPass>()).read_write(scene_color);
   target_graph.add_pass(create_scope<DebugPass>())
       .read(shadow_map)
@@ -84,12 +86,12 @@ void RenderSystem::start() {
   m_render_graph = target_graph.build();
   m_render_graph->compile(m_render_target);
 
-  GraphvizExporter graphviz_exporter;
-  m_render_graph->export_graph(graphviz_exporter, "render_graph.dot");
-  MermaidExporter mermaid_exporter;
-  m_render_graph->export_graph(mermaid_exporter, "render_graph.md");
-  AsciiExporter ascii_exporter;
-  m_render_graph->export_graph(ascii_exporter, "render_graph.txt");
+  // GraphvizExporter graphviz_exporter;
+  // m_render_graph->export_graph(graphviz_exporter, "render_graph.dot");
+  // MermaidExporter mermaid_exporter;
+  // m_render_graph->export_graph(mermaid_exporter, "render_graph.md");
+  // AsciiExporter ascii_exporter;
+  // m_render_graph->export_graph(ascii_exporter, "render_graph.txt");
 }
 
 void RenderSystem::fixed_update(double fixed_dt) {
@@ -103,6 +105,13 @@ void RenderSystem::pre_update(double dt) {
   auto post_processings = entity_manager->get_entities<PostProcessing>();
 
   bool has_post_processing = false;
+
+  auto window = window_manager()->active_window();
+
+  if (window->was_resized) {
+    m_render_target->framebuffer()->resize(window->width(), window->height());
+  }
+
   for (auto post_processing : post_processings) {
     if (!post_processing->is_active()) {
       continue;

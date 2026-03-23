@@ -14,6 +14,12 @@
 #include <GL/gl.h>
 #include <glm/gtc/quaternion.hpp>
 #include <unordered_map>
+
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
+
 namespace astralix {
 
 DebugNormal::DebugNormal(ENTITY_INIT_PARAMS) : ENTITY_INIT() {
@@ -91,9 +97,9 @@ void DebugNormal::update(Ref<RenderTarget> render_target,
     auto shader = obj_resource->shader();
     shader->bind();
 
-    shader->set_matrix("view", camera->get_view_matrix());
+    shader->set_matrix("entity.view", camera->get_view_matrix());
     shader->set_vec3("view_position", obj_transform->position);
-    shader->set_matrix("projection", camera->get_projection_matrix());
+    shader->set_matrix("entity.projection", camera->get_projection_matrix());
 
     shader->unbind();
   }
@@ -127,12 +133,21 @@ void DebugDepth::start(Ref<RenderTarget> render_target) {
   auto resource = get_component<ResourceComponent>();
   auto mesh = get_component<MeshComponent>();
 
-  resource->set_shader("debug_depth");
+  resource->set_shader("shaders::debug_depth");
 
   auto shader = resource->shader();
 
   resource->start();
-  shader->set_int("dephMap", 1);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  using namespace shader_bindings::engine_shaders_debug_depth_axsl;
+  shader->set(DepthUniform::depth_map, 0);
+  shader->set(DepthUniform::near_plane, 1.0f);
+  shader->set(DepthUniform::far_plane, 24.0f);
+#else
+  shader->set_int("depth.depth_map", 0);
+  shader->set_float("depth.near_plane", 1.0f);
+  shader->set_float("depth.far_plane", 24.0f);
+#endif
   mesh->start(render_target);
 };
 
@@ -150,6 +165,13 @@ void DebugDepth::update(Ref<RenderTarget> render_target,
   resource->update();
 
   auto shader = resource->shader();
+
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  using namespace shader_bindings::engine_shaders_debug_depth_axsl;
+  shader->set_int("depth.fullscreen", m_fullscreen ? 1 : 0);
+#else
+  shader->set_int("depth.fullscreen", m_fullscreen ? 1 : 0);
+#endif
 
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D,

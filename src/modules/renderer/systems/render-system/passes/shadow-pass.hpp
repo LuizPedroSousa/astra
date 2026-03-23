@@ -12,6 +12,11 @@
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include <GL/gl.h>
 
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
+
 namespace astralix {
 
 class ShadowPass : public RenderPass {
@@ -36,13 +41,9 @@ public:
       return;
     }
 
-    Shader::create("shadow_mapping_depth",
-                   "shaders/fragment/shadow_mapping_depth.glsl"_engine,
-                   "shaders/vertex/shadow_mapping_depth.glsl"_engine);
-
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
         m_render_target->renderer_api()->get_backend(),
-        {"shadow_mapping_depth"});
+        {"shaders::shadow_map"});
   }
 
   void begin(double dt) override {}
@@ -81,7 +82,7 @@ public:
 
       auto older_shader_id = resource->shader()->descriptor_id();
 
-      resource->set_shader("shadow_mapping_depth");
+      resource->set_shader("shaders::shadow_map");
 
       resource->update();
 
@@ -99,7 +100,12 @@ public:
 
       auto shader = resource->shader();
 
-      shader->set_matrix("g_model", transform->matrix);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+      using namespace shader_bindings::engine_shaders_shadow_map_axsl;
+      shader->set(LightUniform::g_model, transform->matrix);
+#else
+      shader->set_matrix("light.g_model", transform->matrix);
+#endif
 
       if (mesh != nullptr) {
         mesh->update(m_render_target);

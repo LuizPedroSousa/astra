@@ -22,8 +22,13 @@ public:
   void update(Ref<RenderTarget> render_target,
               Framebuffer *shadow_mapping_framebuffer);
 
+  void toggle_fullscreen() { m_fullscreen = !m_fullscreen; }
+
   void on_enable() override {};
   void on_disable() override {};
+
+private:
+  bool m_fullscreen = false;
 };
 
 class DebugNormal : public Entity<DebugNormal> {
@@ -52,28 +57,28 @@ public:
 
     for (auto resource : resources) {
       switch (resource->desc.type) {
-      case RenderGraphResourceType::Framebuffer: {
-        if (resource->desc.name == "shadow_map") {
-          m_shadow_mapping_framebuffer = resource->get_framebuffer();
+        case RenderGraphResourceType::Framebuffer: {
+          if (resource->desc.name == "shadow_map") {
+            m_shadow_mapping_framebuffer = resource->get_framebuffer();
+          }
+          break;
         }
-        break;
-      }
 
-      case RenderGraphResourceType::LogicalBuffer: {
-        if (resource->desc.name == "mesh_context") {
-          m_mesh_context =
-              static_cast<MeshContext *>(resource->get_logical_buffer());
+        case RenderGraphResourceType::LogicalBuffer: {
+          if (resource->desc.name == "mesh_context") {
+            m_mesh_context =
+                static_cast<MeshContext *>(resource->get_logical_buffer());
+          }
         }
-      }
 
-      case RenderGraphResourceType::StorageBuffer: {
-        if (resource->desc.name == "mesh_collector_storage") {
-          m_mesh_collector_storage = resource->get_storage_buffer();
+        case RenderGraphResourceType::StorageBuffer: {
+          if (resource->desc.name == "mesh_collector_storage") {
+            m_mesh_collector_storage = resource->get_storage_buffer();
+          }
         }
-      }
 
-      default:
-        break;
+        default:
+          break;
       }
     }
 
@@ -81,14 +86,14 @@ public:
                    "shaders/vertex/debug_normal.glsl"_engine,
                    "shaders/geometry/debug_normal.glsl"_engine);
 
-    if (m_shadow_mapping_framebuffer != nullptr) {
-      Shader::create("debug_depth", "shaders/fragment/debug_depth.glsl"_engine,
-                     "shaders/vertex/debug_depth.glsl"_engine);
-    }
+    // if (m_shadow_mapping_framebuffer != nullptr) {
+    //   Shader::create("debug_depth", "shaders/fragment/debug.axsl"_engine,
+    //                  "shaders/vertex/debug_depth.glsl"_engine);
+    // }
 
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
         m_render_target->renderer_api()->get_backend(),
-        {"debug_normal", "debug_depth"});
+        {"debug_normal", "shaders::debug_depth"});
 
     auto event_dispatcher = EventDispatcher::get();
 
@@ -106,7 +111,11 @@ public:
     auto normal = m_entity_manager->get_entity<DebugNormal>();
 
     if (input::IS_KEY_RELEASED(input::KeyCode::F2) && depth != nullptr) {
-      depth->set_active(!depth->is_active());
+      if (input::IS_KEY_DOWN(input::KeyCode::LeftShift)) {
+        depth->toggle_fullscreen();
+      } else {
+        depth->set_active(!depth->is_active());
+      }
     }
 
     if (input::IS_KEY_RELEASED(input::KeyCode::F3)) {

@@ -14,6 +14,11 @@
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include <GL/gl.h>
 
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
+
 namespace astralix {
 
 class GeometryPass : public RenderPass {
@@ -42,6 +47,10 @@ public:
 
     auto entity_manager = EntityManager::get();
 
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    using namespace shader_bindings::engine_shaders_light_axsl;
+#endif
+
     entity_manager->for_each<Object>([&](Object *object) {
       auto resource = object->get_component<ResourceComponent>();
       auto mesh = object->get_component<MeshComponent>();
@@ -53,7 +62,11 @@ public:
       auto shader = resource->shader();
 
       if (m_shadow_map_framebuffer != nullptr && shader != nullptr) {
-        shader->set_int("shadowMap", 1);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+        shader->set(LightUniform::shadow_map, 1);
+#else
+        shader->set_int("light.shadow_map", 1);
+#endif
       }
 
       if (transform != nullptr && transform->is_active())
@@ -86,6 +99,10 @@ public:
     auto camera = entity_manager->get_entity_with_component<CameraComponent>()
                       ->get_component<CameraComponent>();
 
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    using namespace shader_bindings::engine_shaders_light_axsl;
+#endif
+
     entity_manager->for_each<Object>([&](Object *object) {
       ASTRA_PROFILE_N("GeometryPass Object Loop");
 
@@ -117,8 +134,11 @@ public:
         auto shader = resource->shader();
 
         int slot = resource_manager()->texture_2d_slot();
-
-        shader->set_int("shadowMap", slot);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+        shader->set(LightUniform::shadow_map, slot);
+#else
+        shader->set_int("light.shadow_map", slot);
+#endif
 
         glActiveTexture(GL_TEXTURE0 + slot);
 
@@ -132,9 +152,21 @@ public:
 
       auto shader = resource->shader();
 
-      shader->set_matrix("view", camera->get_view_matrix());
-      shader->set_vec3("view_position", transform->position);
-      shader->set_matrix("projection", camera->get_projection_matrix());
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+      CameraParams camera_params;
+      auto camera_transform = camera->get_owner()->get_component<TransformComponent>();
+
+      camera_params.view = camera->get_view_matrix();
+      camera_params.position = camera_transform->position;
+      camera_params.projection = camera->get_projection_matrix();
+
+      shader->set_all(camera_params);
+#else
+      auto camera_transform = camera->get_owner()->get_component<TransformComponent>();
+      shader->set_matrix("camera.view", camera->get_view_matrix());
+      shader->set_vec3("camera.position", camera_transform->position);
+      shader->set_matrix("camera.projection", camera->get_projection_matrix());
+#endif
     });
   }
 
