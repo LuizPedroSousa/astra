@@ -1,4 +1,5 @@
 #include "args.hpp"
+#include "output.hpp"
 #include "shader-lang/compiler.hpp"
 #include <filesystem>
 #include <fstream>
@@ -71,7 +72,13 @@ int main(int argc, char **argv) {
   }
 
   astralix::Compiler compiler;
-  auto result = compiler.compile(buffer.str(), base_path, opts.input_file);
+  auto result = compiler.compile(
+      buffer.str(), base_path, opts.input_file,
+      {
+          .emit_binding_cpp = true,
+          .emit_reflection_ir = true,
+          .reflection_ir_format = astralix::SerializationFormat::Json,
+      });
 
   if (!result.ok()) {
     for (const auto &e : result.errors)
@@ -84,29 +91,17 @@ int main(int argc, char **argv) {
               << '\n';
   }
 
-  fs::path input_stem = fs::path(opts.input_file).stem();
   fs::path out_dir =
       opts.output_dir.empty() ? fs::current_path() : fs::path(opts.output_dir);
+  std::vector<fs::path> written_paths;
+  std::string output_error;
+  if (!write_outputs(result, opts.input_file, out_dir, &output_error,
+                     &written_paths)) {
+    std::cerr << "error: " << output_error << '\n';
+    return 1;
+  }
 
-  static const std::pair<astralix::StageKind, const char *> stages[] = {
-      {astralix::StageKind::Vertex, "vert"},
-      {astralix::StageKind::Fragment, "frag"},
-      {astralix::StageKind::Geometry, "geom"},
-      {astralix::StageKind::Compute, "comp"},
-  };
-
-  for (auto [kind, extension] : stages) {
-    auto it = result.stages.find(kind);
-    if (it == result.stages.end())
-      continue;
-
-    fs::path path = out_dir / (input_stem.string() + "." + extension + ".glsl");
-    std::ofstream out(path);
-    if (!out) {
-      std::cerr << "error: cannot write to '" << path << "'\n";
-      return 1;
-    }
-    out << it->second;
+  for (const auto &path : written_paths) {
     std::cout << "wrote " << path.string() << '\n';
   }
 
