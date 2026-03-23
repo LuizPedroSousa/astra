@@ -13,10 +13,15 @@
 
 #include "imgui.h"
 
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
+
 namespace astralix {
 
-float distance = 6.0;
-float near_plane = -10.0f, far_plane = 7.5f;
+float distance = 10.0f;
+float near_plane = 1.0f, far_plane = 24.0f;
 
 inline void draw_vec3_control(const std::string &label, glm::vec3 &values,
                               float reset_value = 0.0f,
@@ -35,7 +40,7 @@ inline void draw_vec3_control(const std::string &label, glm::vec3 &values,
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0, 0});
 
   float line_height =
-      GImGui->Font->FontSize + GImGui->Style.FramePadding.y * 2.0f;
+      ImGui::GetFontSize() + GImGui->Style.FramePadding.y * 2.0f;
   ImVec2 button_size = {line_height + 3.0f, line_height};
 
   ImGui::PushStyleColor(ImGuiCol_Button, ImVec4{0.8f, 0.1f, 0.15f, 1.0f});
@@ -98,24 +103,34 @@ void DirectionalStrategy::update(IEntity *source, Object *object,
   glm::mat4 lightSpaceMatrix;
 
   auto up = glm::vec3(0.0, 1.0, 0.0);
-
-  auto front = glm::vec3(0.0f);
+  auto target = glm::vec3(0.0f);
 
   lightProjection = glm::ortho(-distance, distance, -distance, distance,
                                near_plane, far_plane);
 
-  lightView = glm::lookAt(transform->position, front, up);
+  lightView = glm::lookAt(transform->position, target, up);
 
   lightSpaceMatrix = lightProjection * lightView;
 
-  shader->set_int("light_type", 0);
-  shader->set_vec3("directional_light.direction", transform->forward());
-  shader->set_vec3("directional_light.position", transform->position);
-  shader->set_vec3("directional_light.exposure.ambient", glm::vec3(0.2f));
-  shader->set_vec3("directional_light.exposure.diffuse", glm::vec3(0.5f));
-  shader->set_vec3("directional_light.exposure.specular", glm::vec3(0.5f));
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  using namespace shader_bindings::engine_shaders_light_axsl;
 
-  shader->set_matrix("light_space_matrix", lightSpaceMatrix);
+  shader->set(LightUniform::directional__exposure__ambient, glm::vec3(0.2f));
+  shader->set(LightUniform::directional__exposure__diffuse, glm::vec3(0.5f));
+  shader->set(LightUniform::directional__exposure__specular, glm::vec3(0.5f));
+  shader->set(LightUniform::directional__direction,
+              glm::normalize(target - transform->position));
+  shader->set(LightUniform::directional__position, transform->position);
+  shader->set(LightUniform::light_space_matrix, lightSpaceMatrix);
+#else
+  shader->set_vec3("light.directional.exposure.ambient", glm::vec3(0.2f));
+  shader->set_vec3("light.directional.exposure.diffuse", glm::vec3(0.5f));
+  shader->set_vec3("light.directional.exposure.specular", glm::vec3(0.5f));
+  shader->set_vec3("light.directional.direction",
+                   glm::normalize(target - transform->position));
+  shader->set_vec3("light.directional.position", transform->position);
+  shader->set_matrix("light.light_space_matrix", lightSpaceMatrix);
+#endif
 
 } // namespace astralix
 } // namespace astralix

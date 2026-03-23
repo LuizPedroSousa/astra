@@ -6,6 +6,11 @@
 #include "entities/ientity.hpp"
 #include <string>
 
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
+
 namespace astralix {
 
 Object::Object(ENTITY_INIT_PARAMS, glm::vec3 position, glm::vec3 scale)
@@ -16,6 +21,9 @@ Object::Object(ENTITY_INIT_PARAMS, glm::vec3 position, glm::vec3 scale)
 
 void Object::start(Ref<RenderTarget> render_target) {
   CHECK_ACTIVE(this);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  using namespace shader_bindings::engine_shaders_light_axsl;
+#endif
 
   auto resource = get_component<ResourceComponent>();
   auto mesh = get_component<MeshComponent>();
@@ -27,8 +35,11 @@ void Object::start(Ref<RenderTarget> render_target) {
   auto shader = resource->shader();
 
   if (shader != nullptr) {
-    // shader->bind();
-    shader->set_int("shadowMap", 1);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    shader->set(LightUniform::shadow_map, 1);
+#else
+    shader->set_int("light.shadow_map", 1);
+#endif
   }
 
   if (transform != nullptr && transform->is_active())

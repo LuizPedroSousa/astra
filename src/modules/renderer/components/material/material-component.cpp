@@ -5,6 +5,12 @@
 #include "guid.hpp"
 #include "managers/resource-manager.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
+#include <array>
+
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
 
 namespace astralix {
 
@@ -18,8 +24,15 @@ void MaterialComponent::update() {
   CHECK_ACTIVE(this);
   auto owner = get_owner();
 
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  using namespace shader_bindings::engine_shaders_light_axsl;
+
+  owner->get_component<ResourceComponent>()->shader()->set(
+      LightUniform::materials__shininess, std::array<float, 1>{32.0f});
+#else
   owner->get_component<ResourceComponent>()->shader()->set_float(
-      "material.shininess", 32.0f);
+      "light.materials[0].shininess", 32.0f);
+#endif
 }
 
 void MaterialComponent::attach_material(ResourceDescriptorID material_id) {
@@ -37,12 +50,12 @@ void MaterialComponent::attach_material(ResourceDescriptorID material_id) {
   }
 
   if (material->normal_map_ids) {
-    resource->attach_texture({*material->normal_map_ids, "normal_map"});
+    resource->attach_texture({*material->normal_map_ids, "light.normal_map"});
   }
 
   if (material->displacement_map_ids) {
     resource->attach_texture(
-        {*material->displacement_map_ids, "displacement_map"});
+        {*material->displacement_map_ids, "light.displacement_map"});
   }
 
   for (int i = 0; i < material->specular_ids.size(); i++) {
@@ -53,7 +66,8 @@ void MaterialComponent::attach_material(ResourceDescriptorID material_id) {
 
 std::string MaterialComponent::get_name(const char *prefix, int count) {
   std::string result =
-      std::string("materials" + std::string("[") + std::to_string(count) +
+      std::string("light.materials" + std::string("[") +
+                  std::to_string(count) +
                   std::string("]") + "." + prefix);
 
   return result;

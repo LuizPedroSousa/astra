@@ -5,6 +5,11 @@
 #include "event-dispatcher.hpp"
 #include "framebuffer.hpp"
 
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
+
 namespace astralix {
 
 CameraComponent::CameraComponent(COMPONENT_INIT_PARAMS)
@@ -32,7 +37,6 @@ void CameraComponent::recalculate_projection_matrix(
 }
 
 void CameraComponent::recalculate_view_matrix() {
-  // view space
   auto matrix = glm::mat4(1.0f);
 
   auto transform = get_owner()->get_component<TransformComponent>();
@@ -49,9 +53,17 @@ void CameraComponent::update(Ref<Shader> &shader,
 
   auto transform = get_owner()->get_component<TransformComponent>();
 
-  shader->set_matrix("view", m_view_matrix);
-  shader->set_vec3("view_position", transform->position);
-  shader->set_matrix("projection", m_projection_matrix);
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  using namespace shader_bindings::engine_shaders_light_axsl;
+
+  shader->set_all(CameraParams{.view = m_view_matrix,
+                               .projection = m_projection_matrix,
+                               .position = transform->position});
+#else
+  shader->set_matrix("camera.view", m_view_matrix);
+  shader->set_matrix("camera.projection", m_projection_matrix);
+  shader->set_vec3("camera.position", transform->position);
+#endif
 }
 
 } // namespace astralix

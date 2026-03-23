@@ -30,6 +30,7 @@ void TransformComponent::recalculate_transform() {
   glm::mat4 rotation_matrix = glm::toMat4(rotation);
 
   matrix = translation_matrix * rotation_matrix * scale_matrix;
+  m_dirty = false;
 }
 
 void TransformComponent::update() {
@@ -39,16 +40,12 @@ void TransformComponent::update() {
 }
 
 void TransformComponent::translate(glm::vec3 p_position) {
-  this->matrix = glm::translate(this->matrix, p_position);
-  this->position = p_position;
-
+  position = p_position;
   m_dirty = true;
 }
 
 void TransformComponent::set_scale(glm::vec3 p_scale) {
-  this->matrix = glm::scale(this->matrix, p_scale);
-  this->scale = p_scale;
-
+  scale = p_scale;
   m_dirty = true;
 }
 
@@ -79,7 +76,7 @@ void TransformComponent::rotate(glm::vec3 axis, float degrees) {
 }
 
 void TransformComponent::rotate(glm::quat rotation) {
-  rotation = rotation;
+  this->rotation = glm::normalize(rotation);
   m_dirty = true;
 }
 
