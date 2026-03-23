@@ -2,14 +2,12 @@ cmake_minimum_required(VERSION 3.11)
 
 project(sandbox LANGUAGES CXX)
 
-# set(VCPKG_ROOT "${CMAKE_SOURCE_DIR}/../../vcpkg_installed/x64-linux")
-# set(ASTRA_INSTALL "${CMAKE_SOURCE_DIR}/../../install")
-message(${CMAKE_PREFIX_PATH})
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 
 # list(APPEND CMAKE_PREFIX_PATH "${ASTRA_INSTALL}" "${VCPKG_ROOT}")
+set(ASTRALIX_STREAMS_FORMATS Json)
 
 if (NOT TARGET astralix::astra)
   find_package(astralix CONFIG REQUIRED)

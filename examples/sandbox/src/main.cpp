@@ -23,7 +23,7 @@ int handleException(astralix::BaseException exception) {
                        .parent_path();                                         \
   auto project = astralix::Project::create({                                   \
       .directory = directory,                                                  \
-      .manifest = "src/project_manifest.json",                                 \
+      .manifest = "src/project.ax",                                            \
   });                                                                          \
                                                                                \
   astralix::ProjectManager::get()->add_project(project);                       \

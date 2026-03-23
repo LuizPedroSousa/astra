@@ -128,14 +128,32 @@
     {
       "id": "shaders::lighting",
       "type": "Shader",
-      "vertex": "@engine/shaders/vertex/light.glsl",
-      "fragment": "@engine/shaders/fragment/light.glsl"
+      "vertex": "@engine/shaders/light.axsl",
+      "fragment": "@engine/shaders/light.axsl"
     },
     {
       "id": "shaders::skybox",
       "type": "Shader",
       "vertex": "@engine/shaders/skybox.axsl",
       "fragment": "@engine/shaders/skybox.axsl"
+    },
+    {
+      "id": "shaders::debug_depth",
+      "type": "Shader",
+      "vertex": "@engine/shaders/debug_depth.axsl",
+      "fragment": "@engine/shaders/debug_depth.axsl"
+    },
+    {
+      "id": "shaders::shadow_map",
+      "type": "Shader",
+      "vertex": "@engine/shaders/shadow_map.axsl",
+      "fragment": "@engine/shaders/shadow_map.axsl"
+    },
+    {
+      "id": "shaders::grid",
+      "type": "Shader",
+      "vertex": "@engine/shaders/grid.axsl",
+      "fragment": "@engine/shaders/grid.axsl"
     },
     {
       "id": "shaders::glyph",
