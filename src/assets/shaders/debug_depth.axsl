@@ -1,0 +1,61 @@
+@version 450;
+
+interface Mesh {
+  @location(0) 
+  vec3 position;
+
+  @location(1) 
+  vec3 normal;
+
+  @location(2) 
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Depth {
+  sampler2D depth_map;
+  float near_plane;
+  float far_plane;
+  int fullscreen;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@vertex
+fn main(Mesh mesh, Depth depth) -> VertexOutput {
+    vec2 position = mesh.position.xy;
+
+    if (depth.fullscreen == 0) {
+        vec2 scale = vec2(0.25, 0.25);
+        vec2 offset = vec2(-0.75, 0.75);
+        position = position * scale + offset;
+    }
+
+    gl_Position = vec4(position, 0.0, 1.0);
+
+    return VertexOutput(mesh.texture_coordinates);
+}
+
+fn linearize_depth(float raw_depth, float near, float far) -> float
+{
+    float z = raw_depth * 2.0 - 1.0;
+    return (2.0 * near * far) / (far + near - z * (far - near));
+}
+
+@fragment
+fn main(VertexOutput vertex, Depth depth) -> FragmentOutput {
+  float depth_value = texture(depth.depth_map, vertex.texture_coordinates).r;
+
+  float linear = linearize_depth(depth_value, depth.near_plane, depth.far_plane);
+  float normalized = linear / depth.far_plane;
+
+  vec4 color = vec4(vec3(normalized), 1.0);
+
+  return FragmentOutput(color);
+}

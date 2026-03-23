@@ -35,45 +35,68 @@ struct PointLight {
 fn calc_directional_light(
   sampler2D shadow_map,
   sampler2D diffuse_map,
-  DirectionalLight light, 
-  vec3 normal, 
+  sampler2D specular_map,
+  sampler2D normal_map,
+  DirectionalLight light,
   vec2 texture_coordinates,
-  vec3 tangent_light_position,
+  float shininess,
+  vec3 tangent_light_direction,
   vec3 tangent_view_position,
   vec3 tangent_fragment,
   vec4 fragment_light_space
 ) -> vec3 {
-    vec3 light_direction = normalize(tangent_light_position - tangent_fragment);
+    vec3 normal = normalize(texture(normal_map, texture_coordinates).rgb * 2.0 - 1.0);
+    vec3 light_direction = normalize(tangent_light_direction);
     vec3 view_direction = normalize(tangent_view_position - tangent_fragment);
 
-    vec3 color = texture(diffuse_map, texture_coordinates).rgb;
-    vec3 ambient = light.exposure.ambient;
-    vec3 diffuse = light.exposure.diffuse * get_diffuse(light_direction, normal);
-    vec3 specular = light.exposure.specular * get_specular(light_direction, view_direction, normal);
+    vec3 albedo = texture(diffuse_map, texture_coordinates).rgb;
+    float specular_strength = texture(specular_map, texture_coordinates).r;
+
+    float n_dot_l = get_diffuse(normal, light_direction);
+    float spec = get_specular(light_direction, view_direction, normal, shininess);
+
+    float energy_ratio = (shininess + 2.0) / (shininess + 1.0);
+    vec3 diffuse = light.exposure.diffuse * n_dot_l * albedo * (1.0 - specular_strength);
+    vec3 specular = light.exposure.specular * spec * specular_strength * energy_ratio;
+
+    vec3 sky_color = light.exposure.ambient;
+    vec3 ground_color = light.exposure.ambient * 0.3;
+    float hemisphere_factor = dot(normal, vec3(0.0, 0.0, 1.0)) * 0.5 + 0.5;
+    vec3 ambient = mix(ground_color, sky_color, hemisphere_factor) * albedo;
+
     float shadow = get_shadow(shadow_map, light_direction, normal, fragment_light_space);
 
-    return (ambient + shadow * (diffuse + specular)) * color;
+    return ambient + shadow * (diffuse + specular);
 }
 
 fn calc_point_light(
-    PointLight light, 
+    PointLight light,
     sampler2D diffuse_map,
-    vec3 view_direction, 
-    vec3 normal, 
+    sampler2D specular_map,
+    vec3 view_direction,
+    vec3 normal,
     vec2 texture_coordinates,
+    float shininess,
     vec3 tangent_light_position,
-    vec3 tangent_view_position,
     vec3 tangent_fragment
 ) -> vec3 {
-    vec3 direction = normalize(light.position - tangent_fragment);
-    vec3 color = texture(diffuse_map, texture_coordinates).rgb;
-    float distance = length(light.position - tangent_fragment);
-    float attenuation = get_attenuation(distance, light.attenuation);
-    vec3 ambient = light.exposure.ambient;
-    vec3 diffuse = light.exposure.diffuse * get_diffuse(direction, normal);
-    vec3 specular = light.exposure.specular * get_specular(direction, view_direction, normal);
+    vec3 direction = normalize(tangent_light_position - tangent_fragment);
+    vec3 albedo = texture(diffuse_map, texture_coordinates).rgb;
+    float specular_strength = texture(specular_map, texture_coordinates).r;
 
-    return (ambient + diffuse + specular) * color;
+    float distance = length(tangent_light_position - tangent_fragment);
+    float attenuation = get_attenuation(distance, light.attenuation);
+    float n_dot_l = get_diffuse(direction, normal);
+    float spec = get_specular(direction, view_direction, normal, shininess);
+
+    float energy_ratio = (shininess + 2.0) / (shininess + 1.0);
+    vec3 ambient = light.exposure.ambient * albedo;
+    vec3 diffuse =
+        light.exposure.diffuse * n_dot_l * albedo * (1.0 - specular_strength);
+    vec3 specular =
+        light.exposure.specular * spec * specular_strength * energy_ratio;
+
+    return attenuation * (ambient + diffuse + specular);
 }
 
 fn parallax_mapping(
@@ -107,16 +130,23 @@ fn parallax_mapping(
     return previous_texture_coordinates * weight + current_texture_coordinates * (1.0 - weight);
 }
 
-fn get_specular(vec3 light_direction, vec3 view_direction, vec3 normal) -> float {
+fn get_specular(vec3 light_direction, vec3 view_direction, vec3 normal, float shininess) -> float {
     vec3 halfway_direction = normalize(light_direction + view_direction);
-    float halfDot = max(dot(normal, halfway_direction), 0.0);
-    return pow(halfDot, 32.0);
+    float half_dot = max(dot(normal, halfway_direction), 0.0);
+    return pow(half_dot, shininess);
 }
 
 fn get_diffuse(vec3 light_direction, vec3 normal) -> float {
-    return max(dot(light_direction, normal), 0.);
+    return max(dot(normal, light_direction), 0.);
 }
 
 fn get_attenuation(float distance, LightAttenuation attenuation) -> float {
-    return 1. / (attenuation.constant + attenuation.linear * distance + attenuation.quadratic * (distance * distance));
+    float denominator = attenuation.constant + attenuation.linear * distance +
+        attenuation.quadratic * (distance * distance);
+
+    if (denominator <= 0.0) {
+        return 0.0;
+    }
+
+    return 1. / denominator;
 }

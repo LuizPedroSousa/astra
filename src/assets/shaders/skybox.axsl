@@ -1,8 +1,5 @@
 @version 450;
 
-uniform mat4 view_without_transformation;
-uniform mat4 projection;
-
 @in
 interface VertexInput {
   @location(0) 
@@ -14,9 +11,10 @@ interface VertexOutput {
   vec3 texture_coordinate;
 }
 
-interface FragmentInput {
-  @uniform
-  samplerCube skybox;
+
+@uniform
+interface Entity {
+  samplerCube skybox_map;
 }
 
 interface FragmentOutput {
@@ -24,9 +22,15 @@ interface FragmentOutput {
   vec4 color;
 }
 
+@uniform
+interface Light {
+  mat4 view_without_transformation;
+  mat4 projection;
+}
+
 @vertex
-fn main(VertexInput input) -> VertexOutput {
-  vec4 pos = projection * view_without_transformation * vec4(input.position, 1.);
+fn main(VertexInput input, Light light) -> VertexOutput {
+  vec4 pos = light.projection * light.view_without_transformation * vec4(input.position, 1.);
 
   gl_Position = pos.xyww;
 
@@ -34,8 +38,8 @@ fn main(VertexInput input) -> VertexOutput {
 }
 
 @fragment 
-fn main(VertexOutput vertex, FragmentInput fragment) -> FragmentOutput {
-  vec4 color = texture(fragment.skybox, vertex.texture_coordinate);
+fn main(VertexOutput vertex, Entity entity) -> FragmentOutput {
+  vec4 color = texture(entity.skybox_map, vertex.texture_coordinate);
 
   return FragmentOutput(color);
 }

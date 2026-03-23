@@ -1,0 +1,91 @@
+@version 450;
+
+layout(points) in;
+layout(line_strip, max_vertices = 2) out;
+
+interface Mesh {
+  @location(0) 
+  vec3 position;
+
+  @location(1) 
+  vec3 normal;
+}
+
+@std430 
+@binding(0) 
+in InstanceBuffer {
+    mat4 models[];
+} instance;
+
+@uniform
+interface Camera {
+  mat4 view;
+  mat4 projection;
+}
+
+@uniform 
+interface Entity {
+  bool use_instancing = false;
+  mat4 g_model;
+}
+
+interface VertexOutput {
+  mat4 model;
+  vec3 normal;
+}
+
+@uniform
+interface Debug {
+  float length = 1.0;
+}
+
+@vertex
+fn main(Entity entity, Mesh mesh) -> VertexOutput {
+  mat4 model = entity.use_instacing ? instance.models[gl_InstanceID] : entity.g_model;
+
+  VertexOutput output;
+
+  output.model = model;
+  output.normal = transpose(inverse(mat3(model))) * mesh.normal;
+
+  gl_Position = vec4(mesh.position, 1.);
+
+  return output;
+}
+
+interface GeometryOutput {
+  vec3 vertex_color;
+}
+
+@geometry
+fn main(VertexOutput[] vertex, Camera camera, Debug debug) -> GeometryOutput {
+  vec3 normal = vertex[0].normal;
+  mat4 model = vertex[0].model;
+
+  vec3 vertex_color = abs(normal);
+
+  vec4 v0 = gl_in[0].gl_Position;
+
+  mat4 mvp = camera.projection * camera.view * model;
+
+  gl_Position = mvp * v0;
+  EmitVertex();
+
+  vec4 v1 = v0 + vec4(normal * debug.length, 0.0);
+  gl_Position = mvp * v1;
+  EmitVertex();
+  EndPrimitive();
+
+  return GeometryOutput(vertex_color);
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@fragment
+fn main (GeometryOutput geometry) -> FragmentOutput {
+    vec4 color = vec4(geometry.vertex_color, 1.0);
+
+    return FragmentOutput(color);
+}
