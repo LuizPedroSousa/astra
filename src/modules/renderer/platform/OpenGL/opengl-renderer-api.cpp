@@ -62,6 +62,9 @@ uint32_t OpenGLRendererAPI::map_cull_face_mode(CullFaceMode mode) {
   case CullFaceMode::Right: {
     return GL_RIGHT;
   }
+
+  default:
+    ASTRA_EXCEPTION("Unsupported OpenGL cull face mode");
   }
 }
 
@@ -78,6 +81,9 @@ uint32_t OpenGLRendererAPI::map_depth_mode(DepthMode mode) {
   case DepthMode::Equal: {
     return GL_EQUAL;
   }
+
+  default:
+    ASTRA_EXCEPTION("Unsupported OpenGL depth mode");
   }
 }
 
