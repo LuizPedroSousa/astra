@@ -111,5 +111,8 @@ jobs:
           name: tests-build-linux-x64
           path: .
 
+      - name: Add permission to test binary
+        run: chmod +x builds/tests/astralix_tests
+
       - name: Run tests
         run: ctest --test-dir builds/tests --verbose --output-on-failure
