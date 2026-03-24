@@ -36,33 +36,25 @@ jobs:
             libxkbcommon-dev \
             libassimp-dev
 
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgJsonGlob: vcpkg.json
-
       - name: Restore vcpkg cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache@v4
         with:
           path: |
-            vcpkg/downloads
+            vcpkg
             vcpkg_installed
           key: ${{ runner.os }}-x64-linux-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-x64-linux-vcpkg-
 
-      - name: Install vcpkg packages
-        run: vcpkg install --triplet x64-linux --x-install-root="${VCPKG_INSTALL_ROOT}"
-
-      - name: Save vcpkg cache
+      - name: Setup vcpkg
         if: steps.vcpkg-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            vcpkg/downloads
-            vcpkg_installed
-          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+      - name: Install vcpkg packages
+        run: ./vcpkg/vcpkg install --triplet x64-linux --x-install-root="${VCPKG_INSTALL_ROOT}"
 
       - name: Configure
         run: cmake --preset=debug -DASTRALIX_STREAMS_FORMATS=Json -DVCPKG_MANIFEST_INSTALL=OFF
