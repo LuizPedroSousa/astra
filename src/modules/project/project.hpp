@@ -8,6 +8,7 @@
 #include "serializers/project-serializer.hpp"
 #include "targets/render-target.hpp"
 #include <glm/ext/vector_float3.hpp>
+#include <map>
 #include <string>
 
 namespace astralix {

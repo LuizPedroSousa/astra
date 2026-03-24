@@ -8,7 +8,6 @@
 #include "log.hpp"
 #include "renderer-api.hpp"
 #include "resources/mesh.hpp"
-#include "shaders/engine_shaders_light_axsl.hpp"
 #include "storage-buffer.hpp"
 #include <unordered_map>
 #include <vector>

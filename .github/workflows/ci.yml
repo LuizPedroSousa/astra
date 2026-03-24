@@ -10,6 +10,8 @@ jobs:
   build:
     name: Build Engine
     runs-on: ubuntu-latest
+    env:
+      VCPKG_INSTALL_ROOT: ${{ github.workspace }}/vcpkg_installed
 
     steps:
       - name: Checkout
@@ -31,39 +33,50 @@ jobs:
             libxi-dev \
             libxext-dev \
             libwayland-dev \
-            libxkbcommon-dev
+            libxkbcommon-dev \
+            libassimp-dev
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: vcpkg.json
 
+      - name: Restore vcpkg cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            vcpkg/downloads
+            vcpkg_installed
+          key: ${{ runner.os }}-x64-linux-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-linux-vcpkg-
+
+      - name: Install vcpkg packages
+        run: vcpkg install --triplet x64-linux --x-install-root="${VCPKG_INSTALL_ROOT}"
+
+      - name: Save vcpkg cache
+        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            vcpkg/downloads
+            vcpkg_installed
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
       - name: Configure
-        run: cmake --preset=debug
+        run: cmake --preset=debug -DASTRALIX_STREAMS_FORMATS=Json -DVCPKG_MANIFEST_INSTALL=OFF
         env:
           CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake
 
+      - name: Build axgen
+        run: cmake --build builds/debug --target axgen -j$(nproc)
+
+      - name: Generate engine shader bindings
+        run: builds/debug/axgen/axgen sync-shaders --manifest examples/sandbox/src/project.ax
+
       - name: Build
-        run: cmake --build builds/debug
-
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install ninja
-        run: sudo apt-get update && sudo apt-get install -y ninja-build
-
-      - name: Setup vcpkg and install gtest
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgJsonGlob: vcpkg.json
-
-      - name: Install vcpkg packages
-        run: vcpkg install gtest --triplet x64-linux --x-install-root=${{ github.workspace }}/vcpkg_installed
+        run: cmake --build builds/debug -j$(nproc)
 
       - name: Configure tests
         run: |
@@ -72,7 +85,31 @@ jobs:
             -DCMAKE_CXX_STANDARD=20
 
       - name: Build tests
-        run: cmake --build builds/tests
+        run: cmake --build builds/tests -j$(nproc)
+
+      - name: Upload test build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-build-linux-x64
+          path: |
+            builds/tests
+            vcpkg_installed
+          if-no-files-found: error
+
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download test build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tests-build-linux-x64
+          path: .
 
       - name: Run tests
         run: ctest --test-dir builds/tests --verbose --output-on-failure

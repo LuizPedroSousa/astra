@@ -5,6 +5,7 @@
 #include "guid.hpp"
 #include "stream-buffer.hpp"
 
+#include <any>
 #include <string>
 
 namespace astralix {

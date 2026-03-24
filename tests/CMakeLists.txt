@@ -5,9 +5,6 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(VCPKG_INSTALLED_ROOT "${CMAKE_SOURCE_DIR}/../vcpkg_installed/x64-linux")
 
-set(GTest_DIR "${VCPKG_INSTALLED_ROOT}/share/gtest")
-find_package(GTest CONFIG REQUIRED)
-
 set(SHADER_LANG_DIR "${CMAKE_SOURCE_DIR}/../src/modules/renderer/shader-lang")
 set(MODULES_DIR "${CMAKE_SOURCE_DIR}/../src/modules")
 set(SHARED_DIR "${CMAKE_SOURCE_DIR}/../src/shared")
@@ -15,6 +12,7 @@ set(AXSLC_DIR "${CMAKE_SOURCE_DIR}/../axslc")
 set(AXGEN_DIR "${CMAKE_SOURCE_DIR}/../axgen")
 set(AXGEN_SRC_DIR "${AXGEN_DIR}/src")
 set(FAKER_CXX_DIR "${CMAKE_SOURCE_DIR}/../external/faker-cxx")
+set(GOOGLETEST_DIR "${FAKER_CXX_DIR}/externals/googletest")
 
 include("${MODULES_DIR}/streams/serialization-formats.cmake")
 
@@ -22,6 +20,8 @@ set(ASTRALIX_TEST_SERIALIZATION_FORMATS Json Yaml Toml Xml)
 
 set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 add_subdirectory("${FAKER_CXX_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/faker-cxx"
+                 EXCLUDE_FROM_ALL)
+add_subdirectory("${GOOGLETEST_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest"
                  EXCLUDE_FROM_ALL)
 
 file(GLOB_RECURSE SHADER_LANG_SRC
@@ -75,8 +75,8 @@ target_include_directories(astralix_tests PRIVATE
 
 target_link_libraries(astralix_tests PRIVATE
   faker-cxx
-  GTest::gtest
-  GTest::gtest_main)
+  gtest
+  gtest_main)
 
 target_compile_definitions(astralix_tests PRIVATE
   ASTRALIX_ENGINE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/../src/assets"

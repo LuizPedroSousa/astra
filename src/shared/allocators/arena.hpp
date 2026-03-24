@@ -3,11 +3,11 @@
 #include "assert.hpp"
 #include "log.hpp"
 #include "trace.hpp"
-#include "gtest/gtest.h"
 #include <cstddef>
 #include <cstring>
 #include <list>
 #include <stack>
+#include <variant>
 
 #define KB(N) 1024 * N
 
