@@ -6,14 +6,14 @@
 #include "components/resource/resource-component.hpp"
 #include "components/transform/transform-component.hpp"
 #include "entities/object.hpp"
+#include "events/key-codes.hpp"
 #include "guid.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
+#include "managers/window-manager.hpp"
 #include "renderer-api.hpp"
 #include "storage-buffer.hpp"
 #include <GL/gl.h>
 #include <glm/gtc/quaternion.hpp>
-#include <unordered_map>
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -152,10 +152,10 @@ void DebugDepth::start(Ref<RenderTarget> render_target) {
 };
 
 void DebugDepth::update(Ref<RenderTarget> render_target,
-                        Framebuffer *shadow_mapping_framebuffer) {
+                        Framebuffer *shadow_map) {
   CHECK_ACTIVE(this);
 
-  if (shadow_mapping_framebuffer == nullptr) {
+  if (shadow_map == nullptr) {
     return;
   }
 
@@ -174,10 +174,103 @@ void DebugDepth::update(Ref<RenderTarget> render_target,
 #endif
 
   glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D,
-                shadow_mapping_framebuffer->get_color_attachment_id());
+  glBindTexture(GL_TEXTURE_2D, shadow_map->get_depth_attachment_id());
 
+  glDisable(GL_DEPTH_TEST);
+  glDepthMask(GL_FALSE);
   mesh->update(render_target);
+  glDepthMask(GL_TRUE);
+  glEnable(GL_DEPTH_TEST);
+}
+
+DebugGBuffer::DebugGBuffer(ENTITY_INIT_PARAMS) : ENTITY_INIT() {
+  add_component<MeshComponent>()->attach_mesh(Mesh::quad(1.0f));
+  add_component<ResourceComponent>();
+  m_active = false;
+  m_attachment_index = 0;
+};
+
+void DebugGBuffer::start(Ref<RenderTarget> render_target) {
+  auto resource = get_component<ResourceComponent>();
+  auto mesh = get_component<MeshComponent>();
+
+  resource->set_shader("shaders::debug_g_buffer");
+  resource->start();
+  mesh->start(render_target);
+};
+
+void DebugGBuffer::update(Ref<RenderTarget> render_target,
+                          Framebuffer *g_buffer) {
+  CHECK_ACTIVE(this);
+
+  if (g_buffer == nullptr) {
+    return;
+  }
+
+  auto color_attachments = g_buffer->get_color_attachments();
+
+  if (color_attachments.empty()) {
+    return;
+  }
+
+  auto resource = get_component<ResourceComponent>();
+  auto mesh = get_component<MeshComponent>();
+
+  resource->update();
+
+  auto shader = resource->shader();
+
+  int requested_attachment_index = m_attachment_index;
+
+  if (input::IS_KEY_RELEASED(input::KeyCode::D1)) {
+    requested_attachment_index = 0;
+  } else if (input::IS_KEY_RELEASED(input::KeyCode::D2)) {
+    requested_attachment_index = 1;
+  } else if (input::IS_KEY_RELEASED(input::KeyCode::D3)) {
+    requested_attachment_index = 2;
+  } else if (input::IS_KEY_RELEASED(input::KeyCode::D4)) {
+    requested_attachment_index = 3;
+  }
+
+  if (requested_attachment_index >= 0 &&
+      requested_attachment_index < static_cast<int>(color_attachments.size())) {
+    m_attachment_index = requested_attachment_index;
+  } else if (requested_attachment_index != m_attachment_index) {
+    LOG_WARN("Ignoring invalid G-buffer attachment index ",
+             requested_attachment_index,
+             ". Available color attachments: ", color_attachments.size());
+  }
+
+  if (m_attachment_index < 0 ||
+      m_attachment_index >= static_cast<int>(color_attachments.size())) {
+    m_attachment_index = 0;
+  }
+
+  glActiveTexture(GL_TEXTURE0 + m_attachment_index);
+  glBindTexture(GL_TEXTURE_2D, color_attachments[m_attachment_index]);
+  glActiveTexture(GL_TEXTURE1 + m_attachment_index + 1);
+  glBindTexture(GL_TEXTURE_2D, color_attachments[1]);
+
+  shader->bind();
+
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  {
+    using namespace shader_bindings::engine_shaders_debug_g_buffer_axsl;
+
+    shader->set(GBufferUniform::attachment, m_attachment_index);
+    shader->set(GBufferUniform::g_normal_mask, 1);
+    shader->set(GBufferUniform::near_plane, 0.1f);
+    shader->set(GBufferUniform::far_plane, 100.0f);
+  }
+#endif
+
+  glDisable(GL_DEPTH_TEST);
+  glDepthMask(GL_FALSE);
+  mesh->update(render_target);
+  glDepthMask(GL_TRUE);
+  glEnable(GL_DEPTH_TEST);
+
+  shader->unbind();
 }
 
 } // namespace astralix
