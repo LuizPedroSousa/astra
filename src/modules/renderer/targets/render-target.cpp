@@ -23,7 +23,8 @@ void RenderTarget::bind(bool to_default_fb) {
 
   m_renderer_api->enable_buffer_testing();
   m_renderer_api->clear_color();
-  m_renderer_api->clear_buffers();
+  m_renderer_api->clear_buffers(ClearBufferType::Color |
+                                ClearBufferType::Depth);
 }
 
 void RenderTarget::unbind() { m_framebuffer->unbind(); }

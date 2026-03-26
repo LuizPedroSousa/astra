@@ -9,11 +9,11 @@ public:
   void init() override;
   void set_viewport(uint32_t x, uint32_t y, uint32_t width,
                     uint32_t height) override;
-  void clear_color() override;
+  void clear_color(glm::vec4 color) override;
   void enable_buffer_testing() override;
   void disable_buffer_testing() override;
 
-  void clear_buffers() override;
+  void clear_buffers(ClearBufferType type = ClearBufferType::All) override;
 
   void cull_face(CullFaceMode mode) override;
   void depth(DepthMode mode) override;

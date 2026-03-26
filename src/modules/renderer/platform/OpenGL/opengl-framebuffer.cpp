@@ -52,8 +52,7 @@ static void attach_color_texture(uint32_t id, int samples,
                  GL_UNSIGNED_BYTE, NULL);
 
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER,
-                    GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   }
@@ -87,10 +86,11 @@ static void attach_depth(uint32_t id, int samples, GLenum format,
 static bool is_depth_format(FramebufferTextureFormat format) {
   switch (format) {
   case FramebufferTextureFormat::DEPTH24STENCIL8:
+  case FramebufferTextureFormat::DEPTH_ONLY:
     return true;
+  default:
+    return false;
   }
-
-  return false;
 }
 
 uint32_t static map_bind_type_to_opengl(FramebufferBindType type) {
@@ -102,6 +102,31 @@ uint32_t static map_bind_type_to_opengl(FramebufferBindType type) {
     return GL_DRAW_FRAMEBUFFER;
   default:
     return GL_FRAMEBUFFER;
+  }
+};
+
+uint32_t static map_blit_type_to_opengl(FramebufferBlitType type) {
+  uint32_t result = 0;
+  uint32_t type_value = static_cast<uint32_t>(type);
+
+  if (type_value & static_cast<uint32_t>(FramebufferBlitType::Color))
+    result |= GL_COLOR_BUFFER_BIT;
+  if (type_value & static_cast<uint32_t>(FramebufferBlitType::Depth))
+    result |= GL_DEPTH_BUFFER_BIT;
+  if (type_value & static_cast<uint32_t>(FramebufferBlitType::Stencil))
+    result |= GL_STENCIL_BUFFER_BIT;
+
+  return result;
+};
+
+uint32_t static map_blit_filter_to_opengl(FramebufferBlitFilter filter) {
+  switch (filter) {
+  case FramebufferBlitFilter::Nearest:
+    return GL_NEAREST;
+  case FramebufferBlitFilter::Linear:
+    return GL_LINEAR;
+  default:
+    return GL_NEAREST;
   }
 };
 
@@ -160,31 +185,34 @@ int OpenGLFramebuffer::read_pixel(uint32_t attachment_index, int x, int y) {
 void OpenGLFramebuffer::clear_attachment(uint32_t attachment_index, int value) {
   auto &spec = m_color_attachment_specifications[attachment_index];
 
-  // Retrieve the texture ID
-  GLuint textureID = m_color_attachments[attachment_index];
+  glBindFramebuffer(GL_FRAMEBUFFER, m_renderer_id);
 
-  // Bind the texture
-  glBindTexture(GL_TEXTURE_2D, textureID);
-
-  // Get the texture dimensions
-  GLsizei width, height;
-  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &width);
-  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &height);
-
-  // Create an array with the specified color value
-  int *data = new int[width * height];
-  for (int i = 0; i < width * height; ++i) {
-    data[i] = value;
+  switch (spec.format) {
+  case FramebufferTextureFormat::RGBA16F:
+  case FramebufferTextureFormat::RGBA32F:
+  case FramebufferTextureFormat::RGB16F:
+  case FramebufferTextureFormat::RGB32F: {
+    float clearColor[4] = {static_cast<float>(value), static_cast<float>(value),
+                           static_cast<float>(value),
+                           static_cast<float>(value)};
+    glClearBufferfv(GL_COLOR, attachment_index, clearColor);
+    break;
   }
-
-  // Clear the texture data
-  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_INT, data);
-
-  // Unbind the texture
-  glBindTexture(GL_TEXTURE_2D, 0);
-
-  // Delete the temporary data array
-  delete[] data;
+  case FramebufferTextureFormat::RED_INTEGER: {
+    int clearValue[4] = {value, 0, 0, 0};
+    glClearBufferiv(GL_COLOR, attachment_index, clearValue);
+    break;
+  }
+  case FramebufferTextureFormat::RGBA8:
+  case FramebufferTextureFormat::RGB8:
+  default: {
+    float clearColor[4] = {static_cast<float>(value), static_cast<float>(value),
+                           static_cast<float>(value),
+                           static_cast<float>(value)};
+    glClearBufferfv(GL_COLOR, attachment_index, clearColor);
+    break;
+  }
+  }
 }
 
 void OpenGLFramebuffer::invalidate() {
@@ -202,7 +230,6 @@ void OpenGLFramebuffer::invalidate() {
 
   bool multisample = m_specification.samples > 1;
 
-  // Attachments
   if (m_color_attachment_specifications.size()) {
     m_color_attachments.resize(m_color_attachment_specifications.size());
     utils::create_textures(m_color_attachments.data(),
@@ -227,6 +254,21 @@ void OpenGLFramebuffer::invalidate() {
             m_color_attachments[i], m_specification.samples, GL_RGBA32F,
             GL_RGBA, m_specification.width, m_specification.height, i);
         break;
+      case FramebufferTextureFormat::RGB8:
+        utils::attach_color_texture(
+            m_color_attachments[i], m_specification.samples, GL_RGB8, GL_RGB,
+            m_specification.width, m_specification.height, i);
+        break;
+      case FramebufferTextureFormat::RGB16F:
+        utils::attach_color_texture(
+            m_color_attachments[i], m_specification.samples, GL_RGB16F, GL_RGB,
+            m_specification.width, m_specification.height, i);
+        break;
+      case FramebufferTextureFormat::RGB32F:
+        utils::attach_color_texture(
+            m_color_attachments[i], m_specification.samples, GL_RGB32F, GL_RGB,
+            m_specification.width, m_specification.height, i);
+        break;
       case FramebufferTextureFormat::RED_INTEGER:
         utils::attach_color_texture(
             m_color_attachments[i], m_specification.samples, GL_R32I,
@@ -235,11 +277,7 @@ void OpenGLFramebuffer::invalidate() {
 
       case FramebufferTextureFormat::None:
       case FramebufferTextureFormat::DEPTH24STENCIL8:
-        break;
       case FramebufferTextureFormat::DEPTH_ONLY:
-        utils::attach_depth_texture(m_color_attachments[i],
-                                    m_specification.width,
-                                    m_specification.height);
         break;
       }
     }
@@ -254,6 +292,11 @@ void OpenGLFramebuffer::invalidate() {
       utils::attach_depth(m_depth_attachment, m_specification.samples,
                           GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL_ATTACHMENT,
                           m_specification.width, m_specification.height);
+      break;
+
+    case FramebufferTextureFormat::DEPTH_ONLY:
+      utils::attach_depth_texture(m_depth_attachment, m_specification.width,
+                                  m_specification.height);
       break;
 
     default:
@@ -295,9 +338,12 @@ void OpenGLFramebuffer::invalidate() {
   unbind();
 }
 
-void OpenGLFramebuffer::blit(uint32_t width, uint32_t height) {
+void OpenGLFramebuffer::blit(uint32_t width, uint32_t height,
+                             FramebufferBlitType type,
+                             FramebufferBlitFilter filter) {
   glBlitFramebuffer(0, 0, width, height, 0, 0, width, height,
-                    GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                    utils::map_blit_type_to_opengl(type),
+                    utils::map_blit_filter_to_opengl(filter));
 }
 
 } // namespace astralix
