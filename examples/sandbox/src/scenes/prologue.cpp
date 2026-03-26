@@ -54,7 +54,8 @@ void Prologue::create_tile_grid(int columns, int rows, float tile_size, float y,
     auto mesh_component = tile->add_component<MeshComponent>();
     mesh_component->attach_mesh(Mesh::cube(1.0f));
 
-    tile->get_component<ResourceComponent>()->set_shader("shaders::lighting");
+    tile->get_component<ResourceComponent>()->set_shader(
+        "shaders::lighting_forward");
     tile->get_or_add_component<MaterialComponent>()->attach_material(
         "materials::wood");
 
@@ -70,7 +71,8 @@ void Prologue::load_scene_components() {
   tiles.clear();
 
   auto attach_wood_lighting = [](astralix::Object *object) {
-    object->get_component<ResourceComponent>()->set_shader("shaders::lighting");
+    object->get_component<ResourceComponent>()->set_shader(
+        "shaders::lighting_forward");
     object->get_or_add_component<MaterialComponent>()->attach_material(
         "materials::wood");
   };

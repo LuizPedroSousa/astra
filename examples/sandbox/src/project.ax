@@ -132,6 +132,18 @@
       "fragment": "@engine/shaders/light.axsl"
     },
     {
+      "id": "shaders::lighting_forward",
+      "type": "Shader",
+      "vertex": "@engine/shaders/lighting-forward.axsl",
+      "fragment": "@engine/shaders/lighting-forward.axsl"
+    },
+    {
+      "id": "shaders::g_buffer",
+      "type": "Shader",
+      "vertex": "@engine/shaders/g_buffer.axsl",
+      "fragment": "@engine/shaders/g_buffer.axsl"
+    },
+    {
       "id": "shaders::skybox",
       "type": "Shader",
       "vertex": "@engine/shaders/skybox.axsl",
@@ -142,6 +154,12 @@
       "type": "Shader",
       "vertex": "@engine/shaders/debug_depth.axsl",
       "fragment": "@engine/shaders/debug_depth.axsl"
+    },
+    {
+      "id": "shaders::debug_g_buffer",
+      "type": "Shader",
+      "vertex": "@engine/shaders/debug_g_buffer.axsl",
+      "fragment": "@engine/shaders/debug_g_buffer.axsl"
     },
     {
       "id": "shaders::shadow_map",
@@ -185,6 +203,7 @@
       "name": "render",
       "content": {
         "backend": "opengl",
+        "strategy": "deferred",
         "window": "main"
       }
     }

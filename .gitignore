@@ -30,3 +30,4 @@ editor/dist-electron
 compile_commands.json
 install
 builds
+.astralix
