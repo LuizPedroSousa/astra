@@ -12,6 +12,15 @@ public:
   void clear_color(glm::vec4 color) override;
   void enable_buffer_testing() override;
   void disable_buffer_testing() override;
+  void enable_depth_test() override;
+  void disable_depth_test() override;
+  void enable_depth_write() override;
+  void disable_depth_write() override;
+  void enable_blend() override;
+  void disable_blend() override;
+  void set_blend_func(BlendFactor src, BlendFactor dst) override;
+  void bind_texture_2d(uint32_t texture_id, uint32_t slot) override;
+  void bind_texture_cube(uint32_t texture_id, uint32_t slot) override;
 
   void clear_buffers(ClearBufferType type = ClearBufferType::All) override;
 
@@ -33,6 +42,7 @@ private:
   uint32_t map_draw_primitive_type(DrawPrimitive primitive_type);
   uint32_t map_cull_face_mode(CullFaceMode mode);
   uint32_t map_depth_mode(DepthMode mode);
+  uint32_t map_blend_factor(BlendFactor factor);
 };
 
 } // namespace astralix

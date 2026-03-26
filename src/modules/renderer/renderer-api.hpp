@@ -56,6 +56,7 @@ public:
   enum DrawPrimitive { POINTS = 0, LINES = 1, TRIANGLES = 2 };
   enum CullFaceMode { Front = 0, Left = 1, Right = 2, Back = 3 };
   enum DepthMode { Equal = 0, Less = 1, LessEqual = 2 };
+  enum BlendFactor { Zero = 0, One = 1, SrcAlpha = 2, OneMinusSrcAlpha = 3 };
 
   virtual void init() = 0;
   virtual void set_viewport(uint32_t x, uint32_t y, uint32_t width,
@@ -65,6 +66,15 @@ public:
   virtual void clear_buffers(ClearBufferType type = ClearBufferType::All) = 0;
   virtual void disable_buffer_testing() = 0;
   virtual void enable_buffer_testing() = 0;
+  virtual void enable_depth_test() = 0;
+  virtual void disable_depth_test() = 0;
+  virtual void enable_depth_write() = 0;
+  virtual void disable_depth_write() = 0;
+  virtual void enable_blend() = 0;
+  virtual void disable_blend() = 0;
+  virtual void set_blend_func(BlendFactor src, BlendFactor dst) = 0;
+  virtual void bind_texture_2d(uint32_t texture_id, uint32_t slot) = 0;
+  virtual void bind_texture_cube(uint32_t texture_id, uint32_t slot) = 0;
 
   virtual void cull_face(CullFaceMode mode) = 0;
   virtual void depth(DepthMode mode) = 0;

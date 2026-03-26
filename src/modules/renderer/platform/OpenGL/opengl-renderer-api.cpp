@@ -17,6 +17,18 @@ namespace astralix {
     glDisable(GL_STENCIL_TEST);
   }
 
+  void OpenGLRendererAPI::enable_depth_test() { glEnable(GL_DEPTH_TEST); }
+
+  void OpenGLRendererAPI::disable_depth_test() { glDisable(GL_DEPTH_TEST); }
+
+  void OpenGLRendererAPI::enable_depth_write() { glDepthMask(GL_TRUE); }
+
+  void OpenGLRendererAPI::disable_depth_write() { glDepthMask(GL_FALSE); }
+
+  void OpenGLRendererAPI::enable_blend() { glEnable(GL_BLEND); }
+
+  void OpenGLRendererAPI::disable_blend() { glDisable(GL_BLEND); }
+
   void OpenGLRendererAPI::clear_color(glm::vec4 color) {
     glClearColor(color.x, color.y, color.z, color.w);
   }
@@ -98,6 +110,29 @@ namespace astralix {
     }
   }
 
+  uint32_t OpenGLRendererAPI::map_blend_factor(BlendFactor factor) {
+    switch (factor) {
+    case BlendFactor::Zero: {
+      return GL_ZERO;
+    }
+
+    case BlendFactor::One: {
+      return GL_ONE;
+    }
+
+    case BlendFactor::SrcAlpha: {
+      return GL_SRC_ALPHA;
+    }
+
+    case BlendFactor::OneMinusSrcAlpha: {
+      return GL_ONE_MINUS_SRC_ALPHA;
+    }
+
+    default:
+      ASTRA_EXCEPTION("Unsupported OpenGL blend factor");
+    }
+  }
+
   void OpenGLRendererAPI::draw_indexed(const Ref<VertexArray>& vertex_array,
     DrawPrimitive primitive_type,
     uint32_t index_count) {
@@ -119,6 +154,21 @@ namespace astralix {
 
   void OpenGLRendererAPI::depth(DepthMode mode) {
     glDepthFunc(map_depth_mode(mode));
+  }
+
+  void OpenGLRendererAPI::set_blend_func(BlendFactor src, BlendFactor dst) {
+    glBlendFunc(map_blend_factor(src), map_blend_factor(dst));
+  }
+
+  void OpenGLRendererAPI::bind_texture_2d(uint32_t texture_id, uint32_t slot) {
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_2D, texture_id);
+  }
+
+  void OpenGLRendererAPI::bind_texture_cube(uint32_t texture_id,
+                                            uint32_t slot) {
+    glActiveTexture(GL_TEXTURE0 + slot);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, texture_id);
   }
 
   void OpenGLRendererAPI::draw_instanced_indexed(DrawPrimitive primitive_type,
