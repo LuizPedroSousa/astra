@@ -1,0 +1,53 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface GBuffer {
+  sampler2D attachment;
+  sampler2D g_normal_mask;
+  float near_plane;
+  float far_plane;
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(VertexOutput vertex, GBuffer g_buffer) -> FragmentOutput {
+  FragmentOutput frag_output;
+
+  if (texture(g_buffer.g_normal_mask, vertex.texture).a <= 0.0) {
+    discard;
+  }
+
+  frag_output.color = texture(g_buffer.attachment, vertex.texture);
+
+  return frag_output;
+}
