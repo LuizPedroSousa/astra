@@ -4,11 +4,14 @@
 #include "components/mesh/mesh-component.hpp"
 #include "components/resource/resource-component.hpp"
 #include "entities/entity.hpp"
+#include "events/key-codes.hpp"
+#include "framebuffer.hpp"
 #include "managers/entity-manager.hpp"
 #include "managers/resource-manager.hpp"
 #include "render-pass.hpp"
 #include "renderer-api.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
+#include "systems/render-system/passes/render-graph-resource.hpp"
 #include "targets/render-target.hpp"
 #include <GL/gl.h>
 
@@ -36,6 +39,18 @@ public:
     m_render_target = render_target;
     m_entity_manager = new EntityManager();
 
+    for (auto resource : resources) {
+      if (resource->desc.type == RenderGraphResourceType::Framebuffer &&
+          resource->desc.name == "scene_color") {
+        m_scene_color = resource->get_framebuffer();
+      }
+    }
+
+    if (m_scene_color == nullptr) {
+      set_enabled(false);
+      return;
+    }
+
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
         m_render_target->renderer_api()->get_backend(), {"shaders::grid"});
 
@@ -61,6 +76,14 @@ public:
       return;
     }
 
+    if (input::IS_KEY_RELEASED(input::KeyCode::F1)) {
+      grid->set_active(!grid->is_active());
+    }
+
+    if (!grid->is_active()) {
+      return;
+    }
+
     auto component_manager = ComponentManager::get();
     auto camera_components =
         component_manager->get_components<CameraComponent>();
@@ -75,6 +98,8 @@ public:
     auto resource = grid->get_component<ResourceComponent>();
     auto mesh = grid->get_component<MeshComponent>();
 
+    m_scene_color->bind();
+    renderer_api->enable_buffer_testing();
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     renderer_api->depth(RendererAPI::DepthMode::LessEqual);
@@ -98,6 +123,7 @@ public:
     glDepthMask(GL_TRUE);
     renderer_api->depth(RendererAPI::DepthMode::Less);
     glDisable(GL_BLEND);
+    m_scene_color->unbind();
   }
 
   void end(double dt) override {}
@@ -108,6 +134,7 @@ public:
 
 private:
   EntityManager *m_entity_manager = nullptr;
+  Framebuffer *m_scene_color = nullptr;
 };
 
 } // namespace astralix

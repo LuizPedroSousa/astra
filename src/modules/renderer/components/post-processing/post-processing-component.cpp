@@ -28,7 +28,7 @@ void PostProcessingComponent::start(Ref<RenderTarget> render_target) {
         render_target->renderer_api()->get_backend(), framebuffer_spec);
   }
 
-  resource->shader()->set_int("screen_texture", 4);
+  resource->shader()->set_int("screen_texture", 0);
 }
 
 void PostProcessingComponent::post_update(Ref<RenderTarget> render_target) {
@@ -47,7 +47,7 @@ void PostProcessingComponent::post_update(Ref<RenderTarget> render_target) {
       is_msaa_enabled ? m_multisampled_framebuffer->get_color_attachment_id()
                       : render_target->framebuffer()->get_color_attachment_id();
 
-  glActiveTexture(GL_TEXTURE4);
+  glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, screen_texture);
 }
 

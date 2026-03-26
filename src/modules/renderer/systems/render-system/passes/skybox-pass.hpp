@@ -4,9 +4,11 @@
 #include "components/mesh/mesh-component.hpp"
 #include "components/resource/resource-component.hpp"
 #include "entities/skybox.hpp"
+#include "framebuffer.hpp"
 #include "managers/entity-manager.hpp"
 #include "render-pass.hpp"
 #include "renderer-api.hpp"
+#include "systems/render-system/passes/render-graph-resource.hpp"
 #include <GL/gl.h>
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
@@ -25,6 +27,18 @@ public:
   setup(Ref<RenderTarget> render_target,
         const std::vector<const RenderGraphResource *> &resources) override {
     m_render_target = render_target;
+
+    for (auto resource : resources) {
+      if (resource->desc.type == RenderGraphResourceType::Framebuffer &&
+          resource->desc.name == "scene_color") {
+        m_scene_color = resource->get_framebuffer();
+      }
+    }
+
+    if (m_scene_color == nullptr) {
+      set_enabled(false);
+      return;
+    }
 
     auto entity_manager = EntityManager::get();
     entity_manager->for_each<Skybox>([&](Skybox *skybox) {
@@ -45,21 +59,25 @@ public:
   void execute(double dt) override {
     auto entity_manager = EntityManager::get();
     auto renderer_api = m_render_target->renderer_api();
+    auto component_manager = ComponentManager::get();
+    auto camera_components =
+        component_manager->get_components<CameraComponent>();
+
+    if (camera_components.empty()) {
+      return;
+    }
+
+    m_scene_color->bind();
+    glDepthMask(GL_FALSE);
+
     entity_manager->for_each<Skybox>([&](Skybox *skybox) {
       CHECK_ACTIVE(skybox);
       renderer_api->depth(RendererAPI::DepthMode::LessEqual);
-      auto entity_manager = EntityManager::get();
-
-      // if (!entity_manager->has_entity_with_component<CameraComponent>()) {
-      //   return;
-      // }
 
       auto resource = skybox->get_component<ResourceComponent>();
       auto mesh = skybox->get_component<MeshComponent>();
 
-      auto component_manager = ComponentManager::get();
-
-      auto camera = component_manager->get_components<CameraComponent>()[0];
+      auto camera = camera_components[0];
 
       resource->update();
 
@@ -84,9 +102,11 @@ public:
       }
 
       mesh->update(m_render_target);
-
-      renderer_api->depth(RendererAPI::DepthMode::Less);
     });
+
+    glDepthMask(GL_TRUE);
+    renderer_api->depth(RendererAPI::DepthMode::Less);
+    m_scene_color->unbind();
   }
 
   void end(double dt) override {}
@@ -94,6 +114,9 @@ public:
   void cleanup() override {}
 
   std::string name() const override { return "SkyboxPass"; }
+
+private:
+  Framebuffer *m_scene_color = nullptr;
 };
 
 } // namespace astralix
