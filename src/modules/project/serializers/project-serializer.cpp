@@ -5,6 +5,7 @@
 #include "project.hpp"
 #include "resources/font.hpp"
 #include "resources/material.hpp"
+#include "resources/model.hpp"
 #include "resources/shader.hpp"
 #include "resources/texture.hpp"
 #include "serialization-context.hpp"
@@ -23,6 +24,7 @@ enum class ResourceType {
   Material,
   Shader,
   Font,
+  Model,
   Unknown
 };
 
@@ -111,6 +113,8 @@ ResourceType asset_type_from_string(const std::string &type) {
     return ResourceType::Shader;
   if (type == "Font")
     return ResourceType::Font;
+  if (type == "Model")
+    return ResourceType::Model;
 
   return ResourceType::Unknown;
 }
@@ -264,6 +268,14 @@ void ProjectSerializer::deserialize() {
 
       break;
     }
+    case ResourceType::Model: {
+      auto path = parse_path(asset["path"]);
+
+      ASTRA_ENSURE(path == nullptr, "Model path is required");
+
+      Model::create(id, path);
+      break;
+    }
     default:
       ASTRA_EXCEPTION("Unknown asset type", type_str);
     }
@@ -307,6 +319,9 @@ void ProjectSerializer::deserialize() {
       auto content = sys["content"];
 
       render.backend = content["backend"].as<std::string>();
+      if (content["strategy"].kind() == SerializationTypeKind::String) {
+        render.strategy = content["strategy"].as<std::string>();
+      }
       render.headless = content["headless"].as<bool>();
       render.window_id = content["window"].as<std::string>();
 

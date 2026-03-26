@@ -3,11 +3,14 @@
 #include "entities/object.hpp"
 #include "entities/post-processing.hpp"
 #include "events/event-scheduler.hpp"
+#include "framebuffer.hpp"
+#include "log.hpp"
 #include "managers/entity-manager.hpp"
 #include "managers/resource-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "resources/descriptors/font-descriptor.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
+#include "resources/descriptors/model-descriptor.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
 #include "resources/descriptors/texture-descriptor.hpp"
 #include "systems/render-system/collectors/mesh-collector.hpp"
@@ -15,9 +18,10 @@
 #include "systems/render-system/passes/exporters/ascii-exporter.hpp"
 #include "systems/render-system/passes/exporters/graphviz-exporter.hpp"
 #include "systems/render-system/passes/exporters/mermaid-exporter.hpp"
+#include "systems/render-system/passes/forward-pass.hpp"
 #include "systems/render-system/passes/geometry-pass.hpp"
 #include "systems/render-system/passes/grid-pass.hpp"
-#include "systems/render-system/passes/mesh-pass.hpp"
+#include "systems/render-system/passes/lighting-pass.hpp"
 #include "systems/render-system/passes/post-process-pass.hpp"
 #include "systems/render-system/passes/render-graph-builder.hpp"
 #include "systems/render-system/passes/shadow-pass.hpp"
@@ -39,9 +43,9 @@ void RenderSystem::start() {
   m_render_target->init();
 
   resource_manager()
-      ->load_from_descriptors<ShaderDescriptor, Texture2DDescriptor,
-                              Texture3DDescriptor, MaterialDescriptor,
-                              FontDescriptor>(
+      ->load_from_descriptors<ModelDescriptor, ShaderDescriptor,
+                              Texture2DDescriptor, Texture3DDescriptor,
+                              MaterialDescriptor, FontDescriptor>(
           m_render_target->renderer_api()->get_backend());
 
   RenderGraphBuilder target_graph;
@@ -55,32 +59,81 @@ void RenderSystem::start() {
   auto mesh_collector_storage = target_graph.declare_storage_buffer(
       "mesh_collector_storage", 1024 * sizeof(glm::mat4));
 
+  auto window_width = static_cast<uint32_t>(window->width());
+  auto window_height = static_cast<uint32_t>(window->height());
+
   auto shadow_map = target_graph.declare_framebuffer(
-      "shadow_map", window->width(), window->height(),
-      FramebufferTextureFormat::DEPTH_ONLY);
+      "shadow_map", {.width = window_width,
+                     .height = window_height,
+                     .attachments = {FramebufferTextureFormat::DEPTH_ONLY},
+                     .extent = {.mode = RenderExtentMode::WindowRelative}});
 
   auto scene_color = target_graph.import_persistent_framebuffer(
-      "scene_color", m_render_target->framebuffer().get());
+      "scene_color", m_render_target->framebuffer().get(),
+      {.mode = RenderExtentMode::WindowRelative});
 
-  target_graph.add_pass(create_scope<SkyboxPass>()).write(scene_color);
+  const bool use_forward_strategy = m_config.strategy == "forward";
+  uint32_t g_buffer = 0;
+  bool has_g_buffer = false;
+
+  if (!use_forward_strategy && !m_config.strategy.empty() &&
+      m_config.strategy != "deferred") {
+    LOG_WARN("Unknown render strategy '", m_config.strategy,
+             "', defaulting to deferred");
+  }
+
   target_graph.add_pass(create_scope<ShadowPass>()).write(shadow_map);
-  target_graph.add_pass(create_scope<GeometryPass>())
-      .read(shadow_map)
-      .write(scene_color);
-  target_graph.add_pass(create_scope<MeshPass>())
-      .read_write(mesh_context)
-      .read_write(mesh_collector_storage)
-      .read_write(scene_color);
-  target_graph.add_pass(create_scope<GridPass>()).write(scene_color);
+
+  if (use_forward_strategy) {
+    target_graph.add_pass(create_scope<ForwardPass>())
+        .read(shadow_map)
+        .read_write(mesh_context)
+        .read_write(mesh_collector_storage)
+        .read_write(scene_color);
+  } else {
+    g_buffer = target_graph.declare_framebuffer(
+        "g_buffer",
+        {
+
+            .width = window_width,
+            .height = window_height,
+            .attachments =
+                {
+                    FramebufferTextureSpecification(
+                        "g_position", FramebufferTextureFormat::RGBA16F),
+                    FramebufferTextureSpecification(
+                        "g_normal", FramebufferTextureFormat::RGBA16F),
+                    FramebufferTextureSpecification(
+                        "g_albedo", FramebufferTextureFormat::RGBA16F),
+                    FramebufferTextureFormat::Depth,
+                },
+            .extent = {.mode = RenderExtentMode::WindowRelative}});
+    has_g_buffer = true;
+
+    target_graph.add_pass(create_scope<GeometryPass>())
+        .read_write(g_buffer)
+        .read_write(mesh_context)
+        .read_write(mesh_collector_storage)
+        .write(scene_color);
+    target_graph.add_pass(create_scope<LightingPass>())
+        .read(shadow_map)
+        .read(g_buffer)
+        .read_write(scene_color);
+    target_graph.add_pass(create_scope<DebugGBufferPass>())
+        .read(g_buffer)
+        .read_write(scene_color);
+  }
+
+  target_graph.add_pass(create_scope<SkyboxPass>()).read_write(scene_color);
+  target_graph.add_pass(create_scope<GridPass>()).read_write(scene_color);
   target_graph.add_pass(create_scope<TextPass>()).read_write(scene_color);
-  target_graph.add_pass(create_scope<DebugPass>())
+  target_graph.add_pass(create_scope<DebugOverlayPass>())
       .read(shadow_map)
       .read_write(mesh_context)
       .read_write(mesh_collector_storage)
       .read_write(scene_color);
+
   target_graph.add_pass(create_scope<PostProcessPass>())
-      .read_write(mesh_context)
-      .read_write(mesh_collector_storage)
       .read_write(scene_color);
 
   m_render_graph = target_graph.build();
@@ -108,8 +161,9 @@ void RenderSystem::pre_update(double dt) {
 
   auto window = window_manager()->active_window();
 
-  if (window->was_resized) {
-    m_render_target->framebuffer()->resize(window->width(), window->height());
+  if (window->was_resized && m_render_graph != nullptr) {
+    m_render_graph->resize(static_cast<uint32_t>(window->width()),
+                           static_cast<uint32_t>(window->height()));
   }
 
   for (auto post_processing : post_processings) {

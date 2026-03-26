@@ -64,6 +64,7 @@ struct MSAAConfig {
 
 struct RenderSystemConfig {
   std::string backend;
+  std::string strategy = "deferred";
   MSAAConfig msaa;
   std::string window_id;
   bool headless = false;
