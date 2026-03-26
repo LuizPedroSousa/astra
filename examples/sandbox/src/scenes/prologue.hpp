@@ -1,20 +1,10 @@
 #pragma once
 
-#include "astralix/modules/renderer/entities/object.hpp"
 #include "astralix/modules/renderer/entities/scene.hpp"
+#include <glm/glm.hpp>
+#include <guid.hpp>
 
 using namespace astralix;
-
-struct Tile {
-  Object *object;
-  glm::vec3 position;
-};
-
-struct RotatingObject {
-  Object *object;
-  glm::vec3 axis;
-  float speed;
-};
 
 class Prologue : public Scene {
 public:
@@ -24,11 +14,9 @@ public:
   void update() override;
 
 private:
-  void create_tile_grid(int columns, int rows, float tile_size,
-                        float y = 0.0f,
-                        glm::vec3 scale = glm::vec3(1.0f));
-
-  void load_scene_components();
-
-  std::vector<RotatingObject> rotating_objects;
+  EntityID m_fps_text_entity;
+  EntityID m_entities_text_count;
+  EntityID m_bodies_text_count;
+  float m_fps_elapsed = 0.0f;
+  uint32_t m_fps_frame_count = 0u;
 };
