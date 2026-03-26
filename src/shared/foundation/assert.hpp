@@ -14,23 +14,27 @@ static std::string to_lower(const std::string &str) {
   return result;
 }
 
-static size_t levenshtein_distance(const std::string &s1,
-                                   const std::string &s2) {
-  const size_t len1 = s1.size(), len2 = s2.size();
-  std::vector<std::vector<size_t>> d(len1 + 1, std::vector<size_t>(len2 + 1));
+static size_t levenshtein_distance(const std::string &str_value,
+                                   const std::string &str_compare) {
+  const size_t str_length = str_value.size(),
+               str_compare_length = str_compare.size();
+  std::vector<std::vector<size_t>> distance(
+      str_length + 1, std::vector<size_t>(str_compare_length + 1));
 
-  for (size_t i = 0; i <= len1; ++i)
-    d[i][0] = i;
-  for (size_t j = 0; j <= len2; ++j)
-    d[0][j] = j;
+  for (size_t i = 0; i <= str_length; ++i)
+    distance[i][0] = i;
+  for (size_t j = 0; j <= str_compare_length; ++j)
+    distance[0][j] = j;
 
-  for (size_t i = 1; i <= len1; ++i) {
-    for (size_t j = 1; j <= len2; ++j) {
-      d[i][j] = std::min({d[i - 1][j] + 1, d[i][j - 1] + 1,
-                          d[i - 1][j - 1] + (s1[i - 1] == s2[j - 1] ? 0 : 1)});
+  for (size_t i = 1; i <= str_length; ++i) {
+    for (size_t j = 1; j <= str_compare_length; ++j) {
+      distance[i][j] =
+          std::min({distance[i - 1][j] + 1, distance[i][j - 1] + 1,
+                    distance[i - 1][j - 1] +
+                        (str_value[i - 1] == str_compare[j - 1] ? 0 : 1)});
     }
   }
-  return d[len1][len2];
+  return distance[str_length][str_compare_length];
 }
 
 #define ASTRA_ENSURE_WITH_SUGGESTIONS(EXPRESSION, option_table, item, itemKey, \
