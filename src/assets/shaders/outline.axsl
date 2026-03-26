@@ -1,0 +1,10 @@
+@version 450;
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput { 
+  return FragmentOutput(vec4(vec3(0.), 1.));
+}
