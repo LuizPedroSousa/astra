@@ -72,9 +72,39 @@ if(ASTRA_ENABLE_TESTS)
 
   find_package(GTest CONFIG REQUIRED)
 
-  file(GLOB_RECURSE TEST_SRC ${CMAKE_SOURCE_DIR}/src/**/*.test.cpp)
+  file(GLOB_RECURSE ARCHETYPE_ECS_TEST_SRC
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/camera-system/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/transform-system/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/shared/ecs/*.test.cpp)
+  set(TEST_SUPPORT_SRC
+      ${CMAKE_SOURCE_DIR}/src/shared/ecs/guid.cpp
+      ${CMAKE_SOURCE_DIR}/tests/model-stub.cpp)
+  set_source_files_properties(
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/scene-snapshot.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/collider-shape-resolution.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-resource-expansion.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/camera-system/camera-controller-system.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/light-frame.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/material-binding.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/render-frame.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/scene-selection.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/transform-system/transform-system.test.hpp
+    PROPERTIES LANGUAGE CXX HEADER_FILE_ONLY OFF COMPILE_FLAGS "-x c++")
 
-  add_executable(astralix tests/main.cpp ${TEST_SRC})
+  add_executable(archetype_ecs_tests tests/main.cpp ${ARCHETYPE_ECS_TEST_SRC}
+                                     ${TEST_SUPPORT_SRC})
+  target_include_directories(
+    archetype_ecs_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/shared/ecs
+                                ${CMAKE_SOURCE_DIR}/src/shared/foundation
+                                ${CMAKE_SOURCE_DIR}/src/modules/streams
+                                ${CMAKE_SOURCE_DIR}/src/modules/renderer
+                                ${CMAKE_SOURCE_DIR}/src/modules/physics
+                                ${CMAKE_SOURCE_DIR}/src/modules/project
+                                ${CMAKE_SOURCE_DIR}/src/modules/window)
 endif()
 
 include_directories(
@@ -138,15 +168,41 @@ endif()
 # endif()
 
 if(ASTRA_ENABLE_TESTS)
-  set(BUILD_TESTING OFF)
-  add_subdirectory(external/faker-cxx)
-
   target_link_libraries(
-    astralix PRIVATE faker-cxx shared::allocators GTest::gtest GTest::gtest_main
-                GTest::gmock GTest::gmock_main)
+    archetype_ecs_tests PRIVATE shared::foundation glm::glm GTest::gtest
+                                GTest::gtest_main GTest::gmock
+                                GTest::gmock_main)
+  target_include_directories(
+    archetype_ecs_tests PRIVATE ${ASTRALIX_ENGINE_GENERATED_DIR})
 
   include(GoogleTest)
-  gtest_discover_tests(astralix)
+  gtest_discover_tests(archetype_ecs_tests)
+endif()
+
+if(NOT ASTRA_ENABLE_TESTS)
+  foreach(_astralix_target IN ITEMS
+      foundation
+      allocators
+      events
+      ecs
+      streams
+      project
+      window
+      shader-lang
+      renderer
+      physics
+      engine
+      application
+      stb_image
+  )
+    if(TARGET "${_astralix_target}" AND NOT TARGET "astralix::${_astralix_target}")
+      add_library("astralix::${_astralix_target}" ALIAS "${_astralix_target}")
+    endif()
+  endforeach()
+
+  if(TARGET editor AND NOT TARGET astralix::editor)
+    add_library(astralix::editor ALIAS editor)
+  endif()
 endif()
 
 # set(ASTRA_LIBS 
@@ -160,66 +216,102 @@ endif()
 #     OpenMP::OpenMP_CXX
 # )
 #
-add_library(astra INTERFACE)
-add_library(astralix::astra ALIAS astra)
+if(NOT ASTRA_ENABLE_TESTS)
+  add_library(astra INTERFACE)
+  add_library(astralix::astra ALIAS astra)
 
-target_link_libraries(astra INTERFACE
-    foundation
-    allocators
-    events
-    ecs
-    streams
-    project
-    window
-    renderer
-    physics
-    engine
-    application
-    ${EDITOR}
-    ZLIB::ZLIB
-    OpenMP::OpenMP_CXX
-    glfw
-    glad::glad
-    glm::glm
-    ${TRACE_LIBS}
-    "${VCPKG_INSTALLED_ROOT}/lib/libuSockets.a"
-    ${PROJECT_SOURCE_DIR}/external/PhysX/physx/bin/linux.x86_64/release/libPhysXFoundation_static_64.a
-    # PhysX — better to link them in physics module, but if needed:
-    # "${PHYSX_BIN}/libPhysX_static_64.a"
-    # "${PHYSX_BIN}/libPhysXCommon_static_64.a"
-    # "${PHYSX_BIN}/libPhysXFoundation_static_64.a"
-)
+  set(ASTRA_CORE_LIBS
+      astralix::foundation
+      astralix::allocators
+      astralix::events
+      astralix::ecs
+      astralix::streams
+      astralix::project
+      astralix::window
+      astralix::shader-lang
+      astralix::renderer
+      astralix::physics
+      astralix::engine
+      astralix::application
+      astralix::stb_image)
+  list(JOIN ASTRA_CORE_LIBS "," ASTRALIX_CORE_LIBS_RESCAN)
 
-target_compile_options(astra INTERFACE -fopenmp -fPIC)
-target_link_libraries(astra INTERFACE OpenMP::OpenMP_CXX)
-target_compile_features(astra INTERFACE cxx_std_20)
+  target_include_directories(astra INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/foundation>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/allocators>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/events>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/ecs>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/streams>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/project>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/window>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/renderer>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/physics>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/engine>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/application>
+    $<BUILD_INTERFACE:${ASTRALIX_ENGINE_GENERATED_DIR}>
+    $<INSTALL_INTERFACE:include>
+    $<INSTALL_INTERFACE:include/astralix/shared/foundation>
+    $<INSTALL_INTERFACE:include/astralix/shared/allocators>
+    $<INSTALL_INTERFACE:include/astralix/shared/events>
+    $<INSTALL_INTERFACE:include/astralix/shared/ecs>
+    $<INSTALL_INTERFACE:include/astralix/modules/streams>
+    $<INSTALL_INTERFACE:include/astralix/modules/project>
+    $<INSTALL_INTERFACE:include/astralix/modules/window>
+    $<INSTALL_INTERFACE:include/astralix/modules/renderer>
+    $<INSTALL_INTERFACE:include/astralix/modules/physics>
+    $<INSTALL_INTERFACE:include/astralix/modules/engine>
+    $<INSTALL_INTERFACE:include/astralix/modules/application>
+    $<INSTALL_INTERFACE:include/astralix/assets/.astralix/generated>
+  )
 
-target_compile_definitions(astra INTERFACE GLM_ENABLE_EXPERIMENTAL)
-target_compile_definitions(astra INTERFACE PX_PHYSX_STATIC_LIB)
-target_compile_definitions(astra INTERFACE ENABLE_LOGS)
-target_compile_definitions(astra INTERFACE LOG_TO_CONSOLE)
+  target_link_libraries(astra INTERFACE
+      "$<LINK_GROUP:RESCAN,${ASTRALIX_CORE_LIBS_RESCAN}>"
+      ${EDITOR}
+      ZLIB::ZLIB
+      OpenMP::OpenMP_CXX
+      glfw
+      glad::glad
+      glm::glm
+      ${TRACE_LIBS}
+      "${VCPKG_INSTALLED_ROOT}/lib/libuSockets.a"
+      ${PROJECT_SOURCE_DIR}/external/PhysX/physx/bin/linux.x86_64/release/libPhysXFoundation_static_64.a
+      # PhysX — better to link them in physics module, but if needed:
+      # "${PHYSX_BIN}/libPhysX_static_64.a"
+      # "${PHYSX_BIN}/libPhysXCommon_static_64.a"
+      # "${PHYSX_BIN}/libPhysXFoundation_static_64.a"
+  )
 
-target_compile_definitions(astra INTERFACE
-  ASTRALIX_ASSETS_DIR=${ASTRALIX_ASSETS_DIR_VALUE}
-)
+  target_compile_options(astra INTERFACE -fopenmp -fPIC)
+  target_link_libraries(astra INTERFACE OpenMP::OpenMP_CXX)
+  target_compile_features(astra INTERFACE cxx_std_20)
 
-foreach(tgt
-    foundation
-    allocators
-    events
-    ecs
-    streams
-    project
-    window
-    renderer
-    physics
-    engine
-    application
-)
-    target_compile_definitions(${tgt}
-        PUBLIC ASTRALIX_ASSETS_DIR="${ASTRALIX_ASSETS_DIR_VALUE}"
-    )
-endforeach()
+  target_compile_definitions(astra INTERFACE GLM_ENABLE_EXPERIMENTAL)
+  target_compile_definitions(astra INTERFACE PX_PHYSX_STATIC_LIB)
+  target_compile_definitions(astra INTERFACE ENABLE_LOGS)
+  target_compile_definitions(astra INTERFACE LOG_TO_CONSOLE)
+
+  target_compile_definitions(astra INTERFACE
+    ASTRALIX_ASSETS_DIR=${ASTRALIX_ASSETS_DIR_VALUE}
+  )
+
+  foreach(tgt
+      foundation
+      allocators
+      events
+      ecs
+      streams
+      project
+      window
+      renderer
+      physics
+      engine
+      application
+  )
+      target_compile_definitions(${tgt}
+          PUBLIC ASTRALIX_ASSETS_DIR="${ASTRALIX_ASSETS_DIR_VALUE}"
+      )
+  endforeach()
+endif()
 
 if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(axgen)
@@ -230,35 +322,46 @@ if(BUILD_EXAMPLES)
 endif()
 
 
-install(TARGETS astra
-        foundation
-        allocators
-        events
-        ecs
-        streams
-        project
-        window
-        shader-lang
-        renderer
-        physics
-        engine
-        application
-        ${EDITOR}
-        stb_image
-        EXPORT astralixTargets
-        ARCHIVE DESTINATION lib
-        LIBRARY DESTINATION lib
-        RUNTIME DESTINATION bin
-        INCLUDES DESTINATION include
-)
+if(NOT ASTRA_ENABLE_TESTS)
+  install(TARGETS astra
+          foundation
+          allocators
+          events
+          ecs
+          streams
+          project
+          window
+          shader-lang
+          renderer
+          physics
+          engine
+          application
+          ${EDITOR}
+          stb_image
+          EXPORT astralixTargets
+          ARCHIVE DESTINATION lib
+          LIBRARY DESTINATION lib
+          RUNTIME DESTINATION bin
+          INCLUDES DESTINATION include
+  )
 
-install(DIRECTORY src/ DESTINATION include/astralix FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+  if(ASTRA_EDITOR)
+    install(DIRECTORY src/ DESTINATION include/astralix FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+  else()
+    install(DIRECTORY src/ DESTINATION include/astralix
+            FILES_MATCHING
+            PATTERN "*.h"
+            PATTERN "*.hpp"
+            PATTERN "modules/editor" EXCLUDE
+            PATTERN "modules/editor/*" EXCLUDE)
+  endif()
 
-install(EXPORT astralixTargets
-        FILE astralixTargets.cmake
-        NAMESPACE astralix::
-        DESTINATION lib/cmake/astralix
-)
+  install(EXPORT astralixTargets
+          FILE astralixTargets.cmake
+          NAMESPACE astralix::
+          DESTINATION lib/cmake/astralix
+  )
+endif()
 
 include(CMakePackageConfigHelpers)
 

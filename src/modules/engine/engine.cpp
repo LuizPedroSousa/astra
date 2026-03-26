@@ -1,5 +1,4 @@
 #include "engine.hpp"
-#include "managers/entity-manager.hpp"
 #include "managers/project-manager.hpp"
 #include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
@@ -19,11 +18,7 @@ void Engine::init() {
 
 void Engine::end() { delete m_instance; }
 
-Engine::Engine() {
-  EntityManager::init();
-  ComponentManager::init();
-  SceneManager::init();
-}
+Engine::Engine() { SceneManager::init(); }
 
 void Engine::start() {
   auto system_manager = SystemManager::get();
@@ -34,20 +29,20 @@ void Engine::start() {
 
   for (auto system : project_config.systems) {
     switch (system.type) {
-    case SystemType::Render: {
-      system_manager->add_system<RenderSystem>(
-          std::get<RenderSystemConfig>(system.content));
-      continue;
-    }
+      case SystemType::Render: {
+        system_manager->add_system<RenderSystem>(
+            std::get<RenderSystemConfig>(system.content));
+        continue;
+      }
 
-    case SystemType::Physics: {
-      system_manager->add_system<PhysicsSystem>(
-          std::get<PhysicsSystemConfig>(system.content));
-      continue;
-    }
+      case SystemType::Physics: {
+        system_manager->add_system<PhysicsSystem>(
+            std::get<PhysicsSystemConfig>(system.content));
+        continue;
+      }
 
-    default:
-      continue;
+      default:
+        continue;
     }
   }
 }
