@@ -23,7 +23,7 @@ void Window::handle_errors(int, const char *description) {
   std::cout << description << std::endl;
 }
 
-GLFWwindow *Window::value() { return m_value; }
+GLFWwindow *Window::handle() { return m_value; }
 
 Window::Window(WindowID &id, std::string &title, int &width, int &height,
                bool headless)
@@ -112,10 +112,10 @@ void Window::toggle_view_mouse(input::KeyReleasedEvent *event) {
     has_pressed = !has_pressed;
 
     if (auto window = window_manager()->get_window_by_id(event->window_id)) {
-      glfwSetCursorPos(window->value(), window->width() / 2.0f,
+      glfwSetCursorPos(window->handle(), window->width() / 2.0f,
                        window->height() / 2.0f);
 
-      glfwSetInputMode(window->value(), GLFW_CURSOR,
+      glfwSetInputMode(window->handle(), GLFW_CURSOR,
                        has_pressed ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_DISABLED);
     }
   }

@@ -27,13 +27,13 @@ public:
   WindowID id() const noexcept { return m_id; }
   int height() const noexcept { return m_height; }
   int width() const noexcept { return m_width; }
-  GLFWwindow *value() const noexcept { return m_value; }
+  GLFWwindow *handle() const noexcept { return m_value; }
   std::string title() const noexcept { return m_title; }
 
   void update();
   void swap();
 
-  GLFWwindow *value();
+  GLFWwindow *handle();
   bool is_open();
   void close();
 

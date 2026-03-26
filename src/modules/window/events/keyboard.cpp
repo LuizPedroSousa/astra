@@ -17,7 +17,7 @@ void Keyboard::release_keys() {
   for (auto [key, value] : m_key_events) {
     auto window = window_manager()->get_window_by_id(m_window_id);
 
-    auto state = glfwGetKey(window->value(), (int)key);
+    auto state = glfwGetKey(window->handle(), (int)key);
 
     if (state == GLFW_RELEASE) {
       auto keycode = KeyReleasedEvent(KeyCode(key), window->id());
