@@ -1,0 +1,48 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Camera {
+  mat4 projection;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Text {
+  sampler2D glyph;
+  vec3 color;
+}
+
+@vertex
+fn main(Mesh mesh, Camera camera) -> VertexOutput
+{
+    gl_Position = camera.projection * vec4(mesh.position.xy, 0.0, 1.0);
+    return VertexOutput(mesh.texture_coordinates);
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@fragment
+fn main(VertexOutput vertex, Text text) -> FragmentOutput
+{
+    vec4 sampled = vec4(1.0, 1.0, 1.0, texture(text.glyph, vertex.texture_coordinates).r);
+
+    return FragmentOutput(vec4(text.color, 1.0) * sampled);
+}
+

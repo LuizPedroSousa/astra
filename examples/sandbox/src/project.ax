@@ -176,8 +176,8 @@
     {
       "id": "shaders::glyph",
       "type": "Shader",
-      "vertex": "@engine/shaders/vertex/glyph.glsl",
-      "fragment": "@engine/shaders/fragment/glyph.glsl"
+      "vertex": "@engine/shaders/glyph.axsl",
+      "fragment": "@engine/shaders/glyph.axsl"
     }
   ],
   "systems": [
