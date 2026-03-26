@@ -1,6 +1,11 @@
 file(GLOB_RECURSE PHYSICS_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 file(GLOB_RECURSE PHYSICS_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
 
+if(NOT ASTRA_EDITOR)
+  list(FILTER PHYSICS_SRC EXCLUDE REGEX ".*/components/(rigidbody|mesh-collision)/.*")
+  list(FILTER PHYSICS_HEADERS EXCLUDE REGEX ".*/components/(rigidbody|mesh-collision)/.*")
+endif()
+
 set(PHYSX_RELEASE_PATH
   ${PROJECT_SOURCE_DIR}/external/PhysX/physx/bin/linux.x86_64/release)
 

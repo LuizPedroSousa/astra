@@ -1,7 +1,9 @@
 #pragma once
 
+#include "PxRigidActor.h"
 #include "project.hpp"
 #include "systems/system.hpp"
+#include "unordered_map"
 
 namespace astralix {
 
@@ -28,6 +30,7 @@ private:
   glm::vec3 m_gravity;
 
   Pvd m_pvd;
+  std::unordered_map<EntityID, physx::PxRigidActor *> m_actors;
 };
 
 } // namespace astralix
