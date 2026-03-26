@@ -156,6 +156,18 @@ find_declared_output_interface(const Program &program,
   return find_interface_decl(program, nodes, func_decl.ret.name);
 }
 
+static void validate_stage_entry_return_type(LinkResult &result,
+                                             const ASTNode &func_node,
+                                             const FuncDecl &func_decl) {
+  if (!func_decl.stage_kind || !func_decl.ret.array_size) {
+    return;
+  }
+
+  result.errors.push_back(format_located_error(
+      "stage entry function '" + func_decl.name + "' cannot return arrays",
+      func_node.location));
+}
+
 static bool is_output_interface_local(const ASTNode &node,
                                       std::string_view interface_name) {
   const auto *var_decl = std::get_if<VarDecl>(&node.data);
@@ -433,11 +445,13 @@ LinkResult Linker::link(Program &program, const std::vector<ASTNode> &nodes,
   }
 
   for (NodeID stage : program.stages) {
-    const auto &func_decl = std::get<FuncDecl>(result.all_nodes[stage].data);
+    const auto &func_node = result.all_nodes[stage];
+    const auto &func_decl = std::get<FuncDecl>(func_node.data);
     if (!func_decl.stage_kind) {
       continue;
     }
 
+    validate_stage_entry_return_type(result, func_node, func_decl);
     validate_output_local_usage(result, program, func_decl, result.all_nodes);
 
     scan_uniform_usage(func_decl.body, *func_decl.stage_kind, result.all_nodes,

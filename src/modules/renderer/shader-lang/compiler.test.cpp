@@ -437,6 +437,64 @@ TEST(ShaderCompiler, LocalArrayDeclAndArrayConstructor) {
   EXPECT_TRUE(contains(frag, "vec2 sample = poisson_disk[1];"));
 }
 
+TEST(ShaderCompiler, HelperFunctionCanReturnFixedSizeArray) {
+  Compiler compiler;
+  auto src = make_fragment_program(
+      R"axsl(
+    float weights[2] = blur_kernel();
+    return FragmentOutput(vec4(weights[1]));
+)axsl",
+      R"axsl(
+fn blur_kernel() -> float[2] {
+    float weights[2] = float[](0.25, 0.75);
+    return weights;
+}
+)axsl");
+  auto result = compiler.compile(src);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  const auto &frag = result.stages.at(StageKind::Fragment);
+  EXPECT_TRUE(contains(frag, "float[2] blur_kernel()"));
+  EXPECT_TRUE(contains(frag, "float weights[2] = blur_kernel();"));
+}
+
+TEST(ShaderCompiler, RuntimeSizedFunctionReturnIsRejected) {
+  Compiler compiler;
+  auto src = make_fragment_program(
+      R"axsl(
+    float weights[2] = blur_kernel();
+    return FragmentOutput(vec4(weights[1]));
+)axsl",
+      R"axsl(
+fn blur_kernel() -> float[] {
+    float weights[2] = float[](0.25, 0.75);
+    return weights;
+}
+)axsl");
+  auto result = compiler.compile(src);
+  ASSERT_FALSE(result.ok());
+
+  const std::string err = errors_str(result);
+  EXPECT_NE(err.find("runtime-sized array types are not allowed here"),
+            std::string::npos);
+}
+
+TEST(ShaderCompiler, StageEntryArrayReturnIsRejected) {
+  Compiler compiler;
+  auto src = make_fragment_program(R"axsl(
+    float weights[2] = float[](0.25, 0.75);
+    return weights;
+)axsl",
+                                   {},
+                                   "fn main() -> float[2]", "");
+  auto result = compiler.compile(src);
+  ASSERT_FALSE(result.ok());
+
+  const std::string err = errors_str(result);
+  EXPECT_NE(err.find("stage entry function 'main' cannot return arrays"),
+            std::string::npos);
+}
+
 TEST(ShaderCompiler, ForLoopInit) {
   Compiler compiler;
   auto src = make_fragment_program(R"axsl(

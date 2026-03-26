@@ -560,6 +560,7 @@ NodeID Parser::parse_function_decl(AttributeList attributes) {
   expect(TokenKind::Arrow, "expected '->'");
 
   TypeRef ret = parse_type_ref();
+  parse_type_array_suffix(ret, false);
 
   NodeID body = parse_block_stmt();
 
@@ -1626,11 +1627,19 @@ void Parser::parse_type_array_suffix(TypeRef &type_ref,
     return;
   }
 
+  const SourceLocation bracket_location = m_last_token.location;
+
   if (check(TokenKind::Int)) {
     type_ref.array_size = static_cast<uint32_t>(advance().int_val);
-  } else if (allow_runtime_sized) {
-    type_ref.array_size = 0;
-    type_ref.is_runtime_sized = true;
+  } else if (check(TokenKind::RBracket)) {
+    if (allow_runtime_sized) {
+      type_ref.array_size = 0;
+      type_ref.is_runtime_sized = true;
+    } else {
+      PUSH_LOCATED_ERROR(m_errors, bracket_location,
+                         "runtime-sized array types are not allowed here",
+                         m_source);
+    }
   }
 
   expect(TokenKind::RBracket, "expected ']'");
