@@ -3,6 +3,7 @@
 #include "assert.hpp"
 #include "framebuffer.hpp"
 #include "guid.hpp"
+#include "resources/texture.hpp"
 #include "storage-buffer.hpp"
 #include <cstdint>
 #include <functional>
@@ -47,7 +48,9 @@ struct RenderGraphResourceDescriptor {
   std::string name;
   RenderGraphResourceLifetime lifetime;
 
-  std::variant<TextureSpec, LogicalBufferSpec, StorageBufferSpec> spec;
+  std::variant<TextureSpec, FramebufferSpecification, LogicalBufferSpec,
+               StorageBufferSpec>
+      spec;
 
   std::variant<std::monostate, Framebuffer *, StorageBuffer *, ResourceHandle,
                void *>

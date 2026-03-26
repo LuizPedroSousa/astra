@@ -1,5 +1,6 @@
 #pragma once
 
+#include "framebuffer.hpp"
 #include "render-graph-pass.hpp"
 #include "render-graph-resource.hpp"
 #include <vector>
@@ -37,23 +38,25 @@ namespace astralix {
       return static_cast<uint32_t>(m_resource_descs.size() - 1);
     }
 
-    uint32_t declare_framebuffer(
-      const std::string& name, uint32_t width, uint32_t height,
-      FramebufferTextureFormat format = FramebufferTextureFormat::RGBA8,
-      uint32_t sample_count = 1,
-      RenderGraphResourceLifetime lifetime =
-      RenderGraphResourceLifetime::Transient) {
+    uint32_t declare_framebuffer(const std::string &name,
+                                 FramebufferSpecification spec,
+                                 RenderGraphResourceLifetime lifetime =
+                                     RenderGraphResourceLifetime::Transient) {
+      if (spec.extent.mode == RenderExtentMode::Absolute) {
+        if (spec.extent.width == 0) {
+          spec.extent.width = spec.width;
+        }
+
+        if (spec.extent.height == 0) {
+          spec.extent.height = spec.height;
+        }
+      }
 
       RenderGraphResourceDescriptor desc;
       desc.type = RenderGraphResourceType::Framebuffer;
       desc.name = name;
       desc.lifetime = lifetime;
 
-      TextureSpec spec;
-      spec.width = width;
-      spec.height = height;
-      spec.format = format;
-      spec.sample_count = sample_count;
       desc.spec = spec;
 
       m_resource_descs.push_back(desc);
@@ -76,13 +79,29 @@ namespace astralix {
       return static_cast<uint32_t>(m_resource_descs.size() - 1);
     }
 
-    uint32_t import_persistent_framebuffer(const std::string& name,
-      Framebuffer* framebuffer) {
+    uint32_t import_persistent_framebuffer(
+      const std::string& name, Framebuffer* framebuffer,
+      RenderExtent extent = {}) {
       RenderGraphResourceDescriptor desc;
       desc.type = RenderGraphResourceType::Framebuffer;
       desc.name = name;
       desc.lifetime = RenderGraphResourceLifetime::Persistent;
       desc.external_resource = framebuffer;
+
+      auto spec = framebuffer->get_specification();
+      spec.extent = extent;
+
+      if (spec.extent.mode == RenderExtentMode::Absolute) {
+        if (spec.extent.width == 0) {
+          spec.extent.width = spec.width;
+        }
+
+        if (spec.extent.height == 0) {
+          spec.extent.height = spec.height;
+        }
+      }
+
+      desc.spec = spec;
 
       m_resource_descs.push_back(desc);
       return static_cast<uint32_t>(m_resource_descs.size() - 1);

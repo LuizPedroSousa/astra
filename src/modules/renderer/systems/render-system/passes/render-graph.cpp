@@ -8,9 +8,37 @@
 #include <algorithm>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace astralix {
+
+namespace {
+
+std::pair<uint32_t, uint32_t>
+resolve_framebuffer_extent(const FramebufferSpecification &spec,
+                           uint32_t width, uint32_t height) {
+  switch (spec.extent.mode) {
+    case RenderExtentMode::WindowRelative: {
+      auto resolved_width =
+          std::max(1u, static_cast<uint32_t>(width * spec.extent.scale_x));
+      auto resolved_height =
+          std::max(1u, static_cast<uint32_t>(height * spec.extent.scale_y));
+      return {resolved_width, resolved_height};
+    }
+
+    case RenderExtentMode::Absolute:
+    default: {
+      auto resolved_width = spec.extent.width != 0 ? spec.extent.width
+                                                   : spec.width;
+      auto resolved_height = spec.extent.height != 0 ? spec.extent.height
+                                                     : spec.height;
+      return {resolved_width, resolved_height};
+    }
+  }
+}
+
+} // namespace
 
 RenderGraph::~RenderGraph() { cleanup(); }
 
@@ -34,6 +62,40 @@ void RenderGraph::compile(Ref<RenderTarget> target) {
   setup_passes();
 
   LOG_INFO("[RenderGraph] Compilation complete");
+}
+
+void RenderGraph::resize(uint32_t width, uint32_t height) {
+  std::unordered_set<Framebuffer *> resized_framebuffers;
+
+  for (auto &resource : m_resources) {
+    if (resource.desc.type != RenderGraphResourceType::Framebuffer) {
+      continue;
+    }
+
+    auto framebuffer = resource.get_framebuffer();
+    auto spec = std::get_if<FramebufferSpecification>(&resource.desc.spec);
+
+    if (framebuffer == nullptr || spec == nullptr) {
+      continue;
+    }
+
+    auto [resolved_width, resolved_height] =
+        resolve_framebuffer_extent(*spec, width, height);
+
+    if (resolved_width == 0 || resolved_height == 0) {
+      continue;
+    }
+
+    spec->width = resolved_width;
+    spec->height = resolved_height;
+
+    const auto &framebuffer_spec = framebuffer->get_specification();
+    if ((framebuffer_spec.width != resolved_width ||
+         framebuffer_spec.height != resolved_height) &&
+        resized_framebuffers.emplace(framebuffer).second) {
+      framebuffer->resize(resolved_width, resolved_height);
+    }
+  }
 }
 
 void RenderGraph::compute_resource_lifetimes() {
@@ -289,16 +351,10 @@ void RenderGraph::create_transient_resources() {
 
     switch (resource.desc.type) {
       case RenderGraphResourceType::Framebuffer: {
-        const auto &spec = std::get<TextureSpec>(resource.desc.spec);
-
-        FramebufferSpecification fb_spec;
-        fb_spec.width = spec.width;
-        fb_spec.height = spec.height;
-        fb_spec.samples = spec.sample_count;
-        fb_spec.attachments = {spec.format};
+        const auto &spec = std::get<FramebufferSpecification>(resource.desc.spec);
 
         auto backend = m_render_target->renderer_api()->get_backend();
-        auto framebuffer = Framebuffer::create(backend, fb_spec);
+        auto framebuffer = Framebuffer::create(backend, spec);
         Framebuffer *fb_ptr = framebuffer.get();
 
         resource.set_content(fb_ptr);
@@ -402,7 +458,16 @@ bool RenderGraph::are_resources_compatible(
     return false;
 
   switch (resource_a.desc.type) {
-    case RenderGraphResourceType::Framebuffer:
+    case RenderGraphResourceType::Framebuffer: {
+      const auto &spec_a =
+          std::get<FramebufferSpecification>(resource_a.desc.spec);
+      const auto &spec_b =
+          std::get<FramebufferSpecification>(resource_b.desc.spec);
+
+      return spec_a.width == spec_b.width && spec_a.height == spec_b.height &&
+             spec_a.samples == spec_b.samples;
+    }
+
     case RenderGraphResourceType::Texture2D: {
 
       const auto &spec_a = std::get<TextureSpec>(resource_a.desc.spec);
