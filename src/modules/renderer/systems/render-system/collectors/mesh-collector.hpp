@@ -38,7 +38,7 @@ public:
     ASTRA_PROFILE_N("MeshCollector Update");
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-    using namespace shader_bindings::engine_shaders_light_axsl;
+    using namespace shader_bindings::engine_shaders_g_buffer_axsl;
 
     EntityParams entity_params;
 #endif
@@ -115,9 +115,6 @@ public:
           entity_params.use_instancing = false;
           entity_params.g_model = transform->matrix;
           shader->set_all(entity_params);
-#else
-          shader->set_bool("entity.use_instancing", false);
-          shader->set_matrix("entity.g_model", transform->matrix);
 #endif
 
           for (auto mesh : batch.meshes) {
@@ -161,8 +158,6 @@ public:
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
       shader->set(EntityUniform::use_instancing, true);
-#else
-      shader->set_bool("entity.use_instancing", true);
 #endif
 
       for (auto mesh : batch.meshes) {

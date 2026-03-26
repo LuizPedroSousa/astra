@@ -21,7 +21,7 @@
 namespace astralix {
 
 float distance = 10.0f;
-float near_plane = 1.0f, far_plane = 24.0f;
+float near_plane = 1.0f, far_plane = 100.0f;
 
 inline void draw_vec3_control(const std::string &label, glm::vec3 &values,
                               float reset_value = 0.0f,

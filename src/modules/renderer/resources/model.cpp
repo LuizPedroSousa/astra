@@ -14,9 +14,6 @@ namespace astralix {
 
 Ref<ModelDescriptor> Model::create(const ResourceDescriptorID &id,
                                    Ref<Path> path) {
-
-  auto full_path = path_manager()->resolve(path);
-
   return resource_manager()->register_model(ModelDescriptor::create(id, path));
 };
 
@@ -28,7 +25,8 @@ Ref<Model> Model::from_descriptor(const ResourceHandle &id,
 
   const aiScene *scene =
       importer.ReadFile(full_path, aiProcess_Triangulate | aiProcess_FlipUVs |
-                                       aiProcess_GenNormals);
+                                       aiProcess_GenNormals |
+                                       aiProcess_CalcTangentSpace);
 
   ASTRA_ENSURE(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE,
                importer.GetErrorString());
@@ -75,6 +73,12 @@ Mesh Model::process_mesh(aiMesh *node_mesh, const aiScene *scene,
       vertex.normal =
           glm::vec3(node_mesh->mNormals[i].x, node_mesh->mNormals[i].y,
                     node_mesh->mNormals[i].z);
+    }
+
+    if (node_mesh->HasTangentsAndBitangents()) {
+      vertex.tangent =
+          glm::vec3(node_mesh->mTangents[i].x, node_mesh->mTangents[i].y,
+                    node_mesh->mTangents[i].z);
     }
 
     if (node_mesh->mTextureCoords[0]) {
@@ -144,7 +148,7 @@ void Model::load_material(ResourceDescriptorID material_id,
         return name;
       };
 
-      std::string texture_path = path / filename;
+      std::string texture_path = path.parent_path() / filename;
 
       Texture2D::create(texture_id, Path::create(texture_path));
 

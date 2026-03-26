@@ -19,6 +19,8 @@ void ModelComponent::attach_model(ResourceDescriptorID id) {
 
   auto owner = get_owner();
 
+  resource_manager->ensure_exists_by_descriptor_id<ModelDescriptor>(id);
+
   owner->get_or_add_component<MeshComponent>()->attach_meshes(model->meshes);
 
   owner->get_or_add_component<MaterialComponent>()->attach_materials(

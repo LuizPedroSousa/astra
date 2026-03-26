@@ -54,7 +54,7 @@ void CameraComponent::update(Ref<Shader> &shader,
   auto transform = get_owner()->get_component<TransformComponent>();
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-  using namespace shader_bindings::engine_shaders_light_axsl;
+  using namespace shader_bindings::engine_shaders_g_buffer_axsl;
 
   shader->set_all(CameraParams{.view = m_view_matrix,
                                .projection = m_projection_matrix,
