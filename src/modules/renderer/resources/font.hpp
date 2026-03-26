@@ -36,5 +36,6 @@ private:
   std::map<char, CharacterGlyph> m_characters;
   ResourceDescriptorID m_descriptor_id;
   Ref<Path> m_path;
+  RendererBackend m_backend = RendererBackend::None;
 };
 } // namespace astralix

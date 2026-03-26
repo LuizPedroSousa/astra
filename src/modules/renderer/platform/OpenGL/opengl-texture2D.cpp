@@ -7,7 +7,8 @@ namespace astralix {
 OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id,
                                  Ref<Texture2DDescriptor> descriptor)
     : Texture2D(resource_id), m_format(formatToGl(descriptor->format)),
-      m_parameters(descriptor->parameters) {
+      m_buffer(descriptor->buffer), m_width(descriptor->width),
+      m_height(descriptor->height), m_parameters(descriptor->parameters) {
 
   if (descriptor->image_load.has_value()) {
     auto image_load = descriptor->image_load;

@@ -3,6 +3,7 @@
 #include "base.hpp"
 #include "guid.hpp"
 #include "path.hpp"
+#include "renderer-api.hpp"
 #include "resources/descriptors/resource-descriptor.hpp"
 
 namespace astralix {
@@ -17,6 +18,7 @@ public:
   RESOURCE_DESCRIPTOR_PARAMS;
 
   Ref<Path> path;
+  RendererBackend backend = RendererBackend::None;
 };
 
 } // namespace astralix

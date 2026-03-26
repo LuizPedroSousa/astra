@@ -73,7 +73,8 @@ public:
 
       if constexpr (std::is_same_v<D, ShaderDescriptor> ||
                     std::is_same_v<D, Texture2DDescriptor> ||
-                    std::is_same_v<D, Texture3DDescriptor>) {
+                    std::is_same_v<D, Texture3DDescriptor> ||
+                    std::is_same_v<D, FontDescriptor>) {
         desc->backend = backend;
       }
 

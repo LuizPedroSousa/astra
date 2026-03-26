@@ -15,7 +15,7 @@ namespace astralix {
 
 Font::Font(const ResourceHandle &resource_id, Ref<FontDescriptor> descriptor)
     : Resource(resource_id), m_descriptor_id(descriptor->id),
-      m_path(descriptor->path) {
+      m_path(descriptor->path), m_backend(descriptor->backend) {
   load();
 };
 
@@ -67,6 +67,8 @@ void Font::load() {
 
     auto texture = resource_manager->register_texture(
         Texture2D::create(texture_id, config));
+    resource_manager->load_from_descriptors_by_ids<Texture2DDescriptor>(
+        m_backend, {texture_id});
 
     CharacterGlyph character = {
         .texture_id = texture->id,
@@ -77,6 +79,8 @@ void Font::load() {
 
     characters.insert(std::pair<char, CharacterGlyph>(c, character));
   }
+
+  m_characters = std::move(characters);
 
   FT_Done_Face(face);
   FT_Done_FreeType(ft);
