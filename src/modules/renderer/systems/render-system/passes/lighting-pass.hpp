@@ -71,7 +71,8 @@ public:
     }
 
     if (m_shadow_map == nullptr) {
-      LOG_WARN("[LightingPass] Skipping execute: shadow_map framebuffer is not available");
+      LOG_WARN("[LightingPass] Skipping execute: shadow_map framebuffer is not "
+               "available");
       return;
     }
 
@@ -90,7 +91,8 @@ public:
     auto shader =
         resource_manager()->get_by_descriptor_id<Shader>("shaders::lighting");
     if (shader == nullptr) {
-      LOG_WARN("[LightingPass] Skipping execute: failed to load shaders::lighting");
+      LOG_WARN(
+          "[LightingPass] Skipping execute: failed to load shaders::lighting");
       return;
     }
 

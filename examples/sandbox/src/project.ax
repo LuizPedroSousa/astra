@@ -122,8 +122,8 @@
     {
       "id": "shaders::post_processing",
       "type": "Shader",
-      "vertex": "@engine/shaders/vertex/postprocessing.glsl",
-      "fragment": "@engine/shaders/fragment/postprocessing.glsl"
+      "vertex": "@engine/shaders/post-process.axsl",
+      "fragment": "@engine/shaders/post-process.axsl"
     },
     {
       "id": "shaders::lighting",

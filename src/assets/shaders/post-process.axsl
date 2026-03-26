@@ -1,0 +1,43 @@
+@version 450;
+
+@include "helpers/kernel.axsl";
+@include "helpers/postfx.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  gl_Position = vec4(mesh.position.x, mesh.position.y, 0, 1.);
+
+  return VertexOutput(mesh.texture_coordinates);
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@uniform
+interface Quad {
+  sampler2D screen_texture;
+}
+
+@fragment
+fn main(VertexOutput vertex, Quad quad) -> FragmentOutput {
+  vec4 tex = texture(quad.screen_texture, vertex.texture_coordinates);
+
+  return FragmentOutput(vec4(gray_scale(tex), 1.0));
+}

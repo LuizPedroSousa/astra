@@ -5,8 +5,15 @@
 #include "render-pass.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
 #include "resources/mesh.hpp"
+#include "shaders/engine_shaders_post_process_axsl.hpp"
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+using namespace astralix::shader_bindings;
+#endif
 
 namespace astralix {
 
@@ -39,11 +46,14 @@ public:
       m_resolved_framebuffer = Framebuffer::create(backend, framebuffer_spec);
     }
 
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
     if (m_shader != nullptr) {
       m_shader->bind();
-      m_shader->set_int("screen_texture", 0);
+      m_shader->set(
+          engine_shaders_post_process_axsl::QuadUniform::screen_texture, 0);
       m_shader->unbind();
     }
+#endif
   }
 
   void begin(double dt) override { m_render_target->unbind(); }
@@ -60,8 +70,8 @@ public:
 
     m_shader->bind();
     bind_screen_texture();
-    m_render_target->renderer_api()->draw_indexed(m_fullscreen_quad.vertex_array,
-                                                  m_fullscreen_quad.draw_type);
+    m_render_target->renderer_api()->draw_indexed(
+        m_fullscreen_quad.vertex_array, m_fullscreen_quad.draw_type);
     m_shader->unbind();
   }
 

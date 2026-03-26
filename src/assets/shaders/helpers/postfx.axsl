@@ -1,0 +1,12 @@
+fn invert(vec4 texture) -> vec3 {
+  vec3 result = 1.0 - texture.rgb;
+
+  return result;
+}
+
+fn gray_scale(vec4 texture) -> vec3 {
+  float average = 0.2126 * texture.r + 0.7152 * texture.g + 0.0722 * texture.b;
+  vec3 result = vec3(average, average, average);
+
+  return result;
+}
