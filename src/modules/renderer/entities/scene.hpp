@@ -1,8 +1,7 @@
 #pragma once
-#include "managers/entity-manager.hpp"
+#include "world.hpp"
 
 #include "guid.hpp"
-#include "serializers/scene-serializer.hpp"
 #include "string"
 #include <utility>
 
@@ -20,17 +19,18 @@ public:
   void serialize();
 
   SceneSerializer *get_serializer() { return m_serializer.get(); };
+  ecs::World &world() { return m_world; }
+  const ecs::World &world() const { return m_world; }
+
+  ecs::EntityRef spawn_entity(std::string name, bool active = true) {
+    return m_world.spawn(std::move(name), active);
+  }
+
   void save();
-  void load();
+  bool load();
 
   void set_serializer(Ref<SceneSerializer> scene_serializer) {
     m_serializer = scene_serializer;
-  }
-
-  template <typename T, typename... Args> T *add_entity(Args &&...params) {
-    auto manager = EntityManager::get();
-
-    return manager->add_entity<T>(std::forward<Args>(params)...);
   }
 
   SceneID get_id() const { return m_id; }
@@ -44,6 +44,7 @@ protected:
   Ref<SceneSerializer> m_serializer;
   SceneID m_id;
   std::string m_name;
+  ecs::World m_world;
 };
 
 } // namespace astralix

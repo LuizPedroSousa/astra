@@ -1,6 +1,5 @@
 #pragma once
 #include "base.hpp"
-#include "entities/scene.hpp"
 #include "serializer.hpp"
 
 namespace astralix {
