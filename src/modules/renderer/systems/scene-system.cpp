@@ -1,37 +1,89 @@
 #include "scene-system.hpp"
-#include "components/camera/camera-component.hpp"
-#include "components/light/light-component.hpp"
-#include "components/resource/resource-component.hpp"
-#include "either.hpp"
-#include "engine.hpp"
-#include "entities/object.hpp"
+#include "systems/render-resource-expansion.hpp"
+#include "systems/camera-system/camera-controller-system.hpp"
+#include "systems/transform-system/transform-system.hpp"
 #include "managers/scene-manager.hpp"
+#include "managers/window-manager.hpp"
 
 namespace astralix {
 
-  void SceneSystem::start() {
-    auto scene = SceneManager::get()->get_active_scene();
+void SceneSystem::start() {
+  auto scene = SceneManager::get()->get_active_scene();
 
-    if (scene != nullptr) {
+  if (scene != nullptr) {
+    if (!scene->load() || scene->world().empty()) {
       scene->start();
     }
   }
+}
 
-  void SceneSystem::fixed_update(double fixed_dt) {
+void SceneSystem::fixed_update(double fixed_dt) {
 
-  };
+};
 
-  void SceneSystem::pre_update(double dt) {
+void SceneSystem::pre_update(double dt) {
 
-  };
+};
 
-  void SceneSystem::update(double dt) {
-    auto scene = SceneManager::get()->get_active_scene();
+void SceneSystem::update(double dt) {
+  auto scene = SceneManager::get()->get_active_scene();
 
-    if (scene != nullptr) {
+  if (scene == nullptr) {
+    return;
+  }
 
-      scene->update();
-    }
-  };
+  scene->update();
+
+  auto &world = scene->world();
+  if (world.empty()) {
+    return;
+  }
+
+  rendering::expand_render_resource_requests(world);
+
+  auto window = window_manager()->active_window();
+  const float aspect_ratio = (window != nullptr && window->height() != 0.0)
+                                 ? static_cast<float>(window->width()) /
+                                       static_cast<float>(window->height())
+                                 : 1.0f;
+
+  if (world.count<scene::Transform, rendering::Camera,
+                  scene::CameraController>() > 0u) {
+    using namespace input;
+
+    const auto mouse_delta = MOUSE_DELTA();
+
+    scene::update_camera_controllers(
+        world, scene::CameraControllerInput{
+                   .forward = IS_KEY_DOWN(KeyCode::W),
+                   .backward = IS_KEY_DOWN(KeyCode::S),
+                   .left = IS_KEY_DOWN(KeyCode::A),
+                   .right = IS_KEY_DOWN(KeyCode::D),
+                   .up = IS_KEY_DOWN(KeyCode::Space),
+                   .down = IS_KEY_DOWN(KeyCode::LeftControl),
+                   .mouse_delta = glm::vec2(static_cast<float>(mouse_delta.x),
+                                            static_cast<float>(mouse_delta.y)),
+                   .dt = static_cast<float>(dt),
+                   .aspect_ratio = aspect_ratio,
+               });
+  }
+
+  scene::update_transforms(world);
+
+  world.each<scene::Transform, rendering::Camera>(
+      [&](EntityID, scene::Transform &transform,
+          rendering::Camera &camera) {
+        scene::recalculate_camera_view_matrix(camera, transform,
+                                                  aspect_ratio);
+
+        if (camera.orthographic) {
+          scene::recalculate_camera_orthographic_matrix(camera, transform,
+                                                            aspect_ratio);
+        } else {
+          scene::recalculate_camera_projection_matrix(camera, transform,
+                                                          aspect_ratio);
+        }
+      });
+};
 
 } // namespace astralix

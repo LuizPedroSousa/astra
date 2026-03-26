@@ -1,16 +1,13 @@
 #pragma once
 
-#include "components/light/light-component.hpp"
-#include "components/material/material-component.hpp"
-#include "components/mesh/mesh-component.hpp"
-#include "components/resource/resource-component.hpp"
-#include "components/transform/transform-component.hpp"
 #include "framebuffer.hpp"
-#include "managers/entity-manager.hpp"
+#include "log.hpp"
 #include "managers/resource-manager.hpp"
+#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
+#include "systems/render-system/light-frame.hpp"
+#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include <GL/gl.h>
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -38,6 +35,8 @@ public:
     }
 
     if (m_shadow_mapping_framebuffer == nullptr) {
+      LOG_WARN("[ShadowPass] Skipping setup: shadow_map framebuffer is not "
+               "available");
       return;
     }
 
@@ -50,74 +49,87 @@ public:
 
   void execute(double dt) override {
     if (m_shadow_mapping_framebuffer == nullptr) {
+      LOG_WARN("[ShadowPass] Skipping execute: shadow_map framebuffer is not "
+               "available");
       return;
     }
 
-    auto entity_manager = EntityManager::get();
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    auto scene = SceneManager::get()->get_active_scene();
+    if (scene == nullptr) {
+      LOG_WARN("[ShadowPass] Skipping execute: no active scene");
+      return;
+    }
 
-    m_shadow_mapping_framebuffer->bind();
+    auto &world = scene->world();
+    if (!rendering::has_renderables(world)) {
+      LOG_WARN("[ShadowPass] Skipping execute: scene has no renderables");
+      return;
+    }
 
-    glEnable(GL_DEPTH_TEST);
+    const auto light_frame = rendering::collect_light_frame(world);
+    if (!light_frame.directional.valid) {
+      LOG_WARN("[ShadowPass] Skipping execute: no valid directional light");
+      return;
+    }
+
+    const auto backend = m_render_target->renderer_api()->get_backend();
+    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
+        backend, {"shaders::shadow_map"});
+
+    auto shader =
+        resource_manager()->get_by_descriptor_id<Shader>("shaders::shadow_map");
+    if (shader == nullptr) {
+      LOG_WARN(
+          "[ShadowPass] Skipping execute: failed to load shaders::shadow_map");
+      return;
+    }
+
+    const auto light_space_matrix = light_frame.directional.light_space_matrix;
 
     auto renderer_api = m_render_target->renderer_api();
 
+    m_shadow_mapping_framebuffer->bind();
     renderer_api->enable_buffer_testing();
     renderer_api->clear_buffers();
     renderer_api->clear_color();
+    renderer_api->cull_face(RendererAPI::CullFaceMode::Front);
 
-    auto component_manager = ComponentManager::get();
-    auto light_components = component_manager->get_components<LightComponent>();
+    world.each<rendering::Renderable, scene::Transform>(
+        [&](EntityID entity_id, rendering::Renderable &,
+            scene::Transform &transform) {
+          if (!world.active(entity_id)) {
+            return;
+          }
 
-    entity_manager->for_each<Object>([&](Object *object) {
-      renderer_api->cull_face(RendererAPI::CullFaceMode::Front);
-      auto resource = object->get_component<ResourceComponent>();
+          auto entity = world.entity(entity_id);
+          auto *model_ref = entity.get<rendering::ModelRef>();
+          auto *mesh_set = entity.get<rendering::MeshSet>();
+          if (model_ref == nullptr && mesh_set == nullptr) {
+            return;
+          }
 
-      auto mesh = object->get_component<MeshComponent>();
-      auto transform = object->get_component<TransformComponent>();
-      auto material = object->get_component<MaterialComponent>();
+          shader->bind();
 
-      if (resource == nullptr || !resource->has_shader()) {
-        return;
-      }
+          using namespace shader_bindings::engine_shaders_shadow_map_axsl;
+          shader->set_all(LightParams{
+              .light_space_matrix = light_space_matrix,
+              .g_model = transform.matrix,
+          });
 
-      auto older_shader_id = resource->shader()->descriptor_id();
+          rendering::for_each_render_mesh(
+              model_ref, mesh_set, m_render_target, [&](Mesh &mesh) {
+                renderer_api->draw_indexed(mesh.vertex_array, mesh.draw_type);
+              });
 
-      resource->set_shader("shaders::shadow_map");
+          shader->unbind();
+        });
 
-      resource->update();
-
-      if (transform != nullptr) {
-        transform->update();
-      }
-
-      if (material != nullptr) {
-        material->update();
-      }
-
-      for (size_t i = 0; i < light_components.size(); i++) {
-        light_components[i]->update(object, i);
-      }
-
-      auto shader = resource->shader();
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-      using namespace shader_bindings::engine_shaders_shadow_map_axsl;
-      shader->set(LightUniform::g_model, transform->matrix);
-#else
-      shader->set_matrix("light.g_model", transform->matrix);
-#endif
-
-      if (mesh != nullptr) {
-        mesh->update(m_render_target);
-      }
-
-      resource->set_shader(older_shader_id);
-
-      renderer_api->cull_face(RendererAPI::CullFaceMode::Back);
-    });
+    renderer_api->cull_face(RendererAPI::CullFaceMode::Back);
 
     m_shadow_mapping_framebuffer->unbind();
     m_render_target->framebuffer()->bind();
+#endif
   }
 
   void end(double dt) override {}

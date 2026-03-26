@@ -1,43 +1,35 @@
 #pragma once
 
-#include "components/camera/camera-component.hpp"
-#include "components/mesh/mesh-component.hpp"
-#include "components/resource/resource-component.hpp"
-#include "entities/entity.hpp"
 #include "events/key-codes.hpp"
 #include "framebuffer.hpp"
-#include "managers/entity-manager.hpp"
+#include "log.hpp"
 #include "managers/resource-manager.hpp"
+#include "managers/scene-manager.hpp"
+#include "managers/window-manager.hpp"
 #include "render-pass.hpp"
 #include "renderer-api.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
+#include "resources/mesh.hpp"
+#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include "targets/render-target.hpp"
-#include <GL/gl.h>
+#include "systems/render-system/scene-selection.hpp"
+
+#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
+#define ASTRALIX_HAS_ENGINE_BINDINGS
+#endif
 
 namespace astralix {
-
-class GridEntity : public Entity<GridEntity> {
-public:
-  GridEntity(ENTITY_INIT_PARAMS) : ENTITY_INIT() {
-    add_component<MeshComponent>()->attach_mesh(Mesh::quad(1.0f));
-    add_component<ResourceComponent>();
-  }
-
-  void on_enable() override {};
-  void on_disable() override {};
-};
 
 class GridPass : public RenderPass {
 public:
   GridPass() = default;
-  ~GridPass() override { delete m_entity_manager; }
+  ~GridPass() override = default;
 
   void
   setup(Ref<RenderTarget> render_target,
         const std::vector<const RenderGraphResource *> &resources) override {
     m_render_target = render_target;
-    m_entity_manager = new EntityManager();
 
     for (auto resource : resources) {
       if (resource->desc.type == RenderGraphResourceType::Framebuffer &&
@@ -48,93 +40,109 @@ public:
 
     if (m_scene_color == nullptr) {
       set_enabled(false);
+      LOG_WARN("[GridPass] Skipping setup: scene_color framebuffer is not "
+               "available");
       return;
     }
 
+    const auto backend = m_render_target->renderer_api()->get_backend();
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        m_render_target->renderer_api()->get_backend(), {"shaders::grid"});
+        backend, {"shaders::grid"});
+    m_shader =
+        resource_manager()->get_by_descriptor_id<Shader>("shaders::grid");
 
-    auto grid = m_entity_manager->add_entity<GridEntity>("grid");
-
-    auto resource = grid->get_component<ResourceComponent>();
-    auto mesh = grid->get_component<MeshComponent>();
-
-    resource->set_shader("shaders::grid");
-    resource->start();
-    mesh->start(m_render_target);
+    rendering::ensure_mesh_uploaded(m_grid_quad, m_render_target);
   }
 
   void begin(double dt) override {}
 
   void execute(double dt) override {
-    static constexpr int kSurfaceRenderMode = 0;
-    static constexpr int kYAxisRenderMode = 1;
-
-    auto grid = m_entity_manager->get_entity<GridEntity>();
-
-    if (grid == nullptr) {
-      return;
-    }
+    static constexpr int k_surface_render_mode = 0;
+    static constexpr int k_y_axis_render_mode = 1;
 
     if (input::IS_KEY_RELEASED(input::KeyCode::F1)) {
-      grid->set_active(!grid->is_active());
+      m_active = !m_active;
     }
 
-    if (!grid->is_active()) {
+    if (!m_active) {
       return;
     }
 
-    auto component_manager = ComponentManager::get();
-    auto camera_components =
-        component_manager->get_components<CameraComponent>();
-
-    if (camera_components.empty()) {
+    if (m_scene_color == nullptr) {
+      LOG_WARN("[GridPass] Skipping execute: scene_color framebuffer is not "
+               "available");
       return;
     }
 
-    auto camera = camera_components[0];
+    if (m_shader == nullptr) {
+      LOG_WARN("[GridPass] Skipping execute: shaders::grid is not available");
+      return;
+    }
+
+    auto scene = SceneManager::get()->get_active_scene();
+    if (scene == nullptr) {
+      LOG_WARN("[GridPass] Skipping execute: no active scene");
+      return;
+    }
+
+    auto &world = scene->world();
+    auto camera = rendering::select_main_camera(world);
+    if (!camera.has_value()) {
+      LOG_WARN("[GridPass] Skipping execute: no main camera selected");
+      return;
+    }
+
     auto renderer_api = m_render_target->renderer_api();
-
-    auto resource = grid->get_component<ResourceComponent>();
-    auto mesh = grid->get_component<MeshComponent>();
 
     m_scene_color->bind();
     renderer_api->enable_buffer_testing();
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    renderer_api->enable_blend();
+    renderer_api->set_blend_func(RendererAPI::BlendFactor::SrcAlpha,
+                                 RendererAPI::BlendFactor::OneMinusSrcAlpha);
     renderer_api->depth(RendererAPI::DepthMode::LessEqual);
-    glDepthMask(GL_FALSE);
+    renderer_api->disable_depth_write();
 
-    resource->update();
+    m_shader->bind();
 
-    auto shader = resource->shader();
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    using namespace shader_bindings::engine_shaders_grid_axsl;
 
-    shader->set_matrix("grid.view", camera->get_view_matrix());
-    shader->set_matrix("grid.projection", camera->get_projection_matrix());
-    shader->set_int("grid.render_mode", kSurfaceRenderMode);
+    m_shader->set_all(GridParams{
+        .view = camera->camera->view_matrix,
+        .projection = camera->camera->projection_matrix,
+        .render_mode = k_surface_render_mode,
+    });
+#endif
 
-    mesh->update(m_render_target);
+    renderer_api->draw_indexed(m_grid_quad.vertex_array, m_grid_quad.draw_type);
 
-    glDisable(GL_DEPTH_TEST);
-    shader->set_int("grid.render_mode", kYAxisRenderMode);
-    mesh->update(m_render_target);
-    glEnable(GL_DEPTH_TEST);
+    renderer_api->disable_depth_test();
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    m_shader->set(GridUniform::render_mode, k_y_axis_render_mode);
+#else
+    m_shader->set_int("grid.render_mode", k_y_axis_render_mode);
+#endif
+    renderer_api->draw_indexed(m_grid_quad.vertex_array, m_grid_quad.draw_type);
+    renderer_api->enable_depth_test();
 
-    glDepthMask(GL_TRUE);
+    m_shader->unbind();
+    renderer_api->enable_depth_write();
     renderer_api->depth(RendererAPI::DepthMode::Less);
-    glDisable(GL_BLEND);
+    renderer_api->disable_blend();
     m_scene_color->unbind();
   }
 
   void end(double dt) override {}
 
-  void cleanup() override { delete m_entity_manager; }
+  void cleanup() override {}
 
   std::string name() const override { return "GridPass"; }
 
 private:
-  EntityManager *m_entity_manager = nullptr;
   Framebuffer *m_scene_color = nullptr;
+  Ref<Shader> m_shader;
+  Mesh m_grid_quad = Mesh::quad(1.0f);
+  bool m_active = true;
 };
 
 } // namespace astralix

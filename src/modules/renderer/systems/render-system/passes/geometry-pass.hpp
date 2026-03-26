@@ -1,21 +1,16 @@
 #pragma once
 
-#include "components/camera/camera-component.hpp"
-#include "components/light/light-component.hpp"
-#include "components/material/material-component.hpp"
-#include "components/mesh/mesh-component.hpp"
-#include "components/resource/resource-component.hpp"
-#include "components/transform/transform-component.hpp"
-#include "entities/camera.hpp"
-#include "entities/object.hpp"
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/entity-manager.hpp"
 #include "managers/resource-manager.hpp"
+#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
 #include "renderer-api.hpp"
-#include "systems/render-system/collectors/mesh-collector.hpp"
+#include "systems/render-system/light-frame.hpp"
+#include "systems/render-system/material-binding.hpp"
+#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+#include "systems/render-system/scene-selection.hpp"
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -34,7 +29,6 @@ public:
         const std::vector<const RenderGraphResource *> &resources) override {
     m_render_target = render_target;
     for (auto resource : resources) {
-
       switch (resource->desc.type) {
         case RenderGraphResourceType::Framebuffer: {
           if (resource->desc.name == "scene_color") {
@@ -47,48 +41,14 @@ public:
           break;
         }
 
-        case RenderGraphResourceType::LogicalBuffer: {
-          if (resource->desc.name == "mesh_context") {
-            m_mesh_context =
-                static_cast<MeshContext *>(resource->get_logical_buffer());
-          }
-          break;
-        }
-
-        case RenderGraphResourceType::StorageBuffer: {
-          if (resource->desc.name == "mesh_collector_storage") {
-            m_mesh_collector_storage = resource->get_storage_buffer();
-          }
-          break;
-        }
-
         default:
           break;
       }
     }
 
-    if (m_scene_color == nullptr || m_g_buffer == nullptr ||
-        m_mesh_context == nullptr || m_mesh_collector_storage == nullptr) {
+    if (m_scene_color == nullptr || m_g_buffer == nullptr) {
       set_enabled(false);
-      return;
     }
-
-    auto entity_manager = EntityManager::get();
-
-    entity_manager->for_each<Object>([&](Object *object) {
-      auto resource = object->get_component<ResourceComponent>();
-      auto mesh = object->get_component<MeshComponent>();
-      auto transform = object->get_component<TransformComponent>();
-
-      if (resource != nullptr && resource->is_active())
-        resource->start();
-
-      if (transform != nullptr && transform->is_active())
-        transform->start();
-
-      if (mesh != nullptr && mesh->is_active())
-        mesh->start(render_target);
-    });
   }
 
   void begin(double dt) override {}
@@ -96,90 +56,94 @@ public:
   void execute(double dt) override {
     ASTRA_PROFILE_N("GeometryPass Update");
 
-    auto entity_manager = EntityManager::get();
-    auto component_manager = ComponentManager::get();
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+    auto scene = SceneManager::get()->get_active_scene();
+    if (scene == nullptr) {
+      LOG_WARN("[GeometryPass] Skipping execute: no active scene");
+      return;
+    }
 
-    entity_manager->for_each<Camera>([&](Camera *target) {
-      target->update();
+    auto &world = scene->world();
+    if (!rendering::has_renderables(world)) {
+      LOG_WARN("[GeometryPass] Skipping execute: scene has no renderables");
+      return;
+    }
 
-      auto camera = target->get_component<CameraComponent>();
+    auto camera = rendering::select_main_camera(world);
+    if (!camera.has_value()) {
+      LOG_WARN("[GeometryPass] Skipping execute: no main camera selected");
+      return;
+    }
 
-      camera->recalculate_projection_matrix(m_scene_color);
-      camera->recalculate_view_matrix();
-    });
+    auto renderer_api = m_render_target->renderer_api();
+    const auto light_frame = rendering::collect_light_frame(world);
+    const auto backend = renderer_api->get_backend();
+    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
+        backend, {"shaders::g_buffer"});
 
-    auto light_components = component_manager->get_components<LightComponent>();
+    auto shader =
+        resource_manager()->get_by_descriptor_id<Shader>("shaders::g_buffer");
+    if (shader == nullptr) {
+      LOG_WARN(
+          "[GeometryPass] Skipping execute: failed to load shaders::g_buffer");
+      return;
+    }
 
-    auto camera_entity =
-        entity_manager->get_entity_with_component<CameraComponent>();
-    auto camera = camera_entity->get_component<CameraComponent>();
-    auto camera_transform = camera_entity->get_component<TransformComponent>();
-
-    struct ObjectRollback {
-      uint32_t obj_index = -1;
-      ResourceDescriptorID shader_id;
-    };
-
-    auto objects = entity_manager->get_entities<Object>();
-
-    std::vector<ObjectRollback> rollback;
-    rollback.reserve(objects.size());
+    using namespace shader_bindings::engine_shaders_g_buffer_axsl;
 
     m_g_buffer->bind();
     m_render_target->renderer_api()->clear_buffers(ClearBufferType::Color |
                                                    ClearBufferType::Depth);
 
-    for (int32_t obj_index = 0; obj_index < objects.size(); obj_index++) {
-      auto object = objects[obj_index];
+    world.each<rendering::Renderable, scene::Transform>(
+        [&](EntityID entity_id, rendering::Renderable &,
+            scene::Transform &transform) {
+          if (!world.active(entity_id)) {
+            return;
+          }
 
-      auto obj_resource = object->get_component<ResourceComponent>();
-      auto obj_mesh = object->get_component<MeshComponent>();
-      auto obj_transform = object->get_component<TransformComponent>();
-      auto obj_material = object->get_component<MaterialComponent>();
+          auto entity = world.entity(entity_id);
+          auto *model_ref = entity.get<rendering::ModelRef>();
+          auto *mesh_set = entity.get<rendering::MeshSet>();
+          if (model_ref == nullptr && mesh_set == nullptr) {
+            return;
+          }
 
-      if (!has_components(obj_resource, obj_mesh, obj_transform))
-        continue;
+          auto *materials = entity.get<rendering::MaterialSlots>();
+          auto *textures = entity.get<rendering::TextureBindings>();
 
-      rollback.emplace_back(ObjectRollback{
-          .obj_index = static_cast<uint32_t>(obj_index),
-          .shader_id = obj_resource->shader_descriptor_id(),
-      });
+          shader->bind();
 
-      obj_resource->set_shader("shaders::g_buffer");
+          const auto material_binding = rendering::bind_material_slots(
+              renderer_api, shader, model_ref, materials, textures);
+          if (material_binding.diffuse_slot < 0 ||
+              material_binding.specular_slot < 0) {
+            shader->unbind();
+            return;
+          }
 
-      obj_transform->update();
+          shader->set_all(CameraParams{
+              .view = camera->camera->view_matrix,
+              .projection = camera->camera->projection_matrix,
+              .position = camera->transform->position,
+          });
 
-      obj_resource->update();
+          shader->set_all(EntityParams{
+              .use_instancing = false,
+              .g_model = transform.matrix,
+          });
 
-      if (obj_material != nullptr) {
-        obj_material->update();
-      }
+          shader->set_all(rendering::build_gbuffer_light_params(
+              light_frame, material_binding));
 
-      for (size_t i = 0; i < light_components.size(); i++) {
-        light_components[i]->update(object, i);
-      }
+          rendering::for_each_render_mesh(
+              model_ref, mesh_set, m_render_target, [&](Mesh &mesh) {
+                m_render_target->renderer_api()->draw_indexed(mesh.vertex_array,
+                                                              mesh.draw_type);
+              });
 
-      auto shader = obj_resource->shader();
-      shader->bind();
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-      {
-        using namespace shader_bindings::engine_shaders_g_buffer_axsl;
-
-        CameraParams camera_params;
-        camera_params.view = camera->get_view_matrix();
-        camera_params.position = camera_transform->position;
-        camera_params.projection = camera->get_projection_matrix();
-
-        shader->set_all(camera_params);
-      }
-#endif
-
-      shader->unbind();
-    }
-
-    m_mesh_collector.draw(objects, m_render_target->renderer_api(),
-                          m_mesh_collector_storage, m_mesh_context);
+          shader->unbind();
+        });
 
     m_g_buffer->bind(FramebufferBindType::Read);
     m_scene_color->bind(FramebufferBindType::Draw);
@@ -187,21 +151,9 @@ public:
     const FramebufferSpecification &spec = m_g_buffer->get_specification();
     m_scene_color->blit(spec.width, spec.height, FramebufferBlitType::Depth);
 
-    for (auto data : rollback) {
-      if (data.obj_index != -1) {
-        auto object = objects[data.obj_index];
-        auto obj_resource = object->get_component<ResourceComponent>();
-        auto obj_mesh = object->get_component<MeshComponent>();
-
-        if (!has_components(obj_resource, obj_mesh))
-          continue;
-
-        obj_resource->set_shader(data.shader_id);
-      }
-    }
-
     m_g_buffer->unbind();
     m_scene_color->unbind();
+#endif
   }
 
   void end(double dt) override {}
@@ -213,10 +165,6 @@ public:
 private:
   Framebuffer *m_scene_color = nullptr;
   Framebuffer *m_g_buffer = nullptr;
-
-  MeshCollector m_mesh_collector;
-  MeshContext *m_mesh_context = nullptr;
-  StorageBuffer *m_mesh_collector_storage = nullptr;
 };
 
 } // namespace astralix

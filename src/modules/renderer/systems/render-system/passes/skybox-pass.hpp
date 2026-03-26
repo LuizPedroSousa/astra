@@ -1,15 +1,17 @@
 #pragma once
 
-#include "components/camera/camera-component.hpp"
-#include "components/mesh/mesh-component.hpp"
-#include "components/resource/resource-component.hpp"
-#include "entities/skybox.hpp"
 #include "framebuffer.hpp"
-#include "managers/entity-manager.hpp"
+#include "log.hpp"
+#include "managers/resource-manager.hpp"
+#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
 #include "renderer-api.hpp"
+#include "resources/descriptors/shader-descriptor.hpp"
+#include "resources/mesh.hpp"
+#include "systems/render-system/material-binding.hpp"
+#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include <GL/gl.h>
+#include "systems/render-system/scene-selection.hpp"
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -37,74 +39,93 @@ public:
 
     if (m_scene_color == nullptr) {
       set_enabled(false);
+      LOG_WARN("[SkyboxPass] Skipping setup: scene_color framebuffer is not "
+               "available");
       return;
     }
 
-    auto entity_manager = EntityManager::get();
-    entity_manager->for_each<Skybox>([&](Skybox *skybox) {
-      auto resource = skybox->get_component<ResourceComponent>();
-      auto mesh = skybox->get_component<MeshComponent>();
-
-      resource->attach_cubemap({skybox->cubemap_id, "_skybox"});
-      resource->set_shader(skybox->shader_id);
-
-      resource->start();
-      mesh->attach_mesh(Mesh::cube(2.0f));
-      mesh->start(render_target);
-    });
+    rendering::ensure_mesh_uploaded(m_skybox_cube, m_render_target);
   }
 
   void begin(double dt) override {}
 
   void execute(double dt) override {
-    auto entity_manager = EntityManager::get();
-    auto renderer_api = m_render_target->renderer_api();
-    auto component_manager = ComponentManager::get();
-    auto camera_components =
-        component_manager->get_components<CameraComponent>();
+    auto scene = SceneManager::get()->get_active_scene();
 
-    if (camera_components.empty()) {
+    if (scene == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping execute: no active scene");
+      return;
+    }
+
+    if (m_scene_color == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping execute: scene_color framebuffer is not "
+               "available");
+      return;
+    }
+
+    auto &world = scene->world();
+    auto camera = rendering::select_main_camera(world);
+    auto skybox = rendering::select_skybox(world);
+
+    if (!camera.has_value()) {
+      LOG_WARN("[SkyboxPass] Skipping execute: no main camera selected");
+      return;
+    }
+
+    if (!skybox.has_value()) {
+      LOG_WARN("[SkyboxPass] Skipping execute: no skybox selected");
+      return;
+    }
+
+    if (skybox->skybox == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping execute: skybox asset is not available");
+      return;
+    }
+
+    auto renderer_api = m_render_target->renderer_api();
+    const auto backend = renderer_api->get_backend();
+    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
+        backend, {skybox->skybox->shader});
+
+    auto shader = resource_manager()->get_by_descriptor_id<Shader>(
+        skybox->skybox->shader);
+    if (shader == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping execute: failed to load skybox shader '",
+               skybox->skybox->shader, "'");
+      return;
+    }
+
+    const int cubemap_slot =
+        rendering::bind_texture_3d(renderer_api, skybox->skybox->cubemap, 0);
+    if (cubemap_slot < 0) {
+      LOG_WARN("[SkyboxPass] Skipping execute: failed to bind skybox cubemap");
       return;
     }
 
     m_scene_color->bind();
-    glDepthMask(GL_FALSE);
+    renderer_api->disable_depth_write();
+    renderer_api->depth(RendererAPI::DepthMode::LessEqual);
 
-    entity_manager->for_each<Skybox>([&](Skybox *skybox) {
-      CHECK_ACTIVE(skybox);
-      renderer_api->depth(RendererAPI::DepthMode::LessEqual);
+    shader->bind();
 
-      auto resource = skybox->get_component<ResourceComponent>();
-      auto mesh = skybox->get_component<MeshComponent>();
-
-      auto camera = camera_components[0];
-
-      resource->update();
-
-      if (camera != nullptr) {
-        auto shader = resource->shader();
-
-        auto view_without_transformation =
-            glm::mat4(glm::mat3(camera->get_view_matrix()));
+    const glm::mat4 view_without_translation =
+        glm::mat4(glm::mat3(camera->camera->view_matrix));
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-        using namespace shader_bindings::engine_shaders_skybox_axsl;
+    using namespace shader_bindings::engine_shaders_skybox_axsl;
 
-        shader->set_all(LightParams{
-            .view_without_transformation = view_without_transformation,
-            .projection = camera->get_projection_matrix(),
-        });
-#else
-        shader->set_matrix("view_without_transformation",
-                           view_without_transformation);
-        shader->set_matrix("projection", camera->get_projection_matrix());
-#endif
-      }
-
-      mesh->update(m_render_target);
+    shader->set_all(LightParams{
+        .view_without_transformation = view_without_translation,
+        .projection = camera->camera->projection_matrix,
     });
+    shader->set_all(EntityParams{.skybox_map = cubemap_slot});
+#endif
 
-    glDepthMask(GL_TRUE);
+    renderer_api->draw_indexed(m_skybox_cube.vertex_array,
+                               m_skybox_cube.draw_type);
+
+    shader->unbind();
+    renderer_api->enable_depth_write();
     renderer_api->depth(RendererAPI::DepthMode::Less);
     m_scene_color->unbind();
   }
@@ -117,6 +138,7 @@ public:
 
 private:
   Framebuffer *m_scene_color = nullptr;
+  Mesh m_skybox_cube = Mesh::cube(2.0f);
 };
 
 } // namespace astralix

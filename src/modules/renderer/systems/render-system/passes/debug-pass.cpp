@@ -1,19 +1,12 @@
 #include "systems/render-system/passes/debug-pass.hpp"
+
 #include "base.hpp"
-#include "components/light/light-component.hpp"
-#include "components/material/material-component.hpp"
-#include "components/mesh/mesh-component.hpp"
-#include "components/resource/resource-component.hpp"
-#include "components/transform/transform-component.hpp"
-#include "entities/object.hpp"
-#include "events/key-codes.hpp"
-#include "guid.hpp"
+#include "components/light.hpp"
 #include "log.hpp"
-#include "managers/window-manager.hpp"
+#include "managers/scene-manager.hpp"
 #include "renderer-api.hpp"
-#include "storage-buffer.hpp"
-#include <GL/gl.h>
-#include <glm/gtc/quaternion.hpp>
+#include "systems/render-system/mesh-resolution.hpp"
+#include "systems/render-system/scene-selection.hpp"
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -21,206 +14,130 @@
 #endif
 
 namespace astralix {
+namespace {
 
-DebugNormal::DebugNormal(ENTITY_INIT_PARAMS) : ENTITY_INIT() {
-  add_component<ResourceComponent>();
-  m_active = false;
-};
+Ref<Shader> load_shader(Ref<RenderTarget> render_target,
+                        const ResourceDescriptorID &shader_id) {
+  resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
+      render_target->renderer_api()->get_backend(), {shader_id});
 
-void DebugNormal::start() {
-
-};
-
-void DebugNormal::update(Ref<RenderTarget> render_target,
-                         MeshCollector &mesh_collector,
-                         StorageBuffer *mesh_collector_storage,
-                         MeshContext *mesh_ctx) {
-  CHECK_ACTIVE(this);
-
-  auto resource = get_component<ResourceComponent>();
-
-  resource->update();
-
-  auto shader = resource->shader();
-
-  auto entity_manager = EntityManager::get();
-  auto component_manager = ComponentManager::get();
-
-  auto light_components = component_manager->get_components<LightComponent>();
-
-  auto camera = entity_manager->get_entity_with_component<CameraComponent>()
-                    ->get_component<CameraComponent>();
-
-  struct ObjectRollback {
-    uint32_t obj_index = -1;
-    ResourceDescriptorID shader_id;
-  };
-
-  auto objects = entity_manager->get_entities<Object>();
-
-  std::vector<ObjectRollback> rollback;
-
-  rollback.reserve(objects.size());
-
-  for (int32_t obj_index = 0; obj_index < objects.size(); obj_index++) {
-    auto object = objects[obj_index];
-
-    auto obj_resource = object->get_component<ResourceComponent>();
-    auto obj_mesh = object->get_component<MeshComponent>();
-    auto obj_transform = object->get_component<TransformComponent>();
-    auto obj_material = object->get_component<MaterialComponent>();
-
-    if (!has_components(obj_resource, obj_mesh, obj_transform))
-      continue;
-
-    rollback.emplace_back(ObjectRollback{
-        .obj_index = static_cast<uint32_t>(obj_index),
-        .shader_id = obj_resource->shader_descriptor_id(),
-    });
-
-    obj_resource->set_shader("debug_normal");
-
-    obj_mesh->change_draw_type(RendererAPI::DrawPrimitive::POINTS);
-
-    obj_transform->update();
-
-    obj_resource->update();
-
-    if (obj_material != nullptr) {
-      obj_material->update();
-    }
-
-    for (size_t i = 0; i < light_components.size(); i++) {
-      light_components[i]->update(object, i);
-    }
-
-    auto shader = obj_resource->shader();
-    shader->bind();
-
-    shader->set_matrix("entity.view", camera->get_view_matrix());
-    shader->set_vec3("view_position", obj_transform->position);
-    shader->set_matrix("entity.projection", camera->get_projection_matrix());
-
-    shader->unbind();
-  }
-
-  mesh_collector.draw(objects, render_target->renderer_api(),
-                      mesh_collector_storage, mesh_ctx);
-
-  for (auto data : rollback) {
-    if (data.obj_index != -1) {
-      auto object = objects[data.obj_index];
-      auto obj_resource = object->get_component<ResourceComponent>();
-      auto obj_mesh = object->get_component<MeshComponent>();
-
-      if (!has_components(obj_resource, obj_mesh))
-        continue;
-
-      obj_mesh->change_draw_type(RendererAPI::DrawPrimitive::TRIANGLES);
-
-      obj_resource->set_shader(data.shader_id);
-    }
-  }
+  return resource_manager()->get_by_descriptor_id<Shader>(shader_id);
 }
 
-DebugDepth::DebugDepth(ENTITY_INIT_PARAMS) : ENTITY_INIT() {
-  add_component<MeshComponent>()->attach_mesh(Mesh::quad(1.0f));
-  add_component<ResourceComponent>();
-  m_active = false;
-};
+rendering::DirectionalShadowSettings resolve_debug_shadow_settings() {
+  const auto *active_scene = SceneManager::get()->get_active_scene();
+  if (active_scene == nullptr) {
+    return rendering::DirectionalShadowSettings{};
+  }
 
-void DebugDepth::start(Ref<RenderTarget> render_target) {
-  auto resource = get_component<ResourceComponent>();
-  auto mesh = get_component<MeshComponent>();
+  const auto &world = active_scene->world();
+  rendering::DirectionalShadowSettings settings{};
+  bool found = false;
 
-  resource->set_shader("shaders::debug_depth");
+  world.each<scene::Transform, rendering::Light>(
+      [&](EntityID entity_id, const scene::Transform &,
+          const rendering::Light &light) {
+        if (found || !world.active(entity_id) ||
+            light.type != rendering::LightType::Directional) {
+          return;
+        }
 
-  auto shader = resource->shader();
+        if (const auto *shadow =
+                world.get<rendering::DirectionalShadowSettings>(entity_id);
+            shadow != nullptr) {
+          settings = *shadow;
+        }
 
-  resource->start();
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-  using namespace shader_bindings::engine_shaders_debug_depth_axsl;
-  shader->set(DepthUniform::depth_map, 0);
-  shader->set(DepthUniform::near_plane, 1.0f);
-  shader->set(DepthUniform::far_plane, 24.0f);
-#else
-  shader->set_int("depth.depth_map", 0);
-  shader->set_float("depth.near_plane", 1.0f);
-  shader->set_float("depth.far_plane", 24.0f);
-#endif
-  mesh->start(render_target);
-};
+        found = true;
+      });
 
-void DebugDepth::update(Ref<RenderTarget> render_target,
-                        Framebuffer *shadow_map) {
-  CHECK_ACTIVE(this);
+  return settings;
+}
 
-  if (shadow_map == nullptr) {
+void release_quad(DebugDepthState &state) {
+  state.shader.reset();
+  state.mesh.vertex_array.reset();
+}
+
+void release_quad(DebugGBufferState &state) {
+  state.shader.reset();
+  state.mesh.vertex_array.reset();
+}
+
+} // namespace
+
+void DebugGBufferPass::setup(
+    Ref<RenderTarget> render_target,
+    const std::vector<const RenderGraphResource *> &resources) {
+  m_render_target = render_target;
+  m_scene_color = nullptr;
+  m_g_buffer = nullptr;
+  m_debug_gbuffer = {};
+  set_enabled(true);
+
+  for (auto resource : resources) {
+    switch (resource->desc.type) {
+      case RenderGraphResourceType::Framebuffer:
+        if (resource->desc.name == "scene_color") {
+          m_scene_color = resource->get_framebuffer();
+        }
+
+        if (resource->desc.name == "g_buffer") {
+          m_g_buffer = resource->get_framebuffer();
+        }
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  if (m_scene_color == nullptr || m_g_buffer == nullptr) {
+    set_enabled(false);
     return;
   }
 
-  auto resource = get_component<ResourceComponent>();
-  auto mesh = get_component<MeshComponent>();
+  rendering::ensure_mesh_uploaded(m_debug_gbuffer.mesh, m_render_target);
+  m_debug_gbuffer.shader =
+      load_shader(m_render_target, "shaders::debug_g_buffer");
 
-  resource->update();
-
-  auto shader = resource->shader();
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-  using namespace shader_bindings::engine_shaders_debug_depth_axsl;
-  shader->set_int("depth.fullscreen", m_fullscreen ? 1 : 0);
-#else
-  shader->set_int("depth.fullscreen", m_fullscreen ? 1 : 0);
-#endif
-
-  glActiveTexture(GL_TEXTURE0);
-  glBindTexture(GL_TEXTURE_2D, shadow_map->get_depth_attachment_id());
-
-  glDisable(GL_DEPTH_TEST);
-  glDepthMask(GL_FALSE);
-  mesh->update(render_target);
-  glDepthMask(GL_TRUE);
-  glEnable(GL_DEPTH_TEST);
+  if (m_debug_gbuffer.shader == nullptr) {
+    set_enabled(false);
+  }
 }
 
-DebugGBuffer::DebugGBuffer(ENTITY_INIT_PARAMS) : ENTITY_INIT() {
-  add_component<MeshComponent>()->attach_mesh(Mesh::quad(1.0f));
-  add_component<ResourceComponent>();
-  m_active = false;
-  m_attachment_index = 0;
-};
+void DebugGBufferPass::begin(double) {}
 
-void DebugGBuffer::start(Ref<RenderTarget> render_target) {
-  auto resource = get_component<ResourceComponent>();
-  auto mesh = get_component<MeshComponent>();
+void DebugGBufferPass::execute(double) {
+  if (input::IS_KEY_RELEASED(input::KeyCode::F4)) {
+    m_debug_gbuffer.active = !m_debug_gbuffer.active;
+  }
 
-  resource->set_shader("shaders::debug_g_buffer");
-  resource->start();
-  mesh->start(render_target);
-};
-
-void DebugGBuffer::update(Ref<RenderTarget> render_target,
-                          Framebuffer *g_buffer) {
-  CHECK_ACTIVE(this);
-
-  if (g_buffer == nullptr) {
+  if (!m_debug_gbuffer.active || m_scene_color == nullptr ||
+      m_g_buffer == nullptr || m_debug_gbuffer.shader == nullptr) {
     return;
   }
 
-  auto color_attachments = g_buffer->get_color_attachments();
+  m_scene_color->bind();
+  draw_gbuffer();
+  m_scene_color->unbind();
+}
 
+void DebugGBufferPass::end(double) {}
+
+void DebugGBufferPass::cleanup() {
+  release_quad(m_debug_gbuffer);
+  m_scene_color = nullptr;
+  m_g_buffer = nullptr;
+}
+
+void DebugGBufferPass::draw_gbuffer() {
+  const auto &color_attachments = m_g_buffer->get_color_attachments();
   if (color_attachments.empty()) {
     return;
   }
 
-  auto resource = get_component<ResourceComponent>();
-  auto mesh = get_component<MeshComponent>();
-
-  resource->update();
-
-  auto shader = resource->shader();
-
-  int requested_attachment_index = m_attachment_index;
+  int requested_attachment_index = m_debug_gbuffer.attachment_index;
 
   if (input::IS_KEY_RELEASED(input::KeyCode::D1)) {
     requested_attachment_index = 0;
@@ -234,41 +151,231 @@ void DebugGBuffer::update(Ref<RenderTarget> render_target,
 
   if (requested_attachment_index >= 0 &&
       requested_attachment_index < static_cast<int>(color_attachments.size())) {
-    m_attachment_index = requested_attachment_index;
-  } else if (requested_attachment_index != m_attachment_index) {
+    m_debug_gbuffer.attachment_index = requested_attachment_index;
+  } else if (requested_attachment_index != m_debug_gbuffer.attachment_index) {
     LOG_WARN("Ignoring invalid G-buffer attachment index ",
              requested_attachment_index,
              ". Available color attachments: ", color_attachments.size());
   }
 
-  if (m_attachment_index < 0 ||
-      m_attachment_index >= static_cast<int>(color_attachments.size())) {
-    m_attachment_index = 0;
+  if (m_debug_gbuffer.attachment_index < 0 ||
+      m_debug_gbuffer.attachment_index >=
+          static_cast<int>(color_attachments.size())) {
+    m_debug_gbuffer.attachment_index = 0;
   }
 
-  glActiveTexture(GL_TEXTURE0 + m_attachment_index);
-  glBindTexture(GL_TEXTURE_2D, color_attachments[m_attachment_index]);
-  glActiveTexture(GL_TEXTURE1 + m_attachment_index + 1);
-  glBindTexture(GL_TEXTURE_2D, color_attachments[1]);
+  auto renderer_api = m_render_target->renderer_api();
+  renderer_api->bind_texture_2d(
+      color_attachments[m_debug_gbuffer.attachment_index], 0);
 
+  const uint32_t g_normal_mask_attachment =
+      color_attachments.size() > 1u
+          ? color_attachments[1]
+          : color_attachments[m_debug_gbuffer.attachment_index];
+
+  renderer_api->bind_texture_2d(g_normal_mask_attachment, 1);
+
+  auto shader = m_debug_gbuffer.shader;
   shader->bind();
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-  {
-    using namespace shader_bindings::engine_shaders_debug_g_buffer_axsl;
-
-    shader->set(GBufferUniform::attachment, m_attachment_index);
-    shader->set(GBufferUniform::g_normal_mask, 1);
-    shader->set(GBufferUniform::near_plane, 0.1f);
-    shader->set(GBufferUniform::far_plane, 100.0f);
-  }
+  using namespace shader_bindings::engine_shaders_debug_g_buffer_axsl;
+  shader->set_all(GBufferParams{
+      .attachment = 0,
+      .g_normal_mask = 1,
+      .near_plane = 0.1f,
+      .far_plane = 100.0f,
+  });
 #endif
 
-  glDisable(GL_DEPTH_TEST);
-  glDepthMask(GL_FALSE);
-  mesh->update(render_target);
-  glDepthMask(GL_TRUE);
-  glEnable(GL_DEPTH_TEST);
+  renderer_api->disable_depth_test();
+  renderer_api->disable_depth_write();
+  renderer_api->draw_indexed(m_debug_gbuffer.mesh.vertex_array,
+                             m_debug_gbuffer.mesh.draw_type);
+  renderer_api->enable_depth_write();
+  renderer_api->enable_depth_test();
+
+  shader->unbind();
+}
+
+void DebugOverlayPass::setup(
+    Ref<RenderTarget> render_target,
+    const std::vector<const RenderGraphResource *> &resources) {
+  m_render_target = render_target;
+  m_scene_color = nullptr;
+  m_shadow_map = nullptr;
+  m_debug_depth = {};
+  m_debug_normal = {};
+  set_enabled(true);
+
+  for (auto resource : resources) {
+    switch (resource->desc.type) {
+      case RenderGraphResourceType::Framebuffer:
+        if (resource->desc.name == "shadow_map") {
+          m_shadow_map = resource->get_framebuffer();
+        }
+
+        if (resource->desc.name == "scene_color") {
+          m_scene_color = resource->get_framebuffer();
+        }
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  if (m_scene_color == nullptr) {
+    set_enabled(false);
+    return;
+  }
+
+  Shader::create("debug_normal", "shaders/fragment/debug_normal.glsl"_engine,
+                 "shaders/vertex/debug_normal.glsl"_engine,
+                 "shaders/geometry/debug_normal.glsl"_engine);
+
+  m_debug_normal.shader = load_shader(m_render_target, "debug_normal");
+
+  if (m_shadow_map != nullptr) {
+    rendering::ensure_mesh_uploaded(m_debug_depth.mesh, m_render_target);
+    m_debug_depth.shader = load_shader(m_render_target, "shaders::debug_depth");
+
+    if (m_debug_depth.shader != nullptr) {
+      m_debug_depth.shader->bind();
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+      using namespace shader_bindings::engine_shaders_debug_depth_axsl;
+      m_debug_depth.shader->set(DepthUniform::depth_map, 0);
+#else
+      m_debug_depth.shader->set_int("depth.depth_map", 0);
+#endif
+      m_debug_depth.shader->unbind();
+    }
+  }
+
+  if (m_debug_normal.shader == nullptr &&
+      (m_shadow_map == nullptr || m_debug_depth.shader == nullptr)) {
+    set_enabled(false);
+  }
+}
+
+void DebugOverlayPass::begin(double) {}
+
+void DebugOverlayPass::execute(double) {
+  if (input::IS_KEY_RELEASED(input::KeyCode::F2) && m_shadow_map != nullptr &&
+      m_debug_depth.shader != nullptr) {
+    if (input::IS_KEY_DOWN(input::KeyCode::LeftShift)) {
+      m_debug_depth.fullscreen = !m_debug_depth.fullscreen;
+    } else {
+      m_debug_depth.active = !m_debug_depth.active;
+    }
+  }
+
+  if (input::IS_KEY_RELEASED(input::KeyCode::F3) &&
+      m_debug_normal.shader != nullptr) {
+    m_debug_normal.active = !m_debug_normal.active;
+  }
+
+  if ((!m_debug_depth.active || m_shadow_map == nullptr ||
+       m_debug_depth.shader == nullptr) &&
+      (!m_debug_normal.active || m_debug_normal.shader == nullptr)) {
+    return;
+  }
+
+  m_scene_color->bind();
+
+  if (m_debug_depth.active && m_shadow_map != nullptr &&
+      m_debug_depth.shader != nullptr) {
+    draw_depth_overlay();
+  }
+
+  if (m_debug_normal.active && m_debug_normal.shader != nullptr) {
+    draw_normal_overlay();
+  }
+
+  m_scene_color->unbind();
+}
+
+void DebugOverlayPass::end(double) {}
+
+void DebugOverlayPass::cleanup() {
+  release_quad(m_debug_depth);
+  m_debug_normal.shader.reset();
+  m_scene_color = nullptr;
+  m_shadow_map = nullptr;
+}
+
+void DebugOverlayPass::draw_depth_overlay() {
+  auto shader = m_debug_depth.shader;
+  shader->bind();
+  const auto shadow = resolve_debug_shadow_settings();
+
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+  using namespace shader_bindings::engine_shaders_debug_depth_axsl;
+  shader->set(DepthUniform::depth_map, 0);
+  shader->set(DepthUniform::fullscreen, m_debug_depth.fullscreen ? 1 : 0);
+  shader->set(DepthUniform::near_plane, shadow.near_plane);
+  shader->set(DepthUniform::far_plane, shadow.far_plane);
+#else
+  shader->set_int("depth.depth_map", 0);
+  shader->set_int("depth.fullscreen", m_debug_depth.fullscreen ? 1 : 0);
+  shader->set_float("depth.near_plane", shadow.near_plane);
+  shader->set_float("depth.far_plane", shadow.far_plane);
+#endif
+
+  auto renderer_api = m_render_target->renderer_api();
+  renderer_api->bind_texture_2d(m_shadow_map->get_depth_attachment_id(), 0);
+
+  renderer_api->disable_depth_test();
+  renderer_api->disable_depth_write();
+  renderer_api->draw_indexed(m_debug_depth.mesh.vertex_array,
+                             m_debug_depth.mesh.draw_type);
+  renderer_api->enable_depth_write();
+  renderer_api->enable_depth_test();
+
+  shader->unbind();
+}
+
+void DebugOverlayPass::draw_normal_overlay() {
+  auto scene = SceneManager::get()->get_active_scene();
+  if (scene == nullptr) {
+    return;
+  }
+
+  auto &world = scene->world();
+  auto camera = rendering::select_main_camera(world);
+  if (!camera.has_value()) {
+    return;
+  }
+
+  auto shader = m_debug_normal.shader;
+  shader->bind();
+  shader->set_bool("use_instacing", false);
+  shader->set_matrix("view", camera->camera->view_matrix);
+  shader->set_matrix("projection", camera->camera->projection_matrix);
+  shader->set_float("length", 1.0f);
+
+  world.each<rendering::Renderable, scene::Transform>(
+      [&](EntityID entity_id, rendering::Renderable &,
+          scene::Transform &transform) {
+        if (!world.active(entity_id)) {
+          return;
+        }
+
+        auto entity = world.entity(entity_id);
+        auto *model_ref = entity.get<rendering::ModelRef>();
+        auto *mesh_set = entity.get<rendering::MeshSet>();
+        if (model_ref == nullptr && mesh_set == nullptr) {
+          return;
+        }
+
+        shader->set_matrix("g_model", transform.matrix);
+
+        rendering::for_each_render_mesh(
+            model_ref, mesh_set, m_render_target, [&](Mesh &mesh) {
+              m_render_target->renderer_api()->draw_indexed(
+                  mesh.vertex_array, RendererAPI::DrawPrimitive::POINTS);
+            });
+      });
 
   shader->unbind();
 }

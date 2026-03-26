@@ -1,11 +1,7 @@
 #include "render-system.hpp"
-#include "components/post-processing/post-processing-component.hpp"
-#include "entities/object.hpp"
-#include "entities/post-processing.hpp"
 #include "events/event-scheduler.hpp"
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/entity-manager.hpp"
 #include "managers/resource-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "resources/descriptors/font-descriptor.hpp"
@@ -13,7 +9,6 @@
 #include "resources/descriptors/model-descriptor.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
 #include "resources/descriptors/texture-descriptor.hpp"
-#include "systems/render-system/collectors/mesh-collector.hpp"
 #include "systems/render-system/passes/debug-pass.hpp"
 #include "systems/render-system/passes/exporters/ascii-exporter.hpp"
 #include "systems/render-system/passes/exporters/graphviz-exporter.hpp"
@@ -38,8 +33,6 @@ void RenderSystem::start() {
                                          m_config.msaa_to_render_target_msaa(),
                                          m_config.window_id);
 
-  auto entity_manager = EntityManager::get();
-
   m_render_target->init();
 
   resource_manager()
@@ -52,12 +45,6 @@ void RenderSystem::start() {
 
   auto window =
       window_manager()->get_window_by_id(m_render_target->window_id());
-
-  auto mesh_context =
-      target_graph.declare_logical_buffer<MeshContext>("mesh_context");
-
-  auto mesh_collector_storage = target_graph.declare_storage_buffer(
-      "mesh_collector_storage", 1024 * sizeof(glm::mat4));
 
   auto window_width = static_cast<uint32_t>(window->width());
   auto window_height = static_cast<uint32_t>(window->height());
@@ -87,8 +74,6 @@ void RenderSystem::start() {
   if (use_forward_strategy) {
     target_graph.add_pass(create_scope<ForwardPass>())
         .read(shadow_map)
-        .read_write(mesh_context)
-        .read_write(mesh_collector_storage)
         .read_write(scene_color);
   } else {
     g_buffer = target_graph.declare_framebuffer(
@@ -112,8 +97,6 @@ void RenderSystem::start() {
 
     target_graph.add_pass(create_scope<GeometryPass>())
         .read_write(g_buffer)
-        .read_write(mesh_context)
-        .read_write(mesh_collector_storage)
         .write(scene_color);
     target_graph.add_pass(create_scope<LightingPass>())
         .read(shadow_map)
@@ -129,8 +112,6 @@ void RenderSystem::start() {
   target_graph.add_pass(create_scope<TextPass>()).read_write(scene_color);
   target_graph.add_pass(create_scope<DebugOverlayPass>())
       .read(shadow_map)
-      .read_write(mesh_context)
-      .read_write(mesh_collector_storage)
       .read_write(scene_color);
 
   target_graph.add_pass(create_scope<PostProcessPass>())
@@ -154,11 +135,6 @@ void RenderSystem::fixed_update(double fixed_dt) {
 void RenderSystem::pre_update(double dt) {
   ASTRA_PROFILE_N("RenderSystem PreUpdate");
 
-  auto entity_manager = EntityManager::get();
-  auto post_processings = entity_manager->get_entities<PostProcessing>();
-
-  bool has_post_processing = false;
-
   auto window = window_manager()->active_window();
 
   if (window->was_resized && m_render_graph != nullptr) {
@@ -166,20 +142,7 @@ void RenderSystem::pre_update(double dt) {
                            static_cast<uint32_t>(window->height()));
   }
 
-  for (auto post_processing : post_processings) {
-    if (!post_processing->is_active()) {
-      continue;
-    }
-
-    auto comp = post_processing->get_component<PostProcessingComponent>();
-
-    if (comp != nullptr && comp->is_active()) {
-      has_post_processing = true;
-      break;
-    }
-  }
-
-  m_render_target->bind(has_post_processing);
+  m_render_target->bind(true);
 };
 
 void RenderSystem::update(double dt) {

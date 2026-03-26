@@ -1,12 +1,11 @@
 #pragma once
 
-#include "components/mesh/mesh-component.hpp"
-#include "components/post-processing/post-processing-component.hpp"
-#include "components/resource/resource-component.hpp"
-#include "entities/post-processing.hpp"
-#include "managers/entity-manager.hpp"
+#include "framebuffer.hpp"
 #include "managers/resource-manager.hpp"
 #include "render-pass.hpp"
+#include "resources/descriptors/shader-descriptor.hpp"
+#include "resources/mesh.hpp"
+#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 
 namespace astralix {
@@ -24,54 +23,46 @@ public:
     Shader::create("shaders::hdr", "shaders/fragment/hdr.glsl"_engine,
                    "shaders/vertex/postprocessing.glsl"_engine);
 
+    const auto backend = m_render_target->renderer_api()->get_backend();
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        m_render_target->renderer_api()->get_backend(), {"shaders::hdr"});
+        backend, {"shaders::hdr"});
+    m_shader = resource_manager()->get_by_descriptor_id<Shader>("shaders::hdr");
 
-    EntityManager::get()->add_entity<PostProcessing>("HDR", "shaders::hdr");
+    rendering::ensure_mesh_uploaded(m_fullscreen_quad, m_render_target);
 
-    auto entity_manager = EntityManager::get();
-    entity_manager->for_each<PostProcessing>(
-        [&](PostProcessing *post_processing) {
-          post_processing->add_component<MeshComponent>()->attach_mesh(
-              Mesh::quad(1.0f));
-          post_processing->add_component<ResourceComponent>()->attach_shader(
-              post_processing->shader_descriptor_id);
+    if (render_target->has_msaa_enabled()) {
+      auto framebuffer = render_target->framebuffer();
+      FramebufferSpecification framebuffer_spec =
+          framebuffer->get_specification();
+      framebuffer_spec.samples = render_target->msaa().samples;
 
-          auto resource = post_processing->get_component<ResourceComponent>();
-          auto mesh = post_processing->get_component<MeshComponent>();
-          auto post_processing_comp =
-              post_processing->get_component<PostProcessingComponent>();
+      m_resolved_framebuffer = Framebuffer::create(backend, framebuffer_spec);
+    }
 
-          resource->start();
-
-          post_processing_comp->start(render_target);
-          mesh->start(render_target);
-        });
+    if (m_shader != nullptr) {
+      m_shader->bind();
+      m_shader->set_int("screen_texture", 0);
+      m_shader->unbind();
+    }
   }
 
   void begin(double dt) override { m_render_target->unbind(); }
 
   void execute(double dt) override {
-    auto entity_manager = EntityManager::get();
-
-    auto entities = entity_manager->get_entities<PostProcessing>();
-
-    for (auto entity : entities) {
-      m_render_target->framebuffer()->bind(FramebufferBindType::Default, 0);
-      m_render_target->renderer_api()->disable_buffer_testing();
-      m_render_target->renderer_api()->clear_color();
-      m_render_target->renderer_api()->clear_buffers();
-
-      auto resource = entity->get_component<ResourceComponent>();
-      auto post_processing = entity->get_component<PostProcessingComponent>();
-
-      auto mesh = entity->get_component<MeshComponent>();
-
-      resource->update();
-      post_processing->post_update(m_render_target);
-
-      mesh->update(m_render_target);
+    if (m_shader == nullptr) {
+      return;
     }
+
+    m_render_target->framebuffer()->bind(FramebufferBindType::Default, 0);
+    m_render_target->renderer_api()->disable_buffer_testing();
+    m_render_target->renderer_api()->clear_color();
+    m_render_target->renderer_api()->clear_buffers();
+
+    m_shader->bind();
+    bind_screen_texture();
+    m_render_target->renderer_api()->draw_indexed(m_fullscreen_quad.vertex_array,
+                                                  m_fullscreen_quad.draw_type);
+    m_shader->unbind();
   }
 
   void end(double dt) override {}
@@ -79,6 +70,36 @@ public:
   void cleanup() override {}
 
   std::string name() const override { return "PostProcessPass"; }
+
+private:
+  void bind_screen_texture() {
+    const bool msaa_enabled = m_render_target->has_msaa_enabled();
+    if (msaa_enabled && m_resolved_framebuffer != nullptr) {
+      resolve_screen_texture();
+    }
+
+    const uint32_t screen_texture =
+        msaa_enabled && m_resolved_framebuffer != nullptr
+            ? m_resolved_framebuffer->get_color_attachment_id()
+            : m_render_target->framebuffer()->get_color_attachment_id();
+
+    m_render_target->renderer_api()->bind_texture_2d(screen_texture, 0);
+  }
+
+  void resolve_screen_texture() {
+    auto framebuffer = m_render_target->framebuffer();
+
+    framebuffer->bind(FramebufferBindType::Read);
+    m_resolved_framebuffer->bind(FramebufferBindType::Draw);
+
+    const auto &spec = framebuffer->get_specification();
+    framebuffer->blit(spec.width, spec.height);
+    framebuffer->unbind();
+  }
+
+  Ref<Shader> m_shader;
+  Ref<Framebuffer> m_resolved_framebuffer;
+  Mesh m_fullscreen_quad = Mesh::quad(1.0f);
 };
 
 } // namespace astralix
