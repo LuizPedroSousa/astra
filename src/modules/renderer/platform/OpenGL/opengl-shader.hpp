@@ -20,7 +20,9 @@ public:
   void set_int(const std::string &name, int value) const override;
   void set_matrix(const std::string &name, glm::mat4 matrix) const override;
   void set_float(const std::string &name, float value) const override;
+  void set_vec2(const std::string &name, glm::vec2 value) const override;
   void set_vec3(const std::string &name, glm::vec3 value) const override;
+  void set_vec4(const std::string &name, glm::vec4 value) const override;
   uint32_t renderer_id() const override { return m_renderer_id; };
 
 protected:

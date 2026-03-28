@@ -6,6 +6,8 @@
 #include "resources/descriptors/font-descriptor.hpp"
 #include "resources/resource.hpp"
 #include <map>
+#include <optional>
+#include <unordered_map>
 
 namespace astralix {
 struct CharacterGlyph {
@@ -16,6 +18,13 @@ struct CharacterGlyph {
 };
 
 class Font : public Resource {
+
+  struct GlyphSet {
+    std::map<char, CharacterGlyph> characters;
+    float line_height = 0.0f;
+    float ascent = 0.0f;
+    float descent = 0.0f;
+  };
 
 public:
   Font(const ResourceHandle &resource_id, Ref<FontDescriptor> descriptor);
@@ -30,10 +39,17 @@ public:
 
   void load();
 
-  std::map<char, CharacterGlyph> characters() const { return m_characters; }
+  const std::map<char, CharacterGlyph> &characters(uint32_t pixel_size = 48) const;
+  std::optional<CharacterGlyph> glyph(char character,
+                                      uint32_t pixel_size = 48) const;
+  glm::vec2 measure_text(const std::string &text, float pixel_size) const;
+  float line_height(float pixel_size) const;
+  float ascent(float pixel_size) const;
 
 private:
-  std::map<char, CharacterGlyph> m_characters;
+  void ensure_size_loaded(uint32_t pixel_size) const;
+
+  mutable std::unordered_map<uint32_t, GlyphSet> m_glyph_sets;
   ResourceDescriptorID m_descriptor_id;
   Ref<Path> m_path;
   RendererBackend m_backend = RendererBackend::None;

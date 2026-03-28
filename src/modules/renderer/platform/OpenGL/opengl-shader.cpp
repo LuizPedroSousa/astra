@@ -502,8 +502,17 @@ void OpenGLShader::set_float(const std::string &name, float value) const {
   glUniform1f(resolve_uniform_location(name), value);
 }
 
+void OpenGLShader::set_vec2(const std::string &name, glm::vec2 value) const {
+  glUniform2f(resolve_uniform_location(name), value.x, value.y);
+}
+
 void OpenGLShader::set_vec3(const std::string &name, glm::vec3 value) const {
   glUniform3f(resolve_uniform_location(name), value.x, value.y, value.z);
+}
+
+void OpenGLShader::set_vec4(const std::string &name, glm::vec4 value) const {
+  glUniform4f(resolve_uniform_location(name), value.x, value.y, value.z,
+              value.w);
 }
 
 void OpenGLShader::set_typed_value(uint64_t binding_id, ShaderValueKind kind,

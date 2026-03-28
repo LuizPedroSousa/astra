@@ -19,7 +19,7 @@ struct CameraController {
   float yaw = -90.0f;
   float pitch = 0.0f;
   float speed = 4.0f;
-  float sensitivity = 0.1f;
+  float sensitivity = 0.05f;
   float orbit_distance = 5.0f;
   float third_person_distance = 5.0f;
   glm::vec3 third_person_offset = glm::vec3(0.0f, 2.0f, -5.0f);

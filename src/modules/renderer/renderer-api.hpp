@@ -73,6 +73,10 @@ public:
   virtual void enable_blend() = 0;
   virtual void disable_blend() = 0;
   virtual void set_blend_func(BlendFactor src, BlendFactor dst) = 0;
+  virtual void enable_scissor() = 0;
+  virtual void disable_scissor() = 0;
+  virtual void set_scissor_rect(uint32_t x, uint32_t y, uint32_t width,
+                                uint32_t height) = 0;
   virtual void bind_texture_2d(uint32_t texture_id, uint32_t slot) = 0;
   virtual void bind_texture_cube(uint32_t texture_id, uint32_t slot) = 0;
 

@@ -10,6 +10,9 @@
 #include "glad/glad.h"
 
 #include <iostream>
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
 namespace astralix {
 
@@ -20,6 +23,14 @@ Font::Font(const ResourceHandle &resource_id, Ref<FontDescriptor> descriptor)
 };
 
 void Font::load() {
+  ensure_size_loaded(48);
+}
+
+void Font::ensure_size_loaded(uint32_t pixel_size) const {
+  if (m_glyph_sets.find(pixel_size) != m_glyph_sets.end()) {
+    return;
+  }
+
   FT_Library ft;
 
   ASTRA_ENSURE(FT_Init_FreeType(&ft),
@@ -32,7 +43,7 @@ void Font::load() {
   ASTRA_ENSURE(FT_New_Face(ft, base_path.c_str(), 0, &face),
                "ERROR::FREETYPE: Failed to load font");
 
-  FT_Set_Pixel_Sizes(face, 0, 48);
+  FT_Set_Pixel_Sizes(face, 0, pixel_size);
 
   ASTRA_ENSURE(FT_Load_Char(face, 'X', FT_LOAD_RENDER),
                "ERROR::FREETYTPE: Failed to load Glyph");
@@ -62,11 +73,12 @@ void Font::load() {
 
     };
 
-    auto texture_id = m_descriptor_id + std::string("glyph[") +
+    auto texture_id = m_descriptor_id + std::string("::glyph[") +
+                      std::to_string(pixel_size) + std::string("][") +
                       std::to_string(c) + std::string("]");
 
     auto texture = resource_manager->register_texture(
-        Texture2D::create(texture_id, config));
+        Texture2D::define(texture_id, config));
     resource_manager->load_from_descriptors_by_ids<Texture2DDescriptor>(
         m_backend, {texture_id});
 
@@ -80,10 +92,65 @@ void Font::load() {
     characters.insert(std::pair<char, CharacterGlyph>(c, character));
   }
 
-  m_characters = std::move(characters);
+  GlyphSet glyph_set{
+      .characters = std::move(characters),
+      .line_height = static_cast<float>(face->size->metrics.height >> 6),
+      .ascent = static_cast<float>(face->size->metrics.ascender >> 6),
+      .descent = static_cast<float>(std::abs(face->size->metrics.descender >> 6)),
+  };
+
+  m_glyph_sets.emplace(pixel_size, std::move(glyph_set));
 
   FT_Done_Face(face);
   FT_Done_FreeType(ft);
+}
+
+const std::map<char, CharacterGlyph> &Font::characters(uint32_t pixel_size) const {
+  ensure_size_loaded(pixel_size);
+  return m_glyph_sets.at(pixel_size).characters;
+}
+
+std::optional<CharacterGlyph> Font::glyph(char character,
+                                          uint32_t pixel_size) const {
+  const auto &glyphs = characters(pixel_size);
+  auto it = glyphs.find(character);
+  if (it == glyphs.end()) {
+    return std::nullopt;
+  }
+
+  return it->second;
+}
+
+glm::vec2 Font::measure_text(const std::string &text, float pixel_size) const {
+  const uint32_t resolved_size =
+      static_cast<uint32_t>(std::max(1.0f, std::round(pixel_size)));
+  const auto &glyphs = characters(resolved_size);
+
+  float width = 0.0f;
+  for (const char character : text) {
+    auto it = glyphs.find(character);
+    if (it == glyphs.end()) {
+      continue;
+    }
+
+    width += static_cast<float>(it->second.advance >> 6);
+  }
+
+  return glm::vec2(width, line_height(resolved_size));
+}
+
+float Font::line_height(float pixel_size) const {
+  const uint32_t resolved_size =
+      static_cast<uint32_t>(std::max(1.0f, std::round(pixel_size)));
+  ensure_size_loaded(resolved_size);
+  return m_glyph_sets.at(resolved_size).line_height;
+}
+
+float Font::ascent(float pixel_size) const {
+  const uint32_t resolved_size =
+      static_cast<uint32_t>(std::max(1.0f, std::round(pixel_size)));
+  ensure_size_loaded(resolved_size);
+  return m_glyph_sets.at(resolved_size).ascent;
 }
 
 Ref<FontDescriptor> Font::create(const ResourceDescriptorID &id,
