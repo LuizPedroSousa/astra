@@ -24,6 +24,18 @@
       "path": "fonts/roboto.ttf"
     },
     {
+      "id": "icons::adjust",
+      "type": "Texture2D",
+      "path": "@engine/icons/adjust.png",
+      "flip": false
+    },
+    {
+      "id": "icons::clear",
+      "type": "Texture2D",
+      "path": "@engine/icons/clear.png",
+      "flip": false
+    },
+    {
       "id": "cubemaps::skybox",
       "type": "Texture3D",
       "faces": [
@@ -126,6 +138,12 @@
       "fragment": "@engine/shaders/post-process.axsl"
     },
     {
+      "id": "shaders::hdr",
+      "type": "Shader",
+      "vertex": "@engine/shaders/post-process.axsl",
+      "fragment": "@engine/shaders/hdr.axsl"
+    },
+    {
       "id": "shaders::lighting",
       "type": "Shader",
       "vertex": "@engine/shaders/light.axsl",
@@ -136,6 +154,24 @@
       "type": "Shader",
       "vertex": "@engine/shaders/lighting-forward.axsl",
       "fragment": "@engine/shaders/lighting-forward.axsl"
+    },
+    {
+      "id": "shaders::ui_solid",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ui/quad.axsl",
+      "fragment": "@engine/shaders/ui/solid.axsl"
+    },
+    {
+      "id": "shaders::ui_image",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ui/quad.axsl",
+      "fragment": "@engine/shaders/ui/image.axsl"
+    },
+    {
+      "id": "shaders::ui_text",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ui/quad.axsl",
+      "fragment": "@engine/shaders/ui/text.axsl"
     },
     {
       "id": "shaders::g_buffer",

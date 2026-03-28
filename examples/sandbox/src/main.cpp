@@ -7,7 +7,7 @@
 #include "astralix/modules/renderer/managers/scene-manager.hpp"
 #include "astralix/shared/foundation/exceptions/base-exception.hpp"
 #include "filesystem"
-#include "scenes/prologue.hpp"
+#include "scenes/prologue/prologue.hpp"
 
 int handleException(astralix::BaseException exception) {
   std::cout << exception.what() << std::endl;
