@@ -1,14 +1,13 @@
 #include "systems/ui-system/core.hpp"
 
-#include "managers/window-manager.hpp"
 #include "foundations.hpp"
+#include "managers/window-manager.hpp"
 #include <algorithm>
 #include <limits>
 
 namespace astralix::ui_system_core {
 
-bool same_target(const std::optional<Target> &lhs,
-                 const std::optional<Target> &rhs) {
+bool same_target(const std::optional<Target> &lhs, const std::optional<Target> &rhs) {
   if (!lhs.has_value() || !rhs.has_value()) {
     return !lhs.has_value() && !rhs.has_value();
   }
@@ -17,8 +16,7 @@ bool same_target(const std::optional<Target> &lhs,
          lhs->document == rhs->document;
 }
 
-ui::UILayoutContext make_context(const RootEntry &entry,
-                                 const glm::vec2 &viewport_size) {
+ui::UILayoutContext make_context(const RootEntry &entry, const glm::vec2 &viewport_size) {
   return ui::UILayoutContext{
       .viewport_size = viewport_size,
       .default_font_id = entry.root->default_font_id,
@@ -31,8 +29,7 @@ bool target_uses_root(const RootEntry &entry, const Target &target) {
          entry.document == target.document;
 }
 
-const RootEntry *find_root_entry(const std::vector<RootEntry> &roots,
-                                 const Target &target) {
+const RootEntry *find_root_entry(const std::vector<RootEntry> &roots, const Target &target) {
   auto it =
       std::find_if(roots.begin(), roots.end(), [&](const RootEntry &entry) {
         return target_uses_root(entry, target);
@@ -40,9 +37,7 @@ const RootEntry *find_root_entry(const std::vector<RootEntry> &roots,
   return it != roots.end() ? &*it : nullptr;
 }
 
-bool target_available(const std::vector<RootEntry> &roots,
-                      const std::optional<Target> &target,
-                      bool require_input_enabled) {
+bool target_available(const std::vector<RootEntry> &roots, const std::optional<Target> &target, bool require_input_enabled) {
   if (!target.has_value() || target->document == nullptr) {
     return false;
   }
@@ -62,8 +57,7 @@ bool target_available(const std::vector<RootEntry> &roots,
   return root_it != roots.end();
 }
 
-std::optional<Target> target_from_node(const RootEntry &entry,
-                                       ui::UINodeId node_id) {
+std::optional<Target> target_from_node(const RootEntry &entry, ui::UINodeId node_id) {
   if (node_id == ui::k_invalid_node_id) {
     return std::nullopt;
   }
@@ -75,8 +69,7 @@ std::optional<Target> target_from_node(const RootEntry &entry,
   };
 }
 
-std::optional<PointerHit> target_from_hit(const RootEntry &entry,
-                                          const ui::UiHitResult &hit) {
+std::optional<PointerHit> target_from_hit(const RootEntry &entry, const ui::UIHitResult &hit) {
   auto target = target_from_node(entry, hit.node_id);
   if (!target.has_value()) {
     return std::nullopt;
@@ -91,8 +84,8 @@ std::optional<PointerHit> target_from_hit(const RootEntry &entry,
 
 std::optional<Target> map_to_ancestor_target(
     const RootEntry &entry, ui::UINodeId node_id,
-    const std::function<std::optional<ui::UINodeId>(const ui::UIDocument &,
-                                                    ui::UINodeId)> &mapper) {
+    const std::function<std::optional<ui::UINodeId>(const ui::UIDocument &, ui::UINodeId)> &mapper
+) {
   if (entry.document == nullptr || node_id == ui::k_invalid_node_id) {
     return std::nullopt;
   }
@@ -102,8 +95,7 @@ std::optional<Target> map_to_ancestor_target(
                                     : std::nullopt;
 }
 
-std::optional<Target> find_hoverable_target(const RootEntry &entry,
-                                            ui::UINodeId node_id) {
+std::optional<Target> find_hoverable_target(const RootEntry &entry, ui::UINodeId node_id) {
   return map_to_ancestor_target(
       entry, node_id, [](const ui::UIDocument &document, ui::UINodeId current) {
         while (current != ui::k_invalid_node_id) {
@@ -128,11 +120,11 @@ std::optional<Target> find_hoverable_target(const RootEntry &entry,
         }
 
         return std::optional<ui::UINodeId>{};
-      });
+      }
+  );
 }
 
-std::optional<Target> find_drag_handle_target(const RootEntry &entry,
-                                              ui::UINodeId node_id) {
+std::optional<Target> find_drag_handle_target(const RootEntry &entry, ui::UINodeId node_id) {
   return map_to_ancestor_target(
       entry, node_id, [](const ui::UIDocument &document, ui::UINodeId current) {
         while (current != ui::k_invalid_node_id) {
@@ -150,11 +142,11 @@ std::optional<Target> find_drag_handle_target(const RootEntry &entry,
         }
 
         return std::optional<ui::UINodeId>{};
-      });
+      }
+  );
 }
 
-std::optional<Target> find_draggable_panel_target(const RootEntry &entry,
-                                                  ui::UINodeId node_id) {
+std::optional<Target> find_draggable_panel_target(const RootEntry &entry, ui::UINodeId node_id) {
   return map_to_ancestor_target(
       entry, node_id, [](const ui::UIDocument &document, ui::UINodeId current) {
         while (current != ui::k_invalid_node_id) {
@@ -172,12 +164,12 @@ std::optional<Target> find_draggable_panel_target(const RootEntry &entry,
         }
 
         return std::optional<ui::UINodeId>{};
-      });
+      }
+  );
 }
 
 std::optional<ui::UILayoutContext>
-context_for_target(const std::vector<RootEntry> &roots, const Target &target,
-                   const glm::vec2 &viewport_size) {
+context_for_target(const std::vector<RootEntry> &roots, const Target &target, const glm::vec2 &viewport_size) {
   const RootEntry *entry = find_root_entry(roots, target);
   if (entry == nullptr) {
     return std::nullopt;
@@ -210,20 +202,20 @@ bool should_reset_caret_for_key(const ui::UIKeyInputEvent &event) {
   using input::KeyCode;
 
   switch (event.key_code) {
-  case KeyCode::Left:
-  case KeyCode::Right:
-  case KeyCode::Home:
-  case KeyCode::End:
-  case KeyCode::Backspace:
-  case KeyCode::Delete:
-    return true;
-  case KeyCode::A:
-  case KeyCode::C:
-  case KeyCode::V:
-  case KeyCode::X:
-    return event.modifiers.primary_shortcut();
-  default:
-    return false;
+    case KeyCode::Left:
+    case KeyCode::Right:
+    case KeyCode::Home:
+    case KeyCode::End:
+    case KeyCode::Backspace:
+    case KeyCode::Delete:
+      return true;
+    case KeyCode::A:
+    case KeyCode::C:
+    case KeyCode::V:
+    case KeyCode::X:
+      return event.modifiers.primary_shortcut();
+    default:
+      return false;
   }
 }
 
@@ -232,57 +224,54 @@ bool shift_pressed() {
          input::IS_KEY_DOWN(input::KeyCode::RightShift);
 }
 
-float resolve_length(const ui::UILength &value, float basis, float rem_basis,
-                     float auto_value) {
+float resolve_length(const ui::UILength &value, float basis, float rem_basis, float auto_value) {
   switch (value.unit) {
-  case ui::UiLengthUnit::Pixels:
-    return value.value;
-  case ui::UiLengthUnit::Percent:
-    return basis * value.value;
-  case ui::UiLengthUnit::Rem:
-    return rem_basis * value.value;
-  case ui::UiLengthUnit::Auto:
-  default:
-    return auto_value;
+    case ui::UILengthUnit::Pixels:
+      return value.value;
+    case ui::UILengthUnit::Percent:
+      return basis * value.value;
+    case ui::UILengthUnit::Rem:
+      return rem_basis * value.value;
+    case ui::UILengthUnit::Auto:
+    default:
+      return auto_value;
   }
 }
 
-float resolve_min_length(const ui::UILength &value, float basis,
-                         float rem_basis) {
-  return value.unit == ui::UiLengthUnit::Auto ? 0.0f
+float resolve_min_length(const ui::UILength &value, float basis, float rem_basis) {
+  return value.unit == ui::UILengthUnit::Auto ? 0.0f
                                               : resolve_length(
-                                                    value, basis, rem_basis);
+                                                    value, basis, rem_basis
+                                                );
 }
 
-float resolve_max_length(const ui::UILength &value, float basis,
-                         float rem_basis) {
-  return value.unit == ui::UiLengthUnit::Auto
+float resolve_max_length(const ui::UILength &value, float basis, float rem_basis) {
+  return value.unit == ui::UILengthUnit::Auto
              ? std::numeric_limits<float>::infinity()
              : resolve_length(value, basis, rem_basis);
 }
 
-ui::UiRect parent_content_bounds(const ui::UIDocument &document,
-                                 ui::UINodeId node_id) {
+ui::UIRect parent_content_bounds(const ui::UIDocument &document, ui::UINodeId node_id) {
   const ui::UINodeId parent_id = document.parent(node_id);
   if (parent_id == ui::k_invalid_node_id) {
     const glm::vec2 canvas = document.canvas_size();
-    return ui::UiRect{
-        .x = 0.0f, .y = 0.0f, .width = canvas.x, .height = canvas.y};
+    return ui::UIRect{
+        .x = 0.0f, .y = 0.0f, .width = canvas.x, .height = canvas.y
+    };
   }
 
   const auto *parent = document.node(parent_id);
   if (parent == nullptr) {
     const glm::vec2 canvas = document.canvas_size();
-    return ui::UiRect{
-        .x = 0.0f, .y = 0.0f, .width = canvas.x, .height = canvas.y};
+    return ui::UIRect{
+        .x = 0.0f, .y = 0.0f, .width = canvas.x, .height = canvas.y
+    };
   }
 
   return parent->layout.content_bounds;
 }
 
-void write_absolute_bounds_to_style(const Target &target,
-                                    const ui::UiRect &parent_bounds,
-                                    const ui::UiRect &bounds) {
+void write_absolute_bounds_to_style(const Target &target, const ui::UIRect &parent_bounds, const ui::UIRect &bounds) {
   if (target.document == nullptr) {
     return;
   }
@@ -309,14 +298,13 @@ void canonicalize_absolute_bounds(const Target &target) {
     return;
   }
 
-  const ui::UiRect parent_bounds =
+  const ui::UIRect parent_bounds =
       parent_content_bounds(*target.document, target.node_id);
   write_absolute_bounds_to_style(target, parent_bounds, node->layout.bounds);
 }
 
 std::pair<float, float>
-resolved_main_axis_limits(const ui::UIDocument::UINode &node, float basis,
-                          ui::FlexDirection direction, float rem_basis) {
+resolved_main_axis_limits(const ui::UIDocument::UINode &node, float basis, ui::FlexDirection direction, float rem_basis) {
   if (direction == ui::FlexDirection::Row) {
     return {
         resolve_min_length(node.style.min_width, basis, rem_basis),

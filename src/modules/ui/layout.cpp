@@ -1,10 +1,10 @@
 #include "layout.hpp"
 
 #include "assert.hpp"
+#include "foundations.hpp"
 #include "managers/resource-manager.hpp"
 #include "resources/font.hpp"
 #include "resources/texture.hpp"
-#include "foundations.hpp"
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -21,18 +21,18 @@ float clamp_dimension(
     float value, UILength min_value, UILength max_value, float basis,
     float rem_basis
 ) {
-  if (min_value.unit != UiLengthUnit::Auto) {
+  if (min_value.unit != UILengthUnit::Auto) {
     const float min_dimension =
-        min_value.unit == UiLengthUnit::Percent ? basis * min_value.value
-        : min_value.unit == UiLengthUnit::Rem   ? rem_basis * min_value.value
+        min_value.unit == UILengthUnit::Percent ? basis * min_value.value
+        : min_value.unit == UILengthUnit::Rem   ? rem_basis * min_value.value
                                                 : min_value.value;
     value = std::max(value, min_dimension);
   }
 
-  if (max_value.unit != UiLengthUnit::Auto) {
+  if (max_value.unit != UILengthUnit::Auto) {
     const float max_dimension =
-        max_value.unit == UiLengthUnit::Percent ? basis * max_value.value
-        : max_value.unit == UiLengthUnit::Rem   ? rem_basis * max_value.value
+        max_value.unit == UILengthUnit::Percent ? basis * max_value.value
+        : max_value.unit == UILengthUnit::Rem   ? rem_basis * max_value.value
                                                 : max_value.value;
     value = std::min(value, max_dimension);
   }
@@ -44,13 +44,13 @@ float resolve_length(
     UILength value, float basis, float rem_basis, float auto_value = 0.0f
 ) {
   switch (value.unit) {
-    case UiLengthUnit::Pixels:
+    case UILengthUnit::Pixels:
       return value.value;
-    case UiLengthUnit::Percent:
+    case UILengthUnit::Percent:
       return basis * value.value;
-    case UiLengthUnit::Rem:
+    case UILengthUnit::Rem:
       return rem_basis * value.value;
-    case UiLengthUnit::Auto:
+    case UILengthUnit::Auto:
     default:
       return auto_value;
   }
@@ -161,19 +161,19 @@ std::string_view select_display_text(const UIDocument::UINode &node) {
   return node.placeholder;
 }
 
-void apply_self_clip(UiDrawCommand &command, const UIDocument::UINode &node) {
+void apply_self_clip(UIDrawCommand &command, const UIDocument::UINode &node) {
   command.has_clip = node.layout.has_clip;
   command.clip_rect = node.layout.clip_bounds;
 }
 
 void apply_content_clip(
-    UiDrawCommand &command, const UIDocument::UINode &node
+    UIDrawCommand &command, const UIDocument::UINode &node
 ) {
   command.has_clip = node.layout.has_content_clip;
   command.clip_rect = node.layout.content_clip_bounds;
 }
 
-std::optional<UiRect> child_clip_rect(const UIDocument::UINode &node) {
+std::optional<UIRect> child_clip_rect(const UIDocument::UINode &node) {
   if (!node.layout.has_content_clip) {
     return std::nullopt;
   }
@@ -234,8 +234,9 @@ glm::vec2 measure_segmented_control_size(
   float total_width = node.style.padding.horizontal();
   for (size_t index = 0u; index < node.segmented_control.options.size(); ++index) {
     total_width += measure_label_width(
-        node, context, node.segmented_control.options[index]
-    ) + k_segmented_item_padding_x * 2.0f;
+                       node, context, node.segmented_control.options[index]
+                   ) +
+                   k_segmented_item_padding_x * 2.0f;
     if (index + 1u < node.segmented_control.options.size()) {
       total_width += node.style.control_gap;
     }
@@ -262,13 +263,13 @@ glm::vec2 measure_chip_group_size(
   return glm::vec2(total_width, node.style.padding.vertical() + item_height);
 }
 
-UiRect
-resolve_single_line_text_rect(const UiRect &content_bounds, float line_height) {
+UIRect
+resolve_single_line_text_rect(const UIRect &content_bounds, float line_height) {
   const float resolved_height = std::max(content_bounds.height, line_height);
   const float y_offset =
       std::max(0.0f, (content_bounds.height - line_height) * 0.5f);
 
-  return UiRect{
+  return UIRect{
       .x = content_bounds.x,
       .y = content_bounds.y + y_offset,
       .width = content_bounds.width,
@@ -279,15 +280,15 @@ resolve_single_line_text_rect(const UiRect &content_bounds, float line_height) {
 void update_checkbox_layout(
     UIDocument::UINode &node, const UILayoutContext &context
 ) {
-  node.layout.checkbox = UiLayoutMetrics::CheckboxLayout{};
+  node.layout.checkbox = UILayoutMetrics::CheckboxLayout{};
 
   const float indicator = std::max(8.0f, node.style.control_indicator_size);
   const float line_height = measure_line_height(node, context);
-  const UiRect content = node.layout.content_bounds;
+  const UIRect content = node.layout.content_bounds;
   const float indicator_y =
       content.y + std::max(0.0f, (content.height - indicator) * 0.5f);
 
-  node.layout.checkbox.indicator_rect = UiRect{
+  node.layout.checkbox.indicator_rect = UIRect{
       .x = content.x,
       .y = indicator_y,
       .width = indicator,
@@ -297,7 +298,7 @@ void update_checkbox_layout(
   const float label_x = node.layout.checkbox.indicator_rect.right() +
                         (node.text.empty() ? 0.0f : node.style.control_gap);
   node.layout.checkbox.label_rect = resolve_single_line_text_rect(
-      UiRect{
+      UIRect{
           .x = label_x,
           .y = content.y,
           .width = std::max(0.0f, content.right() - label_x),
@@ -308,9 +309,9 @@ void update_checkbox_layout(
 }
 
 void update_slider_layout(UIDocument::UINode &node) {
-  node.layout.slider = UiLayoutMetrics::SliderLayout{};
+  node.layout.slider = UILayoutMetrics::SliderLayout{};
 
-  const UiRect content = node.layout.content_bounds;
+  const UIRect content = node.layout.content_bounds;
   const float thumb_radius = std::max(4.0f, node.style.slider_thumb_radius);
   const float track_thickness =
       std::max(2.0f, node.style.slider_track_thickness);
@@ -327,19 +328,19 @@ void update_slider_layout(UIDocument::UINode &node) {
   const float thumb_y =
       content.y + std::max(0.0f, (content.height - thumb_diameter) * 0.5f);
 
-  node.layout.slider.track_rect = UiRect{
+  node.layout.slider.track_rect = UIRect{
       .x = track_x,
       .y = track_y,
       .width = track_width,
       .height = track_thickness,
   };
-  node.layout.slider.fill_rect = UiRect{
+  node.layout.slider.fill_rect = UIRect{
       .x = track_x,
       .y = track_y,
       .width = std::max(0.0f, thumb_center_x - track_x),
       .height = track_thickness,
   };
-  node.layout.slider.thumb_rect = UiRect{
+  node.layout.slider.thumb_rect = UIRect{
       .x = thumb_center_x - thumb_radius,
       .y = thumb_y,
       .width = thumb_diameter,
@@ -350,7 +351,7 @@ void update_slider_layout(UIDocument::UINode &node) {
 void update_select_layout(
     UIDocument::UINode &node, const UILayoutContext &context
 ) {
-  node.layout.select = UiLayoutMetrics::SelectLayout{};
+  node.layout.select = UILayoutMetrics::SelectLayout{};
   if (!node.select.open || node.select.options.empty()) {
     return;
   }
@@ -361,9 +362,7 @@ void update_select_layout(
   float popup_width = node.layout.bounds.width;
   for (const auto &option : node.select.options) {
     popup_width = std::max(
-        popup_width, measure_label_width(node, context, option) +
-                         node.style.padding.horizontal() +
-                         node.style.control_indicator_size
+        popup_width, measure_label_width(node, context, option) + node.style.padding.horizontal() + node.style.control_indicator_size
     );
   }
 
@@ -379,7 +378,7 @@ void update_select_layout(
     popup_y = std::max(0.0f, node.layout.bounds.y - popup_height - 4.0f);
   }
 
-  node.layout.select.popup_rect = UiRect{
+  node.layout.select.popup_rect = UIRect{
       .x = popup_x,
       .y = popup_y,
       .width = popup_width,
@@ -389,7 +388,7 @@ void update_select_layout(
   node.layout.select.option_rects.reserve(node.select.options.size());
   for (size_t index = 0; index < node.select.options.size(); ++index) {
     node.layout.select.option_rects.push_back(
-        UiRect{
+        UIRect{
             .x = popup_x + 4.0f,
             .y = popup_y + 4.0f + row_height * static_cast<float>(index),
             .width = std::max(0.0f, popup_width - 8.0f),
@@ -402,8 +401,8 @@ void update_select_layout(
 void update_segmented_control_layout(
     UIDocument::UINode &node, const UILayoutContext &context
 ) {
-  node.layout.segmented_control = UiLayoutMetrics::SegmentedControlLayout{};
-  const UiRect content = node.layout.content_bounds;
+  node.layout.segmented_control = UILayoutMetrics::SegmentedControlLayout{};
+  const UIRect content = node.layout.content_bounds;
   if (content.width <= 0.0f || content.height <= 0.0f ||
       node.segmented_control.options.empty()) {
     return;
@@ -425,7 +424,7 @@ void update_segmented_control_layout(
     const float item_width =
         measure_label_width(node, context, node.segmented_control.options[index]) +
         k_segmented_item_padding_x * 2.0f;
-    node.layout.segmented_control.item_rects.push_back(UiRect{
+    node.layout.segmented_control.item_rects.push_back(UIRect{
         .x = cursor_x,
         .y = y,
         .width = item_width,
@@ -435,10 +434,9 @@ void update_segmented_control_layout(
   }
 }
 
-void update_chip_group_layout(UIDocument::UINode &node,
-                              const UILayoutContext &context) {
-  node.layout.chip_group = UiLayoutMetrics::ChipGroupLayout{};
-  const UiRect content = node.layout.content_bounds;
+void update_chip_group_layout(UIDocument::UINode &node, const UILayoutContext &context) {
+  node.layout.chip_group = UILayoutMetrics::ChipGroupLayout{};
+  const UIRect content = node.layout.content_bounds;
   if (content.width <= 0.0f || content.height <= 0.0f ||
       node.chip_group.options.empty()) {
     return;
@@ -456,7 +454,7 @@ void update_chip_group_layout(UIDocument::UINode &node,
     const float item_width =
         measure_label_width(node, context, node.chip_group.options[index]) +
         k_chip_item_padding_x * 2.0f;
-    node.layout.chip_group.item_rects.push_back(UiRect{
+    node.layout.chip_group.item_rects.push_back(UIRect{
         .x = cursor_x,
         .y = y,
         .width = item_width,
@@ -466,13 +464,13 @@ void update_chip_group_layout(UIDocument::UINode &node,
   }
 }
 
-void reset_scrollbar_geometry(UiScrollState &scroll) {
+void reset_scrollbar_geometry(UIScrollState &scroll) {
   scroll.vertical_scrollbar_visible = false;
   scroll.horizontal_scrollbar_visible = false;
-  scroll.vertical_track_rect = UiRect{};
-  scroll.vertical_thumb_rect = UiRect{};
-  scroll.horizontal_track_rect = UiRect{};
-  scroll.horizontal_thumb_rect = UiRect{};
+  scroll.vertical_track_rect = UIRect{};
+  scroll.vertical_thumb_rect = UIRect{};
+  scroll.horizontal_track_rect = UIRect{};
+  scroll.horizontal_thumb_rect = UIRect{};
   scroll.vertical_thumb_hovered = false;
   scroll.vertical_thumb_active = false;
   scroll.horizontal_thumb_hovered = false;
@@ -505,14 +503,14 @@ void update_scrollbar_geometry(UIDocument::UINode &node) {
       (node.style.scrollbar_visibility == ScrollbarVisibility::Always ||
        scroll.max_offset.x > 0.0f);
 
-  const UiRect viewport = node.layout.content_bounds;
+  const UIRect viewport = node.layout.content_bounds;
 
   if (show_vertical) {
     const float track_height =
         std::max(0.0f, viewport.height - (show_horizontal ? thickness : 0.0f));
     if (track_height > 0.0f) {
       scroll.vertical_scrollbar_visible = true;
-      scroll.vertical_track_rect = UiRect{
+      scroll.vertical_track_rect = UIRect{
           .x = viewport.right() - thickness,
           .y = viewport.y,
           .width = thickness,
@@ -532,7 +530,7 @@ void update_scrollbar_geometry(UIDocument::UINode &node) {
       const float ratio = scroll.max_offset.y > 0.0f
                               ? scroll.offset.y / scroll.max_offset.y
                               : 0.0f;
-      scroll.vertical_thumb_rect = UiRect{
+      scroll.vertical_thumb_rect = UIRect{
           .x = scroll.vertical_track_rect.x,
           .y = scroll.vertical_track_rect.y + ratio * travel,
           .width = thickness,
@@ -546,7 +544,7 @@ void update_scrollbar_geometry(UIDocument::UINode &node) {
         std::max(0.0f, viewport.width - (show_vertical ? thickness : 0.0f));
     if (track_width > 0.0f) {
       scroll.horizontal_scrollbar_visible = true;
-      scroll.horizontal_track_rect = UiRect{
+      scroll.horizontal_track_rect = UIRect{
           .x = viewport.x,
           .y = viewport.bottom() - thickness,
           .width = track_width,
@@ -566,7 +564,7 @@ void update_scrollbar_geometry(UIDocument::UINode &node) {
       const float ratio = scroll.max_offset.x > 0.0f
                               ? scroll.offset.x / scroll.max_offset.x
                               : 0.0f;
-      scroll.horizontal_thumb_rect = UiRect{
+      scroll.horizontal_thumb_rect = UIRect{
           .x = scroll.horizontal_track_rect.x + ratio * travel,
           .y = scroll.horizontal_track_rect.y,
           .width = thumb_width,
@@ -576,55 +574,31 @@ void update_scrollbar_geometry(UIDocument::UINode &node) {
   }
 }
 
-UiRect resize_handle_rect(const UIDocument::UINode &node, UIHitPart part) {
-  const UiRect bounds = node.layout.bounds;
+UIRect resize_handle_rect(const UIDocument::UINode &node, UIHitPart part) {
+  const UIRect bounds = node.layout.bounds;
   const float thickness = std::max(1.0f, node.style.resize_handle_thickness);
   const float corner_extent =
       std::max(thickness, node.style.resize_corner_extent);
 
   switch (part) {
     case UIHitPart::ResizeLeft:
-      return UiRect{.x = bounds.x,
-                    .y = bounds.y,
-                    .width = thickness,
-                    .height = bounds.height};
+      return UIRect{.x = bounds.x, .y = bounds.y, .width = thickness, .height = bounds.height};
     case UIHitPart::ResizeTop:
-      return UiRect{.x = bounds.x,
-                    .y = bounds.y,
-                    .width = bounds.width,
-                    .height = thickness};
+      return UIRect{.x = bounds.x, .y = bounds.y, .width = bounds.width, .height = thickness};
     case UIHitPart::ResizeRight:
-      return UiRect{.x = bounds.right() - thickness,
-                    .y = bounds.y,
-                    .width = thickness,
-                    .height = bounds.height};
+      return UIRect{.x = bounds.right() - thickness, .y = bounds.y, .width = thickness, .height = bounds.height};
     case UIHitPart::ResizeBottom:
-      return UiRect{.x = bounds.x,
-                    .y = bounds.bottom() - thickness,
-                    .width = bounds.width,
-                    .height = thickness};
+      return UIRect{.x = bounds.x, .y = bounds.bottom() - thickness, .width = bounds.width, .height = thickness};
     case UIHitPart::ResizeTopLeft:
-      return UiRect{.x = bounds.x,
-                    .y = bounds.y,
-                    .width = corner_extent,
-                    .height = corner_extent};
+      return UIRect{.x = bounds.x, .y = bounds.y, .width = corner_extent, .height = corner_extent};
     case UIHitPart::ResizeTopRight:
-      return UiRect{.x = bounds.right() - corner_extent,
-                    .y = bounds.y,
-                    .width = corner_extent,
-                    .height = corner_extent};
+      return UIRect{.x = bounds.right() - corner_extent, .y = bounds.y, .width = corner_extent, .height = corner_extent};
     case UIHitPart::ResizeBottomLeft:
-      return UiRect{.x = bounds.x,
-                    .y = bounds.bottom() - corner_extent,
-                    .width = corner_extent,
-                    .height = corner_extent};
+      return UIRect{.x = bounds.x, .y = bounds.bottom() - corner_extent, .width = corner_extent, .height = corner_extent};
     case UIHitPart::ResizeBottomRight:
-      return UiRect{.x = bounds.right() - corner_extent,
-                    .y = bounds.bottom() - corner_extent,
-                    .width = corner_extent,
-                    .height = corner_extent};
+      return UIRect{.x = bounds.right() - corner_extent, .y = bounds.bottom() - corner_extent, .width = corner_extent, .height = corner_extent};
     default:
-      return UiRect{};
+      return UIRect{};
   }
 }
 
@@ -687,7 +661,7 @@ hit_test_resize_handles(const UIDocument::UINode &node, glm::vec2 point) {
 }
 
 void append_text_commands(
-    UIDocument &document, UINodeId node_id, const UiRect &text_rect,
+    UIDocument &document, UINodeId node_id, const UIRect &text_rect,
     const UIDocument::UINode &node, const UILayoutContext &context,
     const UIResolvedStyle &resolved, std::string_view text,
     glm::vec4 text_color, float text_scroll_x, bool draw_selection,
@@ -720,21 +694,22 @@ void append_text_commands(
     );
 
     if (end_x > start_x) {
-      UiDrawCommand selection_command;
+      UIDrawCommand selection_command;
       selection_command.type = DrawCommandType::Rect;
       selection_command.node_id = node_id;
-      selection_command.rect = UiRect{
+      selection_command.rect = UIRect{
           .x = text_origin.x + start_x,
           .y = text_rect.y,
           .width = end_x - start_x,
-          .height = std::max(text_rect.height, font->line_height(font_size))};
+          .height = std::max(text_rect.height, font->line_height(font_size))
+      };
       apply_content_clip(selection_command, node);
       selection_command.color = resolved.selection_color;
       document.draw_list().commands.push_back(std::move(selection_command));
     }
   }
 
-  UiDrawCommand command;
+  UIDrawCommand command;
   command.type = DrawCommandType::Text;
   command.node_id = node_id;
   command.rect = text_rect;
@@ -754,10 +729,10 @@ void append_text_commands(
         }
     );
 
-    UiDrawCommand caret_command;
+    UIDrawCommand caret_command;
     caret_command.type = DrawCommandType::Rect;
     caret_command.node_id = node_id;
-    caret_command.rect = UiRect{
+    caret_command.rect = UIRect{
         .x = text_origin.x + caret_x,
         .y = text_rect.y,
         .width = 1.0f,
@@ -773,9 +748,9 @@ void append_checkbox_commands(
     UIDocument &document, UINodeId node_id, const UIDocument::UINode &node,
     const UILayoutContext &context, const UIResolvedStyle &resolved
 ) {
-  const UiRect indicator = node.layout.checkbox.indicator_rect;
+  const UIRect indicator = node.layout.checkbox.indicator_rect;
   if (indicator.width > 0.0f && indicator.height > 0.0f) {
-    UiDrawCommand indicator_command;
+    UIDrawCommand indicator_command;
     indicator_command.type = DrawCommandType::Rect;
     indicator_command.node_id = node_id;
     indicator_command.rect = indicator;
@@ -792,7 +767,7 @@ void append_checkbox_commands(
 
     if (node.checkbox.checked) {
       const float inset = std::max(3.0f, indicator.width * 0.2f);
-      UiDrawCommand mark_command;
+      UIDrawCommand mark_command;
       mark_command.type = DrawCommandType::Rect;
       mark_command.node_id = node_id;
       mark_command.rect = inset_rect(indicator, UIEdges::all(inset));
@@ -806,8 +781,7 @@ void append_checkbox_commands(
 
   if (!node.text.empty()) {
     append_text_commands(
-        document, node_id, node.layout.checkbox.label_rect, node, context,
-        resolved, node.text, resolved.text_color, 0.0f, false, false
+        document, node_id, node.layout.checkbox.label_rect, node, context, resolved, node.text, resolved.text_color, 0.0f, false, false
     );
   }
 }
@@ -816,18 +790,16 @@ void append_slider_commands(
     UIDocument &document, UINodeId node_id, const UIDocument::UINode &node,
     const UIResolvedStyle &resolved
 ) {
-  const UiRect track = node.layout.slider.track_rect;
-  const UiRect fill = node.layout.slider.fill_rect;
-  const UiRect thumb = node.layout.slider.thumb_rect;
+  const UIRect track = node.layout.slider.track_rect;
+  const UIRect fill = node.layout.slider.fill_rect;
+  const UIRect thumb = node.layout.slider.thumb_rect;
 
-  auto append_rect = [&](const UiRect &rect, glm::vec4 color, float radius,
-                         glm::vec4 border_color = glm::vec4(0.0f),
-                         float border_width = 0.0f) {
+  auto append_rect = [&](const UIRect &rect, glm::vec4 color, float radius, glm::vec4 border_color = glm::vec4(0.0f), float border_width = 0.0f) {
     if (rect.width <= 0.0f || rect.height <= 0.0f || color.a <= 0.0f) {
       return;
     }
 
-    UiDrawCommand command;
+    UIDrawCommand command;
     command.type = DrawCommandType::Rect;
     command.node_id = node_id;
     command.rect = rect;
@@ -853,8 +825,7 @@ void append_slider_commands(
   }
 
   append_rect(
-      thumb, thumb_color, thumb.width * 0.5f,
-      glm::vec4(0.02f, 0.05f, 0.1f, 0.9f), 1.0f
+      thumb, thumb_color, thumb.width * 0.5f, glm::vec4(0.02f, 0.05f, 0.1f, 0.9f), 1.0f
   );
 }
 
@@ -862,7 +833,7 @@ void append_select_field_commands(
     UIDocument &document, UINodeId node_id, const UIDocument::UINode &node,
     const UILayoutContext &context, const UIResolvedStyle &resolved
 ) {
-  const UiRect content = node.layout.content_bounds;
+  const UIRect content = node.layout.content_bounds;
   const float indicator = std::max(12.0f, node.style.control_indicator_size);
   const float line_height = measure_line_height(node, context);
   const bool has_selection =
@@ -870,8 +841,8 @@ void append_select_field_commands(
       node.select.selected_index < node.select.options.size();
   const std::string_view label = select_display_text(node);
 
-  const UiRect text_rect = resolve_single_line_text_rect(
-      UiRect{
+  const UIRect text_rect = resolve_single_line_text_rect(
+      UIRect{
           .x = content.x,
           .y = content.y,
           .width = std::max(
@@ -882,15 +853,13 @@ void append_select_field_commands(
       line_height
   );
   append_text_commands(
-      document, node_id, text_rect, node, context, resolved, label,
-      has_selection ? resolved.text_color : resolved.placeholder_text_color,
-      0.0f, false, false
+      document, node_id, text_rect, node, context, resolved, label, has_selection ? resolved.text_color : resolved.placeholder_text_color, 0.0f, false, false
   );
 
-  UiDrawCommand arrow_command;
+  UIDrawCommand arrow_command;
   arrow_command.type = DrawCommandType::Text;
   arrow_command.node_id = node_id;
-  arrow_command.rect = UiRect{
+  arrow_command.rect = UIRect{
       .x = std::max(content.x, content.right() - indicator),
       .y = content.y,
       .width = indicator,
@@ -920,7 +889,7 @@ void append_select_overlay_commands(
   const UIResolvedStyle resolved =
       resolve_style(node->style, node->paint_state, true);
 
-  UiDrawCommand popup_command;
+  UIDrawCommand popup_command;
   popup_command.type = DrawCommandType::Rect;
   popup_command.node_id = node_id;
   popup_command.rect = node->layout.select.popup_rect;
@@ -936,29 +905,27 @@ void append_select_overlay_commands(
   const float line_height = measure_line_height(*node, context);
   for (size_t index = 0; index < node->layout.select.option_rects.size();
        ++index) {
-    const UiRect option_rect = node->layout.select.option_rects[index];
+    const UIRect option_rect = node->layout.select.option_rects[index];
     const bool selected = index == node->select.selected_index;
     const bool hovered = node->layout.select.hovered_option_index.has_value() &&
                          *node->layout.select.hovered_option_index == index;
     const bool highlighted = index == node->select.highlighted_index;
 
     if (selected || hovered || highlighted) {
-      UiDrawCommand option_bg;
+      UIDrawCommand option_bg;
       option_bg.type = DrawCommandType::Rect;
       option_bg.node_id = node_id;
       option_bg.rect = option_rect;
       option_bg.color = node->style.accent_color * glm::vec4(
-                                                       1.0f, 1.0f, 1.0f,
-                                                       (hovered       ? 0.28f
-                                                        : highlighted ? 0.22f
-                                                                      : 0.18f) *
-                                                           resolved.opacity
+                                                       1.0f, 1.0f, 1.0f, (hovered ? 0.28f : highlighted ? 0.22f
+                                                                                                        : 0.18f) *
+                                                                             resolved.opacity
                                                    );
       option_bg.border_radius = 6.0f;
       document.draw_list().commands.push_back(std::move(option_bg));
     }
 
-    UiDrawCommand option_text;
+    UIDrawCommand option_text;
     option_text.type = DrawCommandType::Text;
     option_text.node_id = node_id;
     option_text.rect = option_rect;
@@ -983,7 +950,7 @@ void append_segmented_control_commands(
   const float line_height = measure_line_height(node, context);
   for (size_t index = 0u; index < node.layout.segmented_control.item_rects.size();
        ++index) {
-    const UiRect item_rect = node.layout.segmented_control.item_rects[index];
+    const UIRect item_rect = node.layout.segmented_control.item_rects[index];
     const bool selected = index == node.segmented_control.selected_index;
     const bool hovered =
         node.layout.segmented_control.hovered_item_index.has_value() &&
@@ -991,7 +958,7 @@ void append_segmented_control_commands(
     const bool active = node.layout.segmented_control.active_item_index.has_value() &&
                         *node.layout.segmented_control.active_item_index == index;
 
-    UiDrawCommand bg_command;
+    UIDrawCommand bg_command;
     bg_command.type = DrawCommandType::Rect;
     bg_command.node_id = node_id;
     bg_command.rect = item_rect;
@@ -1012,7 +979,7 @@ void append_segmented_control_commands(
     bg_command.border_radius = item_rect.height * 0.5f;
     document.draw_list().commands.push_back(std::move(bg_command));
 
-    UiDrawCommand text_command;
+    UIDrawCommand text_command;
     text_command.type = DrawCommandType::Text;
     text_command.node_id = node_id;
     text_command.rect = item_rect;
@@ -1039,7 +1006,7 @@ void append_chip_group_commands(
   const float line_height = measure_line_height(node, context);
   for (size_t index = 0u; index < node.layout.chip_group.item_rects.size();
        ++index) {
-    const UiRect item_rect = node.layout.chip_group.item_rects[index];
+    const UIRect item_rect = node.layout.chip_group.item_rects[index];
     const bool selected =
         index < node.chip_group.selected.size() && node.chip_group.selected[index];
     const bool hovered = node.layout.chip_group.hovered_item_index.has_value() &&
@@ -1047,7 +1014,7 @@ void append_chip_group_commands(
     const bool active = node.layout.chip_group.active_item_index.has_value() &&
                         *node.layout.chip_group.active_item_index == index;
 
-    UiDrawCommand bg_command;
+    UIDrawCommand bg_command;
     bg_command.type = DrawCommandType::Rect;
     bg_command.node_id = node_id;
     bg_command.rect = item_rect;
@@ -1068,7 +1035,7 @@ void append_chip_group_commands(
     bg_command.border_radius = item_rect.height * 0.5f;
     document.draw_list().commands.push_back(std::move(bg_command));
 
-    UiDrawCommand text_command;
+    UIDrawCommand text_command;
     text_command.type = DrawCommandType::Text;
     text_command.node_id = node_id;
     text_command.rect = item_rect;
@@ -1097,12 +1064,12 @@ void append_scrollbar_commands(
     return;
   }
 
-  auto append_rect = [&](const UiRect &rect, glm::vec4 color) {
+  auto append_rect = [&](const UIRect &rect, glm::vec4 color) {
     if (rect.width <= 0.0f || rect.height <= 0.0f || color.a <= 0.0f) {
       return;
     }
 
-    UiDrawCommand command;
+    UIDrawCommand command;
     command.type = DrawCommandType::Rect;
     command.node_id = node_id;
     command.rect = rect;
@@ -1157,7 +1124,7 @@ void append_resize_handle_commands(
     return;
   }
 
-  UiDrawCommand command;
+  UIDrawCommand command;
   command.type = DrawCommandType::Rect;
   command.node_id = node_id;
   command.rect = resize_handle_rect(node, part);
@@ -1184,11 +1151,11 @@ glm::vec2 measure_container_size(
     return glm::vec2(0.0f);
   }
 
-  const UiRect available_rect{
+  const UIRect available_rect{
       .width = std::max(0.0f, available_size.x),
       .height = std::max(0.0f, available_size.y),
   };
-  const UiRect inner_rect = inset_rect(available_rect, node->style.padding);
+  const UIRect inner_rect = inset_rect(available_rect, node->style.padding);
 
   float total_main = 0.0f;
   float max_cross = 0.0f;
@@ -1202,8 +1169,7 @@ glm::vec2 measure_container_size(
     }
 
     const glm::vec2 child_size = measure_intrinsic_size(
-        document, child_id, glm::vec2(inner_rect.width, inner_rect.height),
-        context
+        document, child_id, glm::vec2(inner_rect.width, inner_rect.height), context
     );
 
     const float horizontal_margin = child->style.margin.horizontal();
@@ -1338,12 +1304,10 @@ glm::vec2 measure_intrinsic_size(
   );
 
   width = clamp_dimension(
-      width, node->style.min_width, node->style.max_width, available_size.x,
-      context.default_font_size
+      width, node->style.min_width, node->style.max_width, available_size.x, context.default_font_size
   );
   height = clamp_dimension(
-      height, node->style.min_height, node->style.max_height, available_size.y,
-      context.default_font_size
+      height, node->style.min_height, node->style.max_height, available_size.y, context.default_font_size
   );
 
   return glm::vec2(width, height);
@@ -1380,8 +1344,8 @@ AlignItems resolve_align(const UIDocument::UINode &node, AlignItems parent) {
 }
 
 void layout_node(
-    UIDocument &document, UINodeId node_id, const UiRect &bounds,
-    std::optional<UiRect> inherited_clip, const UILayoutContext &context
+    UIDocument &document, UINodeId node_id, const UIRect &bounds,
+    std::optional<UIRect> inherited_clip, const UILayoutContext &context
 );
 
 void layout_children(
@@ -1392,7 +1356,7 @@ void layout_children(
     return;
   }
 
-  const UiRect inner_bounds = node->layout.content_bounds;
+  const UIRect inner_bounds = node->layout.content_bounds;
   node->layout.scroll.viewport_size =
       glm::vec2(inner_bounds.width, inner_bounds.height);
   std::vector<FlowItem> flow_items;
@@ -1405,8 +1369,7 @@ void layout_children(
     }
 
     const glm::vec2 preferred = measure_intrinsic_size(
-        document, child_id, glm::vec2(inner_bounds.width, inner_bounds.height),
-        context
+        document, child_id, glm::vec2(inner_bounds.width, inner_bounds.height), context
     );
 
     FlowItem item;
@@ -1418,16 +1381,10 @@ void layout_children(
 
     if (node->style.flex_direction == FlexDirection::Row) {
       item.main_size = resolve_length(
-          child->style.flex_basis, inner_bounds.width,
-          context.default_font_size,
-          resolve_length(
-              child->style.width, inner_bounds.width, context.default_font_size,
-              preferred.x
-          )
+          child->style.flex_basis, inner_bounds.width, context.default_font_size, resolve_length(child->style.width, inner_bounds.width, context.default_font_size, preferred.x)
       );
       item.cross_size = resolve_length(
-          child->style.height, inner_bounds.height, context.default_font_size,
-          preferred.y
+          child->style.height, inner_bounds.height, context.default_font_size, preferred.y
       );
       item.main_margin_leading = child->style.margin.left;
       item.main_margin_trailing = child->style.margin.right;
@@ -1435,16 +1392,10 @@ void layout_children(
       item.cross_margin_trailing = child->style.margin.bottom;
     } else {
       item.main_size = resolve_length(
-          child->style.flex_basis, inner_bounds.height,
-          context.default_font_size,
-          resolve_length(
-              child->style.height, inner_bounds.height,
-              context.default_font_size, preferred.y
-          )
+          child->style.flex_basis, inner_bounds.height, context.default_font_size, resolve_length(child->style.height, inner_bounds.height, context.default_font_size, preferred.y)
       );
       item.cross_size = resolve_length(
-          child->style.width, inner_bounds.width, context.default_font_size,
-          preferred.x
+          child->style.width, inner_bounds.width, context.default_font_size, preferred.x
       );
       item.main_margin_leading = child->style.margin.top;
       item.main_margin_trailing = child->style.margin.bottom;
@@ -1544,7 +1495,7 @@ void layout_children(
       break;
   }
 
-  std::vector<std::pair<UINodeId, UiRect>> planned_bounds;
+  std::vector<std::pair<UINodeId, UIRect>> planned_bounds;
   planned_bounds.reserve(node->children.size());
 
   float cursor = leading_space;
@@ -1559,12 +1510,11 @@ void layout_children(
     float cross_size = item.cross_size;
     if (item.align == AlignItems::Stretch &&
         ((node->style.flex_direction == FlexDirection::Row &&
-          child->style.height.unit == UiLengthUnit::Auto) ||
+          child->style.height.unit == UILengthUnit::Auto) ||
          (node->style.flex_direction == FlexDirection::Column &&
-          child->style.width.unit == UiLengthUnit::Auto))) {
+          child->style.width.unit == UILengthUnit::Auto))) {
       cross_size = std::max(
-          0.0f, container_cross - item.cross_margin_leading -
-                    item.cross_margin_trailing
+          0.0f, container_cross - item.cross_margin_leading - item.cross_margin_trailing
       );
     }
 
@@ -1587,16 +1537,16 @@ void layout_children(
         break;
     }
 
-    UiRect child_bounds;
+    UIRect child_bounds;
     if (node->style.flex_direction == FlexDirection::Row) {
-      child_bounds = UiRect{
+      child_bounds = UIRect{
           .x = inner_bounds.x + cursor + item.main_margin_leading,
           .y = inner_bounds.y + cross_offset + item.cross_margin_leading,
           .width = item.main_size,
           .height = cross_size,
       };
     } else {
-      child_bounds = UiRect{
+      child_bounds = UIRect{
           .x = inner_bounds.x + cross_offset + item.cross_margin_leading,
           .y = inner_bounds.y + cursor + item.main_margin_leading,
           .width = cross_size,
@@ -1622,81 +1572,58 @@ void layout_children(
     }
 
     const glm::vec2 preferred = measure_intrinsic_size(
-        document, child_id, glm::vec2(inner_bounds.width, inner_bounds.height),
-        context
+        document, child_id, glm::vec2(inner_bounds.width, inner_bounds.height), context
     );
 
     float width =
         resolve_length(
-            child->style.width, inner_bounds.width, context.default_font_size,
-            preferred.x
+            child->style.width, inner_bounds.width, context.default_font_size, preferred.x
         );
     float height =
         resolve_length(
-            child->style.height, inner_bounds.height, context.default_font_size,
-            preferred.y
+            child->style.height, inner_bounds.height, context.default_font_size, preferred.y
         );
 
-    if (child->style.left.unit != UiLengthUnit::Auto &&
-        child->style.right.unit != UiLengthUnit::Auto &&
-        child->style.width.unit == UiLengthUnit::Auto) {
+    if (child->style.left.unit != UILengthUnit::Auto &&
+        child->style.right.unit != UILengthUnit::Auto &&
+        child->style.width.unit == UILengthUnit::Auto) {
       width = std::max(
-          0.0f, inner_bounds.width -
-                    resolve_length(
-                        child->style.left, inner_bounds.width,
-                        context.default_font_size
-                    ) -
-                    resolve_length(
-                        child->style.right, inner_bounds.width,
-                        context.default_font_size
-                    )
+          0.0f, inner_bounds.width - resolve_length(child->style.left, inner_bounds.width, context.default_font_size) - resolve_length(child->style.right, inner_bounds.width, context.default_font_size)
       );
     }
 
-    if (child->style.top.unit != UiLengthUnit::Auto &&
-        child->style.bottom.unit != UiLengthUnit::Auto &&
-        child->style.height.unit == UiLengthUnit::Auto) {
+    if (child->style.top.unit != UILengthUnit::Auto &&
+        child->style.bottom.unit != UILengthUnit::Auto &&
+        child->style.height.unit == UILengthUnit::Auto) {
       height = std::max(
-          0.0f, inner_bounds.height -
-                    resolve_length(
-                        child->style.top, inner_bounds.height,
-                        context.default_font_size
-                    ) -
-                    resolve_length(
-                        child->style.bottom, inner_bounds.height,
-                        context.default_font_size
-                    )
+          0.0f, inner_bounds.height - resolve_length(child->style.top, inner_bounds.height, context.default_font_size) - resolve_length(child->style.bottom, inner_bounds.height, context.default_font_size)
       );
     }
 
     const float x =
-        child->style.left.unit != UiLengthUnit::Auto
+        child->style.left.unit != UILengthUnit::Auto
             ? inner_bounds.x +
                   resolve_length(
-                      child->style.left, inner_bounds.width,
-                      context.default_font_size
+                      child->style.left, inner_bounds.width, context.default_font_size
                   )
             : inner_bounds.right() -
                   resolve_length(
-                      child->style.right, inner_bounds.width,
-                      context.default_font_size
+                      child->style.right, inner_bounds.width, context.default_font_size
                   ) -
                   width;
     const float y =
-        child->style.top.unit != UiLengthUnit::Auto
+        child->style.top.unit != UILengthUnit::Auto
             ? inner_bounds.y +
                   resolve_length(
-                      child->style.top, inner_bounds.height,
-                      context.default_font_size
+                      child->style.top, inner_bounds.height, context.default_font_size
                   )
             : inner_bounds.bottom() -
                   resolve_length(
-                      child->style.bottom, inner_bounds.height,
-                      context.default_font_size
+                      child->style.bottom, inner_bounds.height, context.default_font_size
                   ) -
                   height;
 
-    UiRect child_bounds{.x = x, .y = y, .width = width, .height = height};
+    UIRect child_bounds{.x = x, .y = y, .width = width, .height = height};
     if (node_supports_panel_resize(*child)) {
       child_bounds = clamp_rect_to_bounds(child_bounds, inner_bounds);
     }
@@ -1713,8 +1640,7 @@ void layout_children(
       glm::vec2(0.0f)
   );
   node->layout.scroll.offset = clamp_scroll_offset(
-      node->layout.scroll.offset, node->layout.scroll.max_offset,
-      node->style.scroll_mode
+      node->layout.scroll.offset, node->layout.scroll.max_offset, node->style.scroll_mode
   );
   update_scrollbar_geometry(*node);
 
@@ -1728,7 +1654,7 @@ void layout_children(
   );
 
   for (const auto &[child_id, planned_bounds_rect] : planned_bounds) {
-    UiRect translated_bounds = planned_bounds_rect;
+    UIRect translated_bounds = planned_bounds_rect;
     translated_bounds.x += scroll_translation.x;
     translated_bounds.y += scroll_translation.y;
 
@@ -1739,8 +1665,8 @@ void layout_children(
 }
 
 void layout_node(
-    UIDocument &document, UINodeId node_id, const UiRect &bounds,
-    std::optional<UiRect> inherited_clip, const UILayoutContext &context
+    UIDocument &document, UINodeId node_id, const UIRect &bounds,
+    std::optional<UIRect> inherited_clip, const UILayoutContext &context
 ) {
   auto *node = document.node(node_id);
   if (node == nullptr) {
@@ -1752,9 +1678,9 @@ void layout_node(
   node->layout.measured_size = glm::vec2(bounds.width, bounds.height);
 
   node->layout.has_clip = inherited_clip.has_value();
-  node->layout.clip_bounds = inherited_clip.value_or(UiRect{});
+  node->layout.clip_bounds = inherited_clip.value_or(UIRect{});
 
-  std::optional<UiRect> child_clip = inherited_clip;
+  std::optional<UIRect> child_clip = inherited_clip;
   if (node->style.overflow == Overflow::Hidden) {
     child_clip = child_clip.has_value()
                      ? intersect_rect(*child_clip, node->layout.content_bounds)
@@ -1762,7 +1688,7 @@ void layout_node(
   }
 
   node->layout.has_content_clip = child_clip.has_value();
-  node->layout.content_clip_bounds = child_clip.value_or(UiRect{});
+  node->layout.content_clip_bounds = child_clip.value_or(UIRect{});
 
   layout_children(document, node_id, context);
 
@@ -1799,14 +1725,14 @@ void append_draw_commands(
   const bool effective_enabled = parent_enabled && node->enabled;
   const UIResolvedStyle resolved =
       resolve_style(node->style, node->paint_state, effective_enabled);
-  const UiRect bounds = node->layout.bounds;
-  const UiRect content_bounds = node->layout.content_bounds;
+  const UIRect bounds = node->layout.bounds;
+  const UIRect content_bounds = node->layout.content_bounds;
 
   if ((resolved.background_color.a > 0.0f || resolved.border_width > 0.0f) &&
       bounds.width > 0.0f && bounds.height > 0.0f) {
     glm::vec4 fill = resolved.background_color;
     fill.a *= resolved.opacity;
-    UiDrawCommand command;
+    UIDrawCommand command;
     command.type = DrawCommandType::Rect;
     command.node_id = node_id;
     command.rect = bounds;
@@ -1821,7 +1747,7 @@ void append_draw_commands(
 
   if (node->type == NodeType::Image && !node->texture_id.empty() &&
       content_bounds.width > 0.0f && content_bounds.height > 0.0f) {
-    UiDrawCommand command;
+    UIDrawCommand command;
     command.type = DrawCommandType::Image;
     command.node_id = node_id;
     command.rect = content_bounds;
@@ -1834,9 +1760,7 @@ void append_draw_commands(
 
   if (node->type == NodeType::Text && !node->text.empty()) {
     append_text_commands(
-        document, node_id, bounds, *node, context, resolved, node->text,
-        resolved.text_color, 0.0f, !node->selection.empty(),
-        node->paint_state.focused && node->caret.active
+        document, node_id, bounds, *node, context, resolved, node->text, resolved.text_color, 0.0f, !node->selection.empty(), node->paint_state.focused && node->caret.active
     );
   }
 
@@ -1845,18 +1769,15 @@ void append_draw_commands(
     const float font_size = resolve_font_size(*node, context);
     const float line_height =
         font != nullptr ? font->line_height(font_size) : font_size;
-    const UiRect text_rect =
+    const UIRect text_rect =
         resolve_single_line_text_rect(content_bounds, line_height);
 
     if (!node->text.empty()) {
       append_text_commands(
-          document, node_id, text_rect, *node, context, resolved, node->text,
-          resolved.text_color, node->text_scroll_x,
-          node->paint_state.focused && !node->selection.empty(),
-          node->paint_state.focused && node->caret.active
+          document, node_id, text_rect, *node, context, resolved, node->text, resolved.text_color, node->text_scroll_x, node->paint_state.focused && !node->selection.empty(), node->paint_state.focused && node->caret.active
       );
     } else if (!node->placeholder.empty()) {
-      UiDrawCommand placeholder_command;
+      UIDrawCommand placeholder_command;
       placeholder_command.type = DrawCommandType::Text;
       placeholder_command.node_id = node_id;
       placeholder_command.rect = text_rect;
@@ -1871,10 +1792,10 @@ void append_draw_commands(
 
       if (node->paint_state.focused && node->caret.active &&
           node->caret.visible) {
-        UiDrawCommand caret_command;
+        UIDrawCommand caret_command;
         caret_command.type = DrawCommandType::Rect;
         caret_command.node_id = node_id;
-        caret_command.rect = UiRect{
+        caret_command.rect = UIRect{
             .x = text_rect.x,
             .y = text_rect.y,
             .width = 1.0f,
@@ -1884,12 +1805,11 @@ void append_draw_commands(
         caret_command.color = resolved.caret_color;
         document.draw_list().commands.push_back(std::move(caret_command));
       }
-    } else if (node->paint_state.focused && node->caret.active &&
-               node->caret.visible) {
-      UiDrawCommand caret_command;
+    } else if (node->paint_state.focused && node->caret.active && node->caret.visible) {
+      UIDrawCommand caret_command;
       caret_command.type = DrawCommandType::Rect;
       caret_command.node_id = node_id;
-      caret_command.rect = UiRect{
+      caret_command.rect = UIRect{
           .x = text_rect.x,
           .y = text_rect.y,
           .width = 1.0f,
@@ -1914,8 +1834,7 @@ void append_draw_commands(
   }
 
   if (node->type == NodeType::SegmentedControl) {
-    append_segmented_control_commands(document, node_id, *node, context,
-                                      resolved);
+    append_segmented_control_commands(document, node_id, *node, context, resolved);
   }
 
   if (node->type == NodeType::ChipGroup) {
@@ -1930,7 +1849,7 @@ void append_draw_commands(
   append_resize_handle_commands(document, node_id, *node, resolved);
 }
 
-std::optional<UiHitResult>
+std::optional<UIHitResult>
 hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
   const auto *node = document.node(node_id);
   if (node == nullptr || !node->visible || !node->enabled) {
@@ -1947,28 +1866,26 @@ hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
 
   if (auto resize_hit = hit_test_resize_handles(*node, point);
       resize_hit.has_value()) {
-    return UiHitResult{.node_id = node_id, .part = *resize_hit};
+    return UIHitResult{.node_id = node_id, .part = *resize_hit};
   }
 
   if (node->type == NodeType::Splitter) {
-    return UiHitResult{.node_id = node_id, .part = UIHitPart::SplitterBar};
+    return UIHitResult{.node_id = node_id, .part = UIHitPart::SplitterBar};
   }
 
   if (node->type == NodeType::Slider) {
     if (node->layout.slider.thumb_rect.contains(point)) {
-      return UiHitResult{.node_id = node_id, .part = UIHitPart::SliderThumb};
+      return UIHitResult{.node_id = node_id, .part = UIHitPart::SliderThumb};
     }
 
-    return UiHitResult{.node_id = node_id, .part = UIHitPart::SliderTrack};
+    return UIHitResult{.node_id = node_id, .part = UIHitPart::SliderTrack};
   }
 
   if (node->type == NodeType::SegmentedControl) {
     for (size_t index = 0u; index < node->layout.segmented_control.item_rects.size();
          ++index) {
       if (node->layout.segmented_control.item_rects[index].contains(point)) {
-        return UiHitResult{.node_id = node_id,
-                           .part = UIHitPart::SegmentedControlItem,
-                           .item_index = index};
+        return UIHitResult{.node_id = node_id, .part = UIHitPart::SegmentedControlItem, .item_index = index};
       }
     }
   }
@@ -1977,36 +1894,33 @@ hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
     for (size_t index = 0u; index < node->layout.chip_group.item_rects.size();
          ++index) {
       if (node->layout.chip_group.item_rects[index].contains(point)) {
-        return UiHitResult{
-            .node_id = node_id, .part = UIHitPart::ChipItem, .item_index = index};
+        return UIHitResult{
+            .node_id = node_id, .part = UIHitPart::ChipItem, .item_index = index
+        };
       }
     }
   }
 
   if (node->type == NodeType::Select) {
-    return UiHitResult{.node_id = node_id, .part = UIHitPart::SelectField};
+    return UIHitResult{.node_id = node_id, .part = UIHitPart::SelectField};
   }
 
   if (node->type == NodeType::ScrollView) {
     if (node->layout.scroll.vertical_scrollbar_visible) {
       if (node->layout.scroll.vertical_thumb_rect.contains(point)) {
-        return UiHitResult{.node_id = node_id,
-                           .part = UIHitPart::VerticalScrollbarThumb};
+        return UIHitResult{.node_id = node_id, .part = UIHitPart::VerticalScrollbarThumb};
       }
       if (node->layout.scroll.vertical_track_rect.contains(point)) {
-        return UiHitResult{.node_id = node_id,
-                           .part = UIHitPart::VerticalScrollbarTrack};
+        return UIHitResult{.node_id = node_id, .part = UIHitPart::VerticalScrollbarTrack};
       }
     }
 
     if (node->layout.scroll.horizontal_scrollbar_visible) {
       if (node->layout.scroll.horizontal_thumb_rect.contains(point)) {
-        return UiHitResult{.node_id = node_id,
-                           .part = UIHitPart::HorizontalScrollbarThumb};
+        return UIHitResult{.node_id = node_id, .part = UIHitPart::HorizontalScrollbarThumb};
       }
       if (node->layout.scroll.horizontal_track_rect.contains(point)) {
-        return UiHitResult{.node_id = node_id,
-                           .part = UIHitPart::HorizontalScrollbarTrack};
+        return UIHitResult{.node_id = node_id, .part = UIHitPart::HorizontalScrollbarTrack};
       }
     }
   }
@@ -2018,7 +1932,7 @@ hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
     }
   }
 
-  return UiHitResult{
+  return UIHitResult{
       .node_id = node_id,
       .part = node->type == NodeType::TextInput ? UIHitPart::TextInputText
                                                 : UIHitPart::Body,
@@ -2043,30 +1957,28 @@ void layout_document(UIDocument &document, const UILayoutContext &context) {
       measure_intrinsic_size(document, root_id, context.viewport_size, context);
 
   const float width = resolve_length(
-      root->style.width, context.viewport_size.x, context.default_font_size,
-      std::max(context.viewport_size.x, preferred.x)
+      root->style.width, context.viewport_size.x, context.default_font_size, std::max(context.viewport_size.x, preferred.x)
   );
   const float height = resolve_length(
-      root->style.height, context.viewport_size.y, context.default_font_size,
-      std::max(context.viewport_size.y, preferred.y)
+      root->style.height, context.viewport_size.y, context.default_font_size, std::max(context.viewport_size.y, preferred.y)
   );
 
   layout_node(
-      document, root_id,
-      UiRect{
-          .x = 0.0f,
-          .y = 0.0f,
-          .width = width,
-          .height = height,
-      },
-      std::nullopt, context
+      document, root_id, UIRect{
+                             .x = 0.0f,
+                             .y = 0.0f,
+                             .width = width,
+                             .height = height,
+                         },
+      std::nullopt,
+      context
   );
 
   document.mark_paint_dirty();
   document.clear_layout_dirty();
 }
 
-std::optional<UiHitResult>
+std::optional<UIHitResult>
 hit_test_document(const UIDocument &document, glm::vec2 point) {
   if (document.root() == k_invalid_node_id) {
     return std::nullopt;
@@ -2080,7 +1992,7 @@ hit_test_document(const UIDocument &document, glm::vec2 point) {
       for (size_t index = 0; index < select->layout.select.option_rects.size();
            ++index) {
         if (select->layout.select.option_rects[index].contains(point)) {
-          return UiHitResult{
+          return UIHitResult{
               .node_id = open_select_id,
               .part = UIHitPart::SelectOption,
               .item_index = index,

@@ -24,14 +24,14 @@ public:
     Target target;
     ui::UIHitPart part = ui::UIHitPart::Body;
     glm::vec2 start_pointer = glm::vec2(0.0f);
-    ui::UiRect start_bounds;
+    ui::UIRect start_bounds;
   };
 
   struct PanelMoveDrag {
     Target panel_target;
     Target handle_target;
     glm::vec2 start_pointer = glm::vec2(0.0f);
-    ui::UiRect start_bounds;
+    ui::UIRect start_bounds;
   };
 
   struct SplitterResizeDrag {
@@ -70,11 +70,11 @@ private:
   };
 
   struct QueuedCharacterInput {
-    ui::UiCharacterInputEvent event;
+    ui::UICharacterInputEvent event;
   };
 
   struct QueuedMouseWheelInput {
-    ui::UiMouseWheelInputEvent event;
+    ui::UIMouseWheelInputEvent event;
   };
 
   std::vector<ui_system_core::RootEntry>

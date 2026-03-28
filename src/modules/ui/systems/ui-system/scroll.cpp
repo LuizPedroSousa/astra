@@ -1,14 +1,13 @@
 #include "systems/ui-system/scroll.hpp"
 
-#include "systems/ui-system/core.hpp"
 #include "foundations.hpp"
+#include "systems/ui-system/core.hpp"
 #include <algorithm>
 
 namespace astralix::ui_system_core {
 namespace {
 
-glm::vec2 wheel_delta_pixels_for_node(const ui::UIDocument::UINode &node,
-                                      const ui::UiMouseWheelInputEvent &event) {
+glm::vec2 wheel_delta_pixels_for_node(const ui::UIDocument::UINode &node, const ui::UIMouseWheelInputEvent &event) {
   glm::vec2 delta(0.0f);
   const float horizontal_pixels = -event.offset.x * 36.0f;
   const float vertical_pixels = -event.offset.y * 36.0f;
@@ -51,9 +50,7 @@ void clear_scrollbar_visual_state(const RootEntry &entry) {
 } // namespace
 
 std::optional<ScrollDispatch>
-find_scroll_dispatch(const std::vector<RootEntry> &roots,
-                     const Target &deepest_target,
-                     const ui::UiMouseWheelInputEvent &event) {
+find_scroll_dispatch(const std::vector<RootEntry> &roots, const Target &deepest_target, const ui::UIMouseWheelInputEvent &event) {
   if (deepest_target.document == nullptr) {
     return std::nullopt;
   }
@@ -72,8 +69,7 @@ find_scroll_dispatch(const std::vector<RootEntry> &roots,
       const glm::vec2 delta = wheel_delta_pixels_for_node(*node, event);
       if (delta != glm::vec2(0.0f)) {
         const glm::vec2 next_offset =
-            ui::clamp_scroll_offset(scroll->offset + delta, scroll->max_offset,
-                                    node->style.scroll_mode);
+            ui::clamp_scroll_offset(scroll->offset + delta, scroll->max_offset, node->style.scroll_mode);
         if (next_offset != scroll->offset) {
           return ScrollDispatch{
               .target =
@@ -94,8 +90,7 @@ find_scroll_dispatch(const std::vector<RootEntry> &roots,
   return std::nullopt;
 }
 
-void page_scroll_track(const Target &target, ui::UIHitPart part,
-                       glm::vec2 pointer) {
+void page_scroll_track(const Target &target, ui::UIHitPart part, glm::vec2 pointer) {
   if (target.document == nullptr) {
     return;
   }
@@ -108,29 +103,27 @@ void page_scroll_track(const Target &target, ui::UIHitPart part,
 
   glm::vec2 next_offset = scroll->offset;
   switch (part) {
-  case ui::UIHitPart::VerticalScrollbarTrack:
-    next_offset.y += pointer.y < scroll->vertical_thumb_rect.y
-                         ? -scroll->viewport_size.y
-                         : scroll->viewport_size.y;
-    break;
-  case ui::UIHitPart::HorizontalScrollbarTrack:
-    next_offset.x += pointer.x < scroll->horizontal_thumb_rect.x
-                         ? -scroll->viewport_size.x
-                         : scroll->viewport_size.x;
-    break;
-  default:
-    return;
+    case ui::UIHitPart::VerticalScrollbarTrack:
+      next_offset.y += pointer.y < scroll->vertical_thumb_rect.y
+                           ? -scroll->viewport_size.y
+                           : scroll->viewport_size.y;
+      break;
+    case ui::UIHitPart::HorizontalScrollbarTrack:
+      next_offset.x += pointer.x < scroll->horizontal_thumb_rect.x
+                           ? -scroll->viewport_size.x
+                           : scroll->viewport_size.x;
+      break;
+    default:
+      return;
   }
 
-  next_offset = ui::clamp_scroll_offset(next_offset, scroll->max_offset,
-                                        node->style.scroll_mode);
+  next_offset = ui::clamp_scroll_offset(next_offset, scroll->max_offset, node->style.scroll_mode);
   if (next_offset != scroll->offset) {
     target.document->set_scroll_offset(target.node_id, next_offset);
   }
 }
 
-void update_scrollbar_drag(const Target &target, ui::UIHitPart part,
-                           float grab_offset, glm::vec2 pointer) {
+void update_scrollbar_drag(const Target &target, ui::UIHitPart part, float grab_offset, glm::vec2 pointer) {
   if (target.document == nullptr) {
     return;
   }
@@ -143,32 +136,29 @@ void update_scrollbar_drag(const Target &target, ui::UIHitPart part,
 
   glm::vec2 next_offset = scroll->offset;
   switch (part) {
-  case ui::UIHitPart::VerticalScrollbarThumb: {
-    const float travel = std::max(0.0f, scroll->vertical_track_rect.height -
-                                            scroll->vertical_thumb_rect.height);
-    const float thumb_position = std::clamp(
-        pointer.y - scroll->vertical_track_rect.y - grab_offset, 0.0f, travel);
-    const float ratio = travel > 0.0f ? thumb_position / travel : 0.0f;
-    next_offset.y = scroll->max_offset.y * ratio;
-    break;
-  }
-  case ui::UIHitPart::HorizontalScrollbarThumb: {
-    const float travel =
-        std::max(0.0f, scroll->horizontal_track_rect.width -
-                           scroll->horizontal_thumb_rect.width);
-    const float thumb_position =
-        std::clamp(pointer.x - scroll->horizontal_track_rect.x - grab_offset,
-                   0.0f, travel);
-    const float ratio = travel > 0.0f ? thumb_position / travel : 0.0f;
-    next_offset.x = scroll->max_offset.x * ratio;
-    break;
-  }
-  default:
-    return;
+    case ui::UIHitPart::VerticalScrollbarThumb: {
+      const float travel = std::max(0.0f, scroll->vertical_track_rect.height - scroll->vertical_thumb_rect.height);
+      const float thumb_position = std::clamp(
+          pointer.y - scroll->vertical_track_rect.y - grab_offset, 0.0f, travel
+      );
+      const float ratio = travel > 0.0f ? thumb_position / travel : 0.0f;
+      next_offset.y = scroll->max_offset.y * ratio;
+      break;
+    }
+    case ui::UIHitPart::HorizontalScrollbarThumb: {
+      const float travel =
+          std::max(0.0f, scroll->horizontal_track_rect.width - scroll->horizontal_thumb_rect.width);
+      const float thumb_position =
+          std::clamp(pointer.x - scroll->horizontal_track_rect.x - grab_offset, 0.0f, travel);
+      const float ratio = travel > 0.0f ? thumb_position / travel : 0.0f;
+      next_offset.x = scroll->max_offset.x * ratio;
+      break;
+    }
+    default:
+      return;
   }
 
-  next_offset = ui::clamp_scroll_offset(next_offset, scroll->max_offset,
-                                        node->style.scroll_mode);
+  next_offset = ui::clamp_scroll_offset(next_offset, scroll->max_offset, node->style.scroll_mode);
   if (next_offset != scroll->offset) {
     target.document->set_scroll_offset(target.node_id, next_offset);
   }
@@ -177,7 +167,8 @@ void update_scrollbar_drag(const Target &target, ui::UIHitPart part,
 void apply_scrollbar_visual_state(
     const std::vector<RootEntry> &roots,
     const std::optional<PointerHit> &hover_hit,
-    const std::optional<std::pair<Target, ui::UIHitPart>> &active_scrollbar) {
+    const std::optional<std::pair<Target, ui::UIHitPart>> &active_scrollbar
+) {
   for (const RootEntry &entry : roots) {
     clear_scrollbar_visual_state(entry);
   }
@@ -187,14 +178,14 @@ void apply_scrollbar_visual_state(
             hover_hit->target.document->scroll_state(hover_hit->target.node_id);
         scroll != nullptr) {
       switch (hover_hit->part) {
-      case ui::UIHitPart::VerticalScrollbarThumb:
-        scroll->vertical_thumb_hovered = true;
-        break;
-      case ui::UIHitPart::HorizontalScrollbarThumb:
-        scroll->horizontal_thumb_hovered = true;
-        break;
-      default:
-        break;
+        case ui::UIHitPart::VerticalScrollbarThumb:
+          scroll->vertical_thumb_hovered = true;
+          break;
+        case ui::UIHitPart::HorizontalScrollbarThumb:
+          scroll->horizontal_thumb_hovered = true;
+          break;
+        default:
+          break;
       }
     }
   }
@@ -202,19 +193,20 @@ void apply_scrollbar_visual_state(
   if (active_scrollbar.has_value() &&
       active_scrollbar->first.document != nullptr) {
     if (auto *scroll = active_scrollbar->first.document->scroll_state(
-            active_scrollbar->first.node_id);
+            active_scrollbar->first.node_id
+        );
         scroll != nullptr) {
       switch (active_scrollbar->second) {
-      case ui::UIHitPart::VerticalScrollbarThumb:
-        scroll->vertical_thumb_hovered = true;
-        scroll->vertical_thumb_active = true;
-        break;
-      case ui::UIHitPart::HorizontalScrollbarThumb:
-        scroll->horizontal_thumb_hovered = true;
-        scroll->horizontal_thumb_active = true;
-        break;
-      default:
-        break;
+        case ui::UIHitPart::VerticalScrollbarThumb:
+          scroll->vertical_thumb_hovered = true;
+          scroll->vertical_thumb_active = true;
+          break;
+        case ui::UIHitPart::HorizontalScrollbarThumb:
+          scroll->horizontal_thumb_hovered = true;
+          scroll->horizontal_thumb_active = true;
+          break;
+        default:
+          break;
       }
     }
   }

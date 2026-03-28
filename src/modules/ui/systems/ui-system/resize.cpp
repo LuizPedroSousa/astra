@@ -1,7 +1,7 @@
 #include "systems/ui-system/resize.hpp"
 
-#include "systems/ui-system/core.hpp"
 #include "foundations.hpp"
+#include "systems/ui-system/core.hpp"
 #include "window.hpp"
 #include <algorithm>
 
@@ -26,40 +26,40 @@ void clear_resize_visual_state(const RootEntry &entry) {
 
 } // namespace
 
-CursorIcon cursor_icon_for_hit_part(const ui::UIDocument &document,
-                                    ui::UINodeId node_id, ui::UIHitPart part) {
+CursorIcon cursor_icon_for_hit_part(const ui::UIDocument &document, ui::UINodeId node_id, ui::UIHitPart part) {
   switch (part) {
-  case ui::UIHitPart::ResizeLeft:
-  case ui::UIHitPart::ResizeRight:
-    return CursorIcon::ResizeHorizontal;
-  case ui::UIHitPart::ResizeTop:
-  case ui::UIHitPart::ResizeBottom:
-    return CursorIcon::ResizeVertical;
-  case ui::UIHitPart::ResizeTopLeft:
-  case ui::UIHitPart::ResizeBottomRight:
-    return CursorIcon::ResizeDiagonalNwSe;
-  case ui::UIHitPart::ResizeTopRight:
-  case ui::UIHitPart::ResizeBottomLeft:
-    return CursorIcon::ResizeDiagonalNeSw;
-  case ui::UIHitPart::SplitterBar: {
-    const auto *node = document.node(node_id);
-    const auto *parent =
-        node != nullptr ? document.node(node->parent) : nullptr;
-    const ui::FlexDirection direction = parent != nullptr
-                                            ? parent->style.flex_direction
-                                            : ui::FlexDirection::Row;
-    return direction == ui::FlexDirection::Row ? CursorIcon::ResizeHorizontal
-                                               : CursorIcon::ResizeVertical;
-  }
-  default:
-    return CursorIcon::Default;
+    case ui::UIHitPart::ResizeLeft:
+    case ui::UIHitPart::ResizeRight:
+      return CursorIcon::ResizeHorizontal;
+    case ui::UIHitPart::ResizeTop:
+    case ui::UIHitPart::ResizeBottom:
+      return CursorIcon::ResizeVertical;
+    case ui::UIHitPart::ResizeTopLeft:
+    case ui::UIHitPart::ResizeBottomRight:
+      return CursorIcon::ResizeDiagonalNwSe;
+    case ui::UIHitPart::ResizeTopRight:
+    case ui::UIHitPart::ResizeBottomLeft:
+      return CursorIcon::ResizeDiagonalNeSw;
+    case ui::UIHitPart::SplitterBar: {
+      const auto *node = document.node(node_id);
+      const auto *parent =
+          node != nullptr ? document.node(node->parent) : nullptr;
+      const ui::FlexDirection direction = parent != nullptr
+                                              ? parent->style.flex_direction
+                                              : ui::FlexDirection::Row;
+      return direction == ui::FlexDirection::Row ? CursorIcon::ResizeHorizontal
+                                                 : CursorIcon::ResizeVertical;
+    }
+    default:
+      return CursorIcon::Default;
   }
 }
 
 void apply_resize_visual_state(
     const std::vector<RootEntry> &roots,
     const std::optional<PointerHit> &hover_hit,
-    const std::optional<std::pair<Target, ui::UIHitPart>> &active_hit) {
+    const std::optional<std::pair<Target, ui::UIHitPart>> &active_hit
+) {
   for (const RootEntry &entry : roots) {
     clear_resize_visual_state(entry);
   }
@@ -84,8 +84,7 @@ void apply_resize_visual_state(
   }
 }
 
-void update_panel_move_drag(const UISystem::PanelMoveDrag &drag,
-                            glm::vec2 pointer) {
+void update_panel_move_drag(const UISystem::PanelMoveDrag &drag, glm::vec2 pointer) {
   if (drag.panel_target.document == nullptr) {
     return;
   }
@@ -95,12 +94,11 @@ void update_panel_move_drag(const UISystem::PanelMoveDrag &drag,
     return;
   }
 
-  const ui::UiRect parent_bounds =
-      parent_content_bounds(*drag.panel_target.document,
-                            drag.panel_target.node_id);
+  const ui::UIRect parent_bounds =
+      parent_content_bounds(*drag.panel_target.document, drag.panel_target.node_id);
   const glm::vec2 delta = pointer - drag.start_pointer;
 
-  ui::UiRect next_bounds = drag.start_bounds;
+  ui::UIRect next_bounds = drag.start_bounds;
   next_bounds.x = drag.start_bounds.x + delta.x;
   next_bounds.y = drag.start_bounds.y + delta.y;
   next_bounds = ui::clamp_rect_to_bounds(next_bounds, parent_bounds);
@@ -125,8 +123,7 @@ begin_splitter_resize_drag(const Target &target, glm::vec2 pointer) {
   }
 
   auto find_adjacent = [&](int step) -> ui::UINodeId {
-    auto it = std::find(parent->children.begin(), parent->children.end(),
-                        target.node_id);
+    auto it = std::find(parent->children.begin(), parent->children.end(), target.node_id);
     if (it == parent->children.end()) {
       return ui::k_invalid_node_id;
     }
@@ -174,7 +171,8 @@ begin_splitter_resize_drag(const Target &target, glm::vec2 pointer) {
       previous_node_id, [previous_size](ui::UIStyle &style) {
         style.flex_basis = ui::UILength::pixels(previous_size);
         style.flex_grow = 0.0f;
-      });
+      }
+  );
   target.document->mutate_style(next_node_id, [next_size](ui::UIStyle &style) {
     style.flex_basis = ui::UILength::pixels(next_size);
     style.flex_grow = 0.0f;
@@ -191,14 +189,14 @@ begin_splitter_resize_drag(const Target &target, glm::vec2 pointer) {
   };
 }
 
-void update_splitter_resize_drag(const UISystem::SplitterResizeDrag &drag,
-                                 glm::vec2 pointer) {
+void update_splitter_resize_drag(const UISystem::SplitterResizeDrag &drag, glm::vec2 pointer) {
   if (drag.target.document == nullptr) {
     return;
   }
 
   const auto *parent = drag.target.document->node(
-      drag.target.document->parent(drag.target.node_id));
+      drag.target.document->parent(drag.target.node_id)
+  );
   const auto *previous_node = drag.target.document->node(drag.previous_node_id);
   const auto *next_node = drag.target.document->node(drag.next_node_id);
   if (parent == nullptr || previous_node == nullptr || next_node == nullptr) {
@@ -215,14 +213,14 @@ void update_splitter_resize_drag(const UISystem::SplitterResizeDrag &drag,
       drag.target.document != nullptr ? drag.target.document->root_font_size()
                                       : 16.0f;
   const auto [previous_min, previous_max] = resolved_main_axis_limits(
-      *previous_node, parent_basis, drag.parent_direction, rem_basis);
+      *previous_node, parent_basis, drag.parent_direction, rem_basis
+  );
   const auto [next_min, next_max] = resolved_main_axis_limits(
-      *next_node, parent_basis, drag.parent_direction, rem_basis);
+      *next_node, parent_basis, drag.parent_direction, rem_basis
+  );
 
-  const float delta_min = std::max(previous_min - drag.previous_start_size,
-                                   drag.next_start_size - next_max);
-  const float delta_max = std::min(previous_max - drag.previous_start_size,
-                                   drag.next_start_size - next_min);
+  const float delta_min = std::max(previous_min - drag.previous_start_size, drag.next_start_size - next_max);
+  const float delta_max = std::min(previous_max - drag.previous_start_size, drag.next_start_size - next_min);
   if (delta_min > delta_max) {
     return;
   }
@@ -235,16 +233,17 @@ void update_splitter_resize_drag(const UISystem::SplitterResizeDrag &drag,
       drag.previous_node_id, [previous_size](ui::UIStyle &style) {
         style.flex_basis = ui::UILength::pixels(previous_size);
         style.flex_grow = 0.0f;
-      });
+      }
+  );
   drag.target.document->mutate_style(
       drag.next_node_id, [next_size](ui::UIStyle &style) {
         style.flex_basis = ui::UILength::pixels(next_size);
         style.flex_grow = 0.0f;
-      });
+      }
+  );
 }
 
-void update_panel_resize_drag(const UISystem::PanelResizeDrag &drag,
-                              glm::vec2 pointer) {
+void update_panel_resize_drag(const UISystem::PanelResizeDrag &drag, glm::vec2 pointer) {
   if (drag.target.document == nullptr) {
     return;
   }
@@ -254,11 +253,11 @@ void update_panel_resize_drag(const UISystem::PanelResizeDrag &drag,
     return;
   }
 
-  const ui::UiRect parent_bounds =
+  const ui::UIRect parent_bounds =
       parent_content_bounds(*drag.target.document, drag.target.node_id);
   const glm::vec2 delta = pointer - drag.start_pointer;
 
-  ui::UiRect next_bounds = drag.start_bounds;
+  ui::UIRect next_bounds = drag.start_bounds;
   if (resize_part_moves_left_edge(drag.part)) {
     next_bounds.x = drag.start_bounds.x + delta.x;
     next_bounds.width = drag.start_bounds.width - delta.x;
@@ -276,32 +275,23 @@ void update_panel_resize_drag(const UISystem::PanelResizeDrag &drag,
 
   const float min_width =
       resolve_min_length(
-          node->style.min_width, parent_bounds.width,
-          drag.target.document != nullptr ? drag.target.document->root_font_size()
-                                          : 16.0f
+          node->style.min_width, parent_bounds.width, drag.target.document != nullptr ? drag.target.document->root_font_size() : 16.0f
       );
   const float max_width =
       resolve_max_length(
-          node->style.max_width, parent_bounds.width,
-          drag.target.document != nullptr ? drag.target.document->root_font_size()
-                                          : 16.0f
+          node->style.max_width, parent_bounds.width, drag.target.document != nullptr ? drag.target.document->root_font_size() : 16.0f
       );
   const float min_height =
       resolve_min_length(
-          node->style.min_height, parent_bounds.height,
-          drag.target.document != nullptr ? drag.target.document->root_font_size()
-                                          : 16.0f
+          node->style.min_height, parent_bounds.height, drag.target.document != nullptr ? drag.target.document->root_font_size() : 16.0f
       );
   const float max_height =
       resolve_max_length(
-          node->style.max_height, parent_bounds.height,
-          drag.target.document != nullptr ? drag.target.document->root_font_size()
-                                          : 16.0f
+          node->style.max_height, parent_bounds.height, drag.target.document != nullptr ? drag.target.document->root_font_size() : 16.0f
       );
 
   next_bounds = ui::clamp_panel_resize_bounds(
-      drag.start_bounds, next_bounds, parent_bounds, drag.part, min_width,
-      max_width, min_height, max_height
+      drag.start_bounds, next_bounds, parent_bounds, drag.part, min_width, max_width, min_height, max_height
   );
 
   write_absolute_bounds_to_style(drag.target, parent_bounds, next_bounds);

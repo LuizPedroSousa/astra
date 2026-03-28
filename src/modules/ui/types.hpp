@@ -122,7 +122,7 @@ enum class UIHitPart : uint8_t {
   HorizontalScrollbarTrack,
 };
 
-enum class UiLengthUnit : uint8_t {
+enum class UILengthUnit : uint8_t {
   Auto,
   Pixels,
   Percent,
@@ -130,19 +130,19 @@ enum class UiLengthUnit : uint8_t {
 };
 
 struct UILength {
-  UiLengthUnit unit = UiLengthUnit::Auto;
+  UILengthUnit unit = UILengthUnit::Auto;
   float value = 0.0f;
 
   static UILength pixels(float value) {
-    return UILength{.unit = UiLengthUnit::Pixels, .value = value};
+    return UILength{.unit = UILengthUnit::Pixels, .value = value};
   }
 
   static UILength percent(float value) {
-    return UILength{.unit = UiLengthUnit::Percent, .value = value};
+    return UILength{.unit = UILengthUnit::Percent, .value = value};
   }
 
   static UILength rem(float value) {
-    return UILength{.unit = UiLengthUnit::Rem, .value = value};
+    return UILength{.unit = UILengthUnit::Rem, .value = value};
   }
 
   static UILength auto_value() { return UILength{}; }
@@ -176,7 +176,7 @@ struct UIEdges {
   float vertical() const { return top + bottom; }
 };
 
-struct UiRect {
+struct UIRect {
   float x = 0.0f;
   float y = 0.0f;
   float width = 0.0f;
@@ -191,22 +191,22 @@ struct UiRect {
   }
 };
 
-inline bool intersects(const UiRect &lhs, const UiRect &rhs) {
+inline bool intersects(const UIRect &lhs, const UIRect &rhs) {
   return lhs.x < rhs.right() && lhs.right() > rhs.x && lhs.y < rhs.bottom() &&
          lhs.bottom() > rhs.y;
 }
 
-inline UiRect intersect_rect(const UiRect &lhs, const UiRect &rhs) {
+inline UIRect intersect_rect(const UIRect &lhs, const UIRect &rhs) {
   const float left = std::max(lhs.x, rhs.x);
   const float top = std::max(lhs.y, rhs.y);
   const float right = std::min(lhs.right(), rhs.right());
   const float bottom = std::min(lhs.bottom(), rhs.bottom());
 
   if (right <= left || bottom <= top) {
-    return UiRect{};
+    return UIRect{};
   }
 
-  return UiRect{
+  return UIRect{
       .x = left,
       .y = top,
       .width = right - left,
@@ -214,11 +214,11 @@ inline UiRect intersect_rect(const UiRect &lhs, const UiRect &rhs) {
   };
 }
 
-inline UiRect inset_rect(const UiRect &rect, const UIEdges &inset) {
+inline UIRect inset_rect(const UIRect &rect, const UIEdges &inset) {
   const float width = std::max(0.0f, rect.width - inset.horizontal());
   const float height = std::max(0.0f, rect.height - inset.vertical());
 
-  return UiRect{
+  return UIRect{
       .x = rect.x + inset.left,
       .y = rect.y + inset.top,
       .width = width,
@@ -226,7 +226,7 @@ inline UiRect inset_rect(const UiRect &rect, const UIEdges &inset) {
   };
 }
 
-struct UiStateStyle {
+struct UIStateStyle {
   std::optional<glm::vec4> background_color;
   std::optional<glm::vec4> border_color;
   std::optional<float> border_width;
@@ -304,99 +304,99 @@ struct UIStyle {
   float slider_track_thickness = 6.0f;
   float slider_thumb_radius = 8.0f;
 
-  UiStateStyle hovered_style;
-  UiStateStyle pressed_style;
-  UiStateStyle focused_style;
-  UiStateStyle disabled_style;
+  UIStateStyle hovered_style;
+  UIStateStyle pressed_style;
+  UIStateStyle focused_style;
+  UIStateStyle disabled_style;
 };
 
-struct UiCheckboxState {
+struct UICheckboxState {
   bool checked = false;
 };
 
-struct UiSliderState {
+struct UISliderState {
   float value = 0.0f;
   float min_value = 0.0f;
   float max_value = 1.0f;
   float step = 0.1f;
 };
 
-struct UiSelectState {
+struct UISelectState {
   std::vector<std::string> options;
   size_t selected_index = 0u;
   size_t highlighted_index = 0u;
   bool open = false;
 };
 
-struct UiSegmentedControlState {
+struct UISegmentedControlState {
   std::vector<std::string> options;
   size_t selected_index = 0u;
 };
 
-struct UiChipGroupState {
+struct UIChipGroupState {
   std::vector<std::string> options;
   std::vector<bool> selected;
 };
 
-struct UiScrollState {
+struct UIScrollState {
   glm::vec2 offset = glm::vec2(0.0f);
   glm::vec2 max_offset = glm::vec2(0.0f);
   glm::vec2 content_size = glm::vec2(0.0f);
   glm::vec2 viewport_size = glm::vec2(0.0f);
   bool vertical_scrollbar_visible = false;
   bool horizontal_scrollbar_visible = false;
-  UiRect vertical_track_rect;
-  UiRect vertical_thumb_rect;
-  UiRect horizontal_track_rect;
-  UiRect horizontal_thumb_rect;
+  UIRect vertical_track_rect;
+  UIRect vertical_thumb_rect;
+  UIRect horizontal_track_rect;
+  UIRect horizontal_thumb_rect;
   bool vertical_thumb_hovered = false;
   bool vertical_thumb_active = false;
   bool horizontal_thumb_hovered = false;
   bool horizontal_thumb_active = false;
 };
 
-struct UiLayoutMetrics {
+struct UILayoutMetrics {
   struct CheckboxLayout {
-    UiRect indicator_rect;
-    UiRect label_rect;
+    UIRect indicator_rect;
+    UIRect label_rect;
   };
 
   struct SliderLayout {
-    UiRect track_rect;
-    UiRect fill_rect;
-    UiRect thumb_rect;
+    UIRect track_rect;
+    UIRect fill_rect;
+    UIRect thumb_rect;
   };
 
   struct SelectLayout {
-    UiRect popup_rect;
-    std::vector<UiRect> option_rects;
+    UIRect popup_rect;
+    std::vector<UIRect> option_rects;
     std::optional<size_t> hovered_option_index;
   };
 
   struct SegmentedControlLayout {
-    std::vector<UiRect> item_rects;
+    std::vector<UIRect> item_rects;
     std::optional<size_t> hovered_item_index;
     std::optional<size_t> active_item_index;
   };
 
   struct ChipGroupLayout {
-    std::vector<UiRect> item_rects;
+    std::vector<UIRect> item_rects;
     std::optional<size_t> hovered_item_index;
     std::optional<size_t> active_item_index;
   };
 
-  UiRect bounds;
-  UiRect content_bounds;
-  UiRect clip_bounds;
+  UIRect bounds;
+  UIRect content_bounds;
+  UIRect clip_bounds;
   bool has_clip = false;
-  UiRect content_clip_bounds;
+  UIRect content_clip_bounds;
   glm::vec2 measured_size = glm::vec2(0.0f);
   CheckboxLayout checkbox;
   SliderLayout slider;
   SelectLayout select;
   SegmentedControlLayout segmented_control;
   ChipGroupLayout chip_group;
-  UiScrollState scroll;
+  UIScrollState scroll;
   UIHitPart resize_hovered_part = UIHitPart::Body;
   UIHitPart resize_active_part = UIHitPart::Body;
   bool has_content_clip = false;
@@ -417,7 +417,7 @@ struct UITextSelection {
   size_t end() const { return std::max(anchor, focus); }
 };
 
-struct UiCaretState {
+struct UICaretState {
   size_t index = 0u;
   bool active = false;
   bool visible = true;
@@ -430,17 +430,17 @@ struct UIKeyInputEvent {
   bool repeat = false;
 };
 
-struct UiCharacterInputEvent {
+struct UICharacterInputEvent {
   uint32_t codepoint = 0u;
   input::KeyModifiers modifiers;
 };
 
-struct UiMouseWheelInputEvent {
+struct UIMouseWheelInputEvent {
   glm::vec2 offset = glm::vec2(0.0f);
   input::KeyModifiers modifiers;
 };
 
-struct UiHitResult {
+struct UIHitResult {
   UINodeId node_id = k_invalid_node_id;
   UIHitPart part = UIHitPart::Body;
   std::optional<size_t> item_index;
@@ -465,11 +465,11 @@ enum class DrawCommandType : uint8_t {
   Text,
 };
 
-struct UiDrawCommand {
+struct UIDrawCommand {
   DrawCommandType type = DrawCommandType::Rect;
   UINodeId node_id = k_invalid_node_id;
-  UiRect rect;
-  UiRect clip_rect;
+  UIRect rect;
+  UIRect clip_rect;
   bool has_clip = false;
   glm::vec4 color = glm::vec4(1.0f);
   glm::vec4 border_color = glm::vec4(0.0f);
@@ -483,8 +483,8 @@ struct UiDrawCommand {
   glm::vec4 tint = glm::vec4(1.0f);
 };
 
-struct UiDrawList {
-  std::vector<UiDrawCommand> commands;
+struct UIDrawList {
+  std::vector<UIDrawCommand> commands;
 
   void clear() { commands.clear(); }
 };

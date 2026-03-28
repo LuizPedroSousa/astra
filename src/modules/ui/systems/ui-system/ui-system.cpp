@@ -2,14 +2,14 @@
 
 #include "event-dispatcher.hpp"
 #include "events/mouse-listener.hpp"
+#include "foundations.hpp"
+#include "layout.hpp"
 #include "managers/scene-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "systems/ui-system/controls.hpp"
 #include "systems/ui-system/resize.hpp"
 #include "systems/ui-system/scroll.hpp"
 #include "systems/ui-system/text-input.hpp"
-#include "foundations.hpp"
-#include "layout.hpp"
 #include <algorithm>
 
 namespace astralix {
@@ -21,37 +21,36 @@ void UISystem::start() {
   dispatcher->attach<input::KeyboardListener, input::KeyPressedEvent>(
       [this](input::KeyPressedEvent *event) {
         m_key_inputs.push_back(QueuedKeyInput{
-            .event =
-                ui::UIKeyInputEvent{
-                    .key_code = event->key_code,
-                    .modifiers = event->modifiers,
-                    .repeat = event->repeat,
-                },
+            .event = ui::UIKeyInputEvent{
+                .key_code = event->key_code,
+                .modifiers = event->modifiers,
+                .repeat = event->repeat,
+            },
         });
-      });
+      }
+  );
 
   dispatcher->attach<input::KeyboardListener, input::CharacterInputEvent>(
       [this](input::CharacterInputEvent *event) {
         m_character_inputs.push_back(QueuedCharacterInput{
-            .event =
-                ui::UiCharacterInputEvent{
-                    .codepoint = event->codepoint,
-                    .modifiers = event->modifiers,
-                },
+            .event = ui::UICharacterInputEvent{
+                .codepoint = event->codepoint,
+                .modifiers = event->modifiers,
+            },
         });
-      });
+      }
+  );
 
   dispatcher->attach<MouseListener, MouseWheelEvent>(
       [this](MouseWheelEvent *event) {
         m_mouse_wheel_inputs.push_back(QueuedMouseWheelInput{
-            .event =
-                ui::UiMouseWheelInputEvent{
-                    .offset = glm::vec2(static_cast<float>(event->xoffset),
-                                        static_cast<float>(event->yoffset)),
-                    .modifiers = event->modifiers,
-                },
+            .event = ui::UIMouseWheelInputEvent{
+                .offset = glm::vec2(static_cast<float>(event->xoffset), static_cast<float>(event->yoffset)),
+                .modifiers = event->modifiers,
+            },
         });
-      });
+      }
+  );
 }
 
 void UISystem::fixed_update(double) {}
@@ -73,8 +72,7 @@ void UISystem::update(double dt) {
   m_last_scene = scene;
 
   auto &world = scene->world();
-  const glm::vec2 viewport_size(static_cast<float>(window->width()),
-                                static_cast<float>(window->height()));
+  const glm::vec2 viewport_size(static_cast<float>(window->width()), static_cast<float>(window->height()));
   const bool pointer_enabled = !input::IS_CURSOR_CAPTURED();
 
   auto roots = gather_root_entries(world, viewport_size);
@@ -86,8 +84,7 @@ void UISystem::update(double dt) {
 
   update_active_drags(roots, pointer_enabled, pointer, viewport_size);
   resolve_hot_target(roots, deepest_hit);
-  handle_pointer_press(roots, deepest_hit, pointer_enabled, pointer,
-                       viewport_size);
+  handle_pointer_press(roots, deepest_hit, pointer_enabled, pointer, viewport_size);
   handle_pointer_release(pointer_enabled, deepest_hit);
   dispatch_key_input(roots, viewport_size);
   dispatch_character_input(roots, viewport_size);
@@ -101,8 +98,7 @@ void UISystem::update(double dt) {
 }
 
 std::vector<detail::RootEntry>
-UISystem::gather_root_entries(ecs::World &world,
-                              const glm::vec2 &viewport_size) const {
+UISystem::gather_root_entries(ecs::World &world, const glm::vec2 &viewport_size) const {
   std::vector<detail::RootEntry> roots;
   world.each<rendering::UIRoot>([&](EntityID entity_id,
                                     rendering::UIRoot &root) {
@@ -117,10 +113,9 @@ UISystem::gather_root_entries(ecs::World &world,
     });
   });
 
-  std::sort(roots.begin(), roots.end(),
-            [](const detail::RootEntry &lhs, const detail::RootEntry &rhs) {
-              return lhs.root->sort_order < rhs.root->sort_order;
-            });
+  std::sort(roots.begin(), roots.end(), [](const detail::RootEntry &lhs, const detail::RootEntry &rhs) {
+    return lhs.root->sort_order < rhs.root->sort_order;
+  });
 
   for (const detail::RootEntry &entry : roots) {
     auto context = detail::make_context(entry, viewport_size);
@@ -134,7 +129,8 @@ UISystem::gather_root_entries(ecs::World &world,
 
 void UISystem::process_programmatic_focus(
     const std::vector<detail::RootEntry> &roots,
-    const glm::vec2 &viewport_size) {
+    const glm::vec2 &viewport_size
+) {
   for (const detail::RootEntry &entry : roots) {
     if (!entry.root->input_enabled || entry.document == nullptr) {
       continue;
@@ -149,8 +145,7 @@ void UISystem::process_programmatic_focus(
     auto requested_target =
         detail::target_from_node(entry, requested_focus_node);
     if (!requested_target.has_value() ||
-        !ui::node_chain_allows_interaction(*entry.document,
-                                           requested_focus_node)) {
+        !ui::node_chain_allows_interaction(*entry.document, requested_focus_node)) {
       continue;
     }
 
@@ -162,15 +157,13 @@ void UISystem::process_programmatic_focus(
           requested_target->document->node(requested_target->node_id);
       if (requested_node != nullptr &&
           requested_node->type == ui::NodeType::TextInput) {
-        detail::focus_text_input(*requested_target, *context,
-                                 requested_node->select_all_on_focus);
+        detail::focus_text_input(*requested_target, *context, requested_node->select_all_on_focus);
       }
     }
   }
 }
 
-void UISystem::validate_targets(const std::vector<detail::RootEntry> &roots,
-                                bool scene_changed, bool pointer_enabled) {
+void UISystem::validate_targets(const std::vector<detail::RootEntry> &roots, bool scene_changed, bool pointer_enabled) {
   if (!detail::target_available(roots, m_focused_target, true)) {
     clear_focused_target(true);
   }
@@ -215,8 +208,7 @@ void UISystem::validate_targets(const std::vector<detail::RootEntry> &roots,
 }
 
 std::optional<detail::PointerHit>
-UISystem::hit_test(const std::vector<detail::RootEntry> &roots,
-                   bool pointer_enabled, glm::vec2 &pointer) const {
+UISystem::hit_test(const std::vector<detail::RootEntry> &roots, bool pointer_enabled, glm::vec2 &pointer) const {
   if (!pointer_enabled) {
     return std::nullopt;
   }
@@ -244,10 +236,7 @@ UISystem::hit_test(const std::vector<detail::RootEntry> &roots,
   return std::nullopt;
 }
 
-void UISystem::update_active_drags(const std::vector<detail::RootEntry> &roots,
-                                   bool pointer_enabled,
-                                   const glm::vec2 &pointer,
-                                   const glm::vec2 &viewport_size) {
+void UISystem::update_active_drags(const std::vector<detail::RootEntry> &roots, bool pointer_enabled, const glm::vec2 &pointer, const glm::vec2 &viewport_size) {
   if (!pointer_enabled ||
       !input::IS_MOUSE_BUTTON_DOWN(input::MouseButton::Left)) {
     return;
@@ -260,23 +249,23 @@ void UISystem::update_active_drags(const std::vector<detail::RootEntry> &roots,
   } else if (m_splitter_resize_drag.has_value()) {
     detail::update_splitter_resize_drag(*m_splitter_resize_drag, pointer);
   } else if (m_scrollbar_drag.has_value()) {
-    detail::update_scrollbar_drag(m_scrollbar_drag->target,
-                                  m_scrollbar_drag->part,
-                                  m_scrollbar_drag->grab_offset, pointer);
+    detail::update_scrollbar_drag(m_scrollbar_drag->target, m_scrollbar_drag->part, m_scrollbar_drag->grab_offset, pointer);
   } else if (m_slider_drag.has_value()) {
     detail::update_slider_drag(m_slider_drag->target, pointer);
   } else if (m_text_selection_drag.has_value()) {
     if (auto context = detail::context_for_target(
-            roots, m_text_selection_drag->target, viewport_size);
+            roots, m_text_selection_drag->target, viewport_size
+        );
         context.has_value()) {
       const auto *node = m_text_selection_drag->target.document->node(
-          m_text_selection_drag->target.node_id);
+          m_text_selection_drag->target.node_id
+      );
       if (node != nullptr && node->type == ui::NodeType::TextInput) {
         const size_t focus_index =
             detail::text_input_index_from_pointer(*node, *context, pointer);
         detail::set_text_input_selection_and_caret(
-            m_text_selection_drag->target, m_text_selection_drag->anchor_index,
-            focus_index, *context);
+            m_text_selection_drag->target, m_text_selection_drag->anchor_index, focus_index, *context
+        );
       }
     }
   }
@@ -284,7 +273,8 @@ void UISystem::update_active_drags(const std::vector<detail::RootEntry> &roots,
 
 void UISystem::resolve_hot_target(
     const std::vector<detail::RootEntry> &roots,
-    const std::optional<detail::PointerHit> &deepest_hit) {
+    const std::optional<detail::PointerHit> &deepest_hit
+) {
   std::optional<Target> next_hot_target;
   if (m_panel_move_drag.has_value()) {
     next_hot_target = m_panel_move_drag->handle_target;
@@ -294,23 +284,24 @@ void UISystem::resolve_hot_target(
     next_hot_target = m_slider_drag->target;
   } else if (m_text_selection_drag.has_value()) {
     next_hot_target = m_text_selection_drag->target;
-  } else if (!m_scrollbar_drag.has_value() &&
-             !m_panel_resize_drag.has_value() &&
-             !m_splitter_resize_drag.has_value() && deepest_hit.has_value()) {
+  } else if (!m_scrollbar_drag.has_value() && !m_panel_resize_drag.has_value() && !m_splitter_resize_drag.has_value() && deepest_hit.has_value()) {
     const detail::RootEntry *root_entry =
         detail::find_root_entry(roots, deepest_hit->target);
     if (root_entry != nullptr && !ui::is_scrollbar_part(deepest_hit->part) &&
         !ui::is_panel_resize_part(deepest_hit->part)) {
       next_hot_target = detail::find_hoverable_target(
-          *root_entry, deepest_hit->target.node_id);
+          *root_entry, deepest_hit->target.node_id
+      );
       if (!next_hot_target.has_value() &&
           deepest_hit->part == ui::UIHitPart::Body) {
         auto drag_handle_target = detail::find_drag_handle_target(
-            *root_entry, deepest_hit->target.node_id);
+            *root_entry, deepest_hit->target.node_id
+        );
         if (drag_handle_target.has_value() &&
             detail::find_draggable_panel_target(
                 *root_entry, drag_handle_target->node_id
-            ).has_value()) {
+            )
+                .has_value()) {
           next_hot_target = drag_handle_target;
         }
       }
@@ -337,7 +328,8 @@ void UISystem::resolve_hot_target(
 void UISystem::handle_pointer_press(
     const std::vector<detail::RootEntry> &roots,
     const std::optional<detail::PointerHit> &deepest_hit, bool pointer_enabled,
-    const glm::vec2 &pointer, const glm::vec2 &viewport_size) {
+    const glm::vec2 &pointer, const glm::vec2 &viewport_size
+) {
   if (!pointer_enabled ||
       !input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Left)) {
     return;
@@ -389,10 +381,10 @@ void UISystem::handle_pointer_press(
   bool was_focused_before_press = false;
   bool selected_all_on_focus = false;
   auto focus_target = detail::map_to_ancestor_target(
-      *root_entry, deepest_hit->target.node_id,
-      [](const ui::UIDocument &document, ui::UINodeId node_id) {
+      *root_entry, deepest_hit->target.node_id, [](const ui::UIDocument &document, ui::UINodeId node_id) {
         return ui::find_nearest_focusable_ancestor(document, node_id);
-      });
+      }
+  );
 
   if (focus_target.has_value()) {
     was_focused_before_press =
@@ -476,8 +468,7 @@ void UISystem::handle_pointer_press(
 
   if (deepest_hit->part == ui::UIHitPart::SelectOption &&
       deepest_hit->item_index.has_value()) {
-    detail::confirm_select_option(deepest_hit->target, *deepest_hit->item_index,
-                                  true);
+    detail::confirm_select_option(deepest_hit->target, *deepest_hit->item_index, true);
     return;
   }
 
@@ -504,8 +495,7 @@ void UISystem::handle_pointer_press(
       m_slider_drag = SliderDrag{.target = *m_active_target};
       detail::update_slider_drag(*m_active_target, pointer);
     } else if (node->type == ui::NodeType::TextInput) {
-      if (auto context = detail::context_for_target(roots, *m_active_target,
-                                                    viewport_size);
+      if (auto context = detail::context_for_target(roots, *m_active_target, viewport_size);
           context.has_value()) {
         const bool extend_selection =
             detail::shift_pressed() && was_focused_before_press;
@@ -520,7 +510,8 @@ void UISystem::handle_pointer_press(
                                              : node->selection.anchor)
                   : focus_index;
           detail::set_text_input_selection_and_caret(
-              *m_active_target, anchor_index, focus_index, *context);
+              *m_active_target, anchor_index, focus_index, *context
+          );
           m_text_selection_drag = TextSelectionDrag{
               .target = *m_active_target,
               .anchor_index = anchor_index,
@@ -533,7 +524,8 @@ void UISystem::handle_pointer_press(
 
 void UISystem::handle_pointer_release(
     bool pointer_enabled,
-    const std::optional<detail::PointerHit> &deepest_hit) {
+    const std::optional<detail::PointerHit> &deepest_hit
+) {
   if (!pointer_enabled ||
       !input::IS_MOUSE_BUTTON_RELEASED(input::MouseButton::Left)) {
     return;
@@ -574,8 +566,7 @@ void UISystem::handle_pointer_release(
         released_item_part == ui::UIHitPart::SegmentedControlItem &&
         deepest_hit->item_index.has_value() &&
         deepest_hit->item_index == released_item_index) {
-      detail::select_segmented_option(*released_target, *deepest_hit->item_index,
-                                      true);
+      detail::select_segmented_option(*released_target, *deepest_hit->item_index, true);
     }
   } else if (released_node->type == ui::NodeType::ChipGroup) {
     if (deepest_hit->part == ui::UIHitPart::ChipItem &&
@@ -589,13 +580,11 @@ void UISystem::handle_pointer_release(
   } else if (released_node->type == ui::NodeType::Select) {
     const bool next_open =
         !released_target->document->select_open(released_target->node_id);
-    released_target->document->set_select_open(released_target->node_id,
-                                               next_open);
+    released_target->document->set_select_open(released_target->node_id, next_open);
   }
 }
 
-void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots,
-                                  const glm::vec2 &viewport_size) {
+void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, const glm::vec2 &viewport_size) {
   const auto focus_order = detail::collect_focus_order(roots);
   for (const QueuedKeyInput &queued_key : m_key_inputs) {
     const auto &event = queued_key.event;
@@ -607,7 +596,8 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots,
                    m_focused_target->entity_id == target.entity_id &&
                    m_focused_target->document == target.document &&
                    m_focused_target->node_id == target.node_id;
-          });
+          }
+      );
 
       size_t next_index = backwards ? focus_order.size() - 1u : 0u;
       if (current_it != focus_order.end()) {
@@ -623,13 +613,14 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots,
 
       set_focused_target(focus_order[next_index]);
       if (auto context = detail::context_for_target(
-              roots, focus_order[next_index], viewport_size);
+              roots, focus_order[next_index], viewport_size
+          );
           context.has_value()) {
         const auto *node = focus_order[next_index].document->node(
-            focus_order[next_index].node_id);
+            focus_order[next_index].node_id
+        );
         if (node != nullptr && node->type == ui::NodeType::TextInput) {
-          detail::focus_text_input(focus_order[next_index], *context,
-                                   node->select_all_on_focus);
+          detail::focus_text_input(focus_order[next_index], *context, node->select_all_on_focus);
         }
       }
       continue;
@@ -648,8 +639,7 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots,
 
     bool handled_builtin_key = false;
     if (node->type == ui::NodeType::TextInput) {
-      if (auto context = detail::context_for_target(roots, *m_focused_target,
-                                                    viewport_size);
+      if (auto context = detail::context_for_target(roots, *m_focused_target, viewport_size);
           context.has_value()) {
         const bool extend_selection = event.modifiers.shift;
         const bool primary_shortcut = event.modifiers.primary_shortcut();
@@ -665,250 +655,236 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots,
               extend ? (current->selection.empty() ? current->caret.index
                                                    : current->selection.anchor)
                      : next_index;
-          detail::set_text_input_selection_and_caret(*m_focused_target, anchor,
-                                                     next_index, *context);
+          detail::set_text_input_selection_and_caret(*m_focused_target, anchor, next_index, *context);
         };
 
         switch (event.key_code) {
-        case input::KeyCode::Escape:
-          clear_focused_target(true);
-          handled_builtin_key = true;
-          break;
-        case input::KeyCode::Enter:
-        case input::KeyCode::KPEnter:
-          if (!node->read_only && node->on_submit) {
-            auto callback = node->on_submit;
-            auto value = node->text;
-            document->queue_callback([callback, value]() { callback(value); });
-          }
-          if (node->caret.active) {
-            document->reset_caret_blink(m_focused_target->node_id);
-          }
-          handled_builtin_key = true;
-          break;
-        case input::KeyCode::A:
-          if (primary_shortcut) {
-            detail::set_text_input_selection_and_caret(*m_focused_target, 0u,
-                                                       text_size, *context);
+          case input::KeyCode::Escape:
+            clear_focused_target(true);
             handled_builtin_key = true;
-          }
-          break;
-        case input::KeyCode::C:
-          if (primary_shortcut) {
-            input::SET_CLIPBOARD_TEXT(detail::selected_text(*node));
-            handled_builtin_key = true;
-          }
-          break;
-        case input::KeyCode::X:
-          if (primary_shortcut) {
-            input::SET_CLIPBOARD_TEXT(detail::selected_text(*node));
-            if (!node->read_only) {
-              const auto [start, end] = detail::edit_range(*node);
-              std::string next_text = node->text;
-              next_text.erase(start, end - start);
-              detail::apply_text_input_value(*m_focused_target,
-                                             std::move(next_text), start,
-                                             *context, true);
+            break;
+          case input::KeyCode::Enter:
+          case input::KeyCode::KPEnter:
+            if (!node->read_only && node->on_submit) {
+              auto callback = node->on_submit;
+              auto value = node->text;
+              document->queue_callback([callback, value]() { callback(value); });
+            }
+            if (node->caret.active) {
+              document->reset_caret_blink(m_focused_target->node_id);
             }
             handled_builtin_key = true;
-          }
-          break;
-        case input::KeyCode::V:
-          if (primary_shortcut) {
-            if (!node->read_only) {
-              const std::string pasted =
-                  ui::sanitize_ascii_text(input::CLIPBOARD_TEXT());
-              if (!pasted.empty()) {
+            break;
+          case input::KeyCode::A:
+            if (primary_shortcut) {
+              detail::set_text_input_selection_and_caret(*m_focused_target, 0u, text_size, *context);
+              handled_builtin_key = true;
+            }
+            break;
+          case input::KeyCode::C:
+            if (primary_shortcut) {
+              input::SET_CLIPBOARD_TEXT(detail::selected_text(*node));
+              handled_builtin_key = true;
+            }
+            break;
+          case input::KeyCode::X:
+            if (primary_shortcut) {
+              input::SET_CLIPBOARD_TEXT(detail::selected_text(*node));
+              if (!node->read_only) {
                 const auto [start, end] = detail::edit_range(*node);
                 std::string next_text = node->text;
-                next_text.replace(start, end - start, pasted);
-                detail::apply_text_input_value(
-                    *m_focused_target, std::move(next_text),
-                    start + pasted.size(), *context, true);
-              } else if (node->caret.active) {
-                document->reset_caret_blink(m_focused_target->node_id);
+                next_text.erase(start, end - start);
+                detail::apply_text_input_value(*m_focused_target, std::move(next_text), start, *context, true);
               }
+              handled_builtin_key = true;
+            }
+            break;
+          case input::KeyCode::V:
+            if (primary_shortcut) {
+              if (!node->read_only) {
+                const std::string pasted =
+                    ui::sanitize_ascii_text(input::CLIPBOARD_TEXT());
+                if (!pasted.empty()) {
+                  const auto [start, end] = detail::edit_range(*node);
+                  std::string next_text = node->text;
+                  next_text.replace(start, end - start, pasted);
+                  detail::apply_text_input_value(
+                      *m_focused_target, std::move(next_text), start + pasted.size(), *context, true
+                  );
+                } else if (node->caret.active) {
+                  document->reset_caret_blink(m_focused_target->node_id);
+                }
+              }
+              handled_builtin_key = true;
+            }
+            break;
+          case input::KeyCode::Backspace:
+            if (!node->read_only) {
+              if (!node->selection.empty()) {
+                const size_t start = node->selection.start();
+                std::string next_text = node->text;
+                next_text.erase(start, node->selection.end() - start);
+                detail::apply_text_input_value(*m_focused_target, std::move(next_text), start, *context, true);
+              } else if (node->caret.index > 0u) {
+                std::string next_text = node->text;
+                next_text.erase(node->caret.index - 1u, 1u);
+                detail::apply_text_input_value(
+                    *m_focused_target, std::move(next_text), node->caret.index - 1u, *context, true
+                );
+              }
+              handled_builtin_key = true;
+            }
+            break;
+          case input::KeyCode::Delete:
+            if (!node->read_only) {
+              if (!node->selection.empty()) {
+                const size_t start = node->selection.start();
+                std::string next_text = node->text;
+                next_text.erase(start, node->selection.end() - start);
+                detail::apply_text_input_value(*m_focused_target, std::move(next_text), start, *context, true);
+              } else if (node->caret.index < node->text.size()) {
+                std::string next_text = node->text;
+                next_text.erase(node->caret.index, 1u);
+                detail::apply_text_input_value(*m_focused_target, std::move(next_text), node->caret.index, *context, true);
+              }
+              handled_builtin_key = true;
+            }
+            break;
+          case input::KeyCode::Left:
+            if (node->selection.empty()) {
+              move_caret(node->caret.index > 0u ? node->caret.index - 1u : 0u, extend_selection);
+            } else if (extend_selection) {
+              move_caret(node->caret.index > 0u ? node->caret.index - 1u : 0u, true);
+            } else {
+              move_caret(node->selection.start(), false);
             }
             handled_builtin_key = true;
-          }
-          break;
-        case input::KeyCode::Backspace:
-          if (!node->read_only) {
-            if (!node->selection.empty()) {
-              const size_t start = node->selection.start();
-              std::string next_text = node->text;
-              next_text.erase(start, node->selection.end() - start);
-              detail::apply_text_input_value(*m_focused_target,
-                                             std::move(next_text), start,
-                                             *context, true);
-            } else if (node->caret.index > 0u) {
-              std::string next_text = node->text;
-              next_text.erase(node->caret.index - 1u, 1u);
-              detail::apply_text_input_value(
-                  *m_focused_target, std::move(next_text),
-                  node->caret.index - 1u, *context, true);
+            break;
+          case input::KeyCode::Right:
+            if (node->selection.empty()) {
+              move_caret(std::min(node->caret.index + 1u, text_size), extend_selection);
+            } else if (extend_selection) {
+              move_caret(std::min(node->caret.index + 1u, text_size), true);
+            } else {
+              move_caret(node->selection.end(), false);
             }
             handled_builtin_key = true;
-          }
-          break;
-        case input::KeyCode::Delete:
-          if (!node->read_only) {
-            if (!node->selection.empty()) {
-              const size_t start = node->selection.start();
-              std::string next_text = node->text;
-              next_text.erase(start, node->selection.end() - start);
-              detail::apply_text_input_value(*m_focused_target,
-                                             std::move(next_text), start,
-                                             *context, true);
-            } else if (node->caret.index < node->text.size()) {
-              std::string next_text = node->text;
-              next_text.erase(node->caret.index, 1u);
-              detail::apply_text_input_value(*m_focused_target,
-                                             std::move(next_text),
-                                             node->caret.index, *context, true);
-            }
+            break;
+          case input::KeyCode::Home:
+            move_caret(0u, extend_selection);
             handled_builtin_key = true;
-          }
-          break;
-        case input::KeyCode::Left:
-          if (node->selection.empty()) {
-            move_caret(node->caret.index > 0u ? node->caret.index - 1u : 0u,
-                       extend_selection);
-          } else if (extend_selection) {
-            move_caret(node->caret.index > 0u ? node->caret.index - 1u : 0u,
-                       true);
-          } else {
-            move_caret(node->selection.start(), false);
-          }
-          handled_builtin_key = true;
-          break;
-        case input::KeyCode::Right:
-          if (node->selection.empty()) {
-            move_caret(std::min(node->caret.index + 1u, text_size),
-                       extend_selection);
-          } else if (extend_selection) {
-            move_caret(std::min(node->caret.index + 1u, text_size), true);
-          } else {
-            move_caret(node->selection.end(), false);
-          }
-          handled_builtin_key = true;
-          break;
-        case input::KeyCode::Home:
-          move_caret(0u, extend_selection);
-          handled_builtin_key = true;
-          break;
-        case input::KeyCode::End:
-          move_caret(text_size, extend_selection);
-          handled_builtin_key = true;
-          break;
-        default:
-          break;
+            break;
+          case input::KeyCode::End:
+            move_caret(text_size, extend_selection);
+            handled_builtin_key = true;
+            break;
+          default:
+            break;
         }
       }
     } else if (node->type == ui::NodeType::Checkbox) {
       switch (event.key_code) {
-      case input::KeyCode::Space:
-      case input::KeyCode::Enter:
-      case input::KeyCode::KPEnter:
-        detail::toggle_checkbox_value(*m_focused_target, true);
-        handled_builtin_key = true;
-        break;
-      default:
-        break;
+        case input::KeyCode::Space:
+        case input::KeyCode::Enter:
+        case input::KeyCode::KPEnter:
+          detail::toggle_checkbox_value(*m_focused_target, true);
+          handled_builtin_key = true;
+          break;
+        default:
+          break;
       }
     } else if (node->type == ui::NodeType::Slider) {
       switch (event.key_code) {
-      case input::KeyCode::Left:
-      case input::KeyCode::Down:
-        detail::apply_slider_value(
-            *m_focused_target, node->slider.value - node->slider.step, true);
-        handled_builtin_key = true;
-        break;
-      case input::KeyCode::Right:
-      case input::KeyCode::Up:
-        detail::apply_slider_value(
-            *m_focused_target, node->slider.value + node->slider.step, true);
-        handled_builtin_key = true;
-        break;
-      case input::KeyCode::Home:
-        detail::apply_slider_value(*m_focused_target, node->slider.min_value,
-                                   true);
-        handled_builtin_key = true;
-        break;
-      case input::KeyCode::End:
-        detail::apply_slider_value(*m_focused_target, node->slider.max_value,
-                                   true);
-        handled_builtin_key = true;
-        break;
-      default:
-        break;
+        case input::KeyCode::Left:
+        case input::KeyCode::Down:
+          detail::apply_slider_value(
+              *m_focused_target, node->slider.value - node->slider.step, true
+          );
+          handled_builtin_key = true;
+          break;
+        case input::KeyCode::Right:
+        case input::KeyCode::Up:
+          detail::apply_slider_value(
+              *m_focused_target, node->slider.value + node->slider.step, true
+          );
+          handled_builtin_key = true;
+          break;
+        case input::KeyCode::Home:
+          detail::apply_slider_value(*m_focused_target, node->slider.min_value, true);
+          handled_builtin_key = true;
+          break;
+        case input::KeyCode::End:
+          detail::apply_slider_value(*m_focused_target, node->slider.max_value, true);
+          handled_builtin_key = true;
+          break;
+        default:
+          break;
       }
     } else if (node->type == ui::NodeType::Select) {
       const bool is_open = document->select_open(m_focused_target->node_id);
       switch (event.key_code) {
-      case input::KeyCode::Escape:
-        if (is_open) {
-          document->set_select_open(m_focused_target->node_id, false);
-          handled_builtin_key = true;
-        }
-        break;
-      case input::KeyCode::Enter:
-      case input::KeyCode::KPEnter:
-      case input::KeyCode::Space:
-        if (node->select.options.empty()) {
+        case input::KeyCode::Escape:
+          if (is_open) {
+            document->set_select_open(m_focused_target->node_id, false);
+            handled_builtin_key = true;
+          }
+          break;
+        case input::KeyCode::Enter:
+        case input::KeyCode::KPEnter:
+        case input::KeyCode::Space:
+          if (node->select.options.empty()) {
+            handled_builtin_key = true;
+            break;
+          }
+
+          if (!is_open) {
+            document->set_select_open(m_focused_target->node_id, true);
+          } else {
+            detail::confirm_select_option(*m_focused_target, node->select.highlighted_index, true);
+          }
           handled_builtin_key = true;
           break;
-        }
-
-        if (!is_open) {
-          document->set_select_open(m_focused_target->node_id, true);
-        } else {
-          detail::confirm_select_option(*m_focused_target,
-                                        node->select.highlighted_index, true);
-        }
-        handled_builtin_key = true;
-        break;
-      case input::KeyCode::Up:
-        if (is_open) {
-          detail::move_select_highlight(*m_focused_target, -1);
-          handled_builtin_key = true;
-        }
-        break;
-      case input::KeyCode::Down:
-        if (is_open) {
-          detail::move_select_highlight(*m_focused_target, 1);
-          handled_builtin_key = true;
-        }
-        break;
-      default:
-        break;
+        case input::KeyCode::Up:
+          if (is_open) {
+            detail::move_select_highlight(*m_focused_target, -1);
+            handled_builtin_key = true;
+          }
+          break;
+        case input::KeyCode::Down:
+          if (is_open) {
+            detail::move_select_highlight(*m_focused_target, 1);
+            handled_builtin_key = true;
+          }
+          break;
+        default:
+          break;
       }
     } else if (node->type == ui::NodeType::SegmentedControl) {
       switch (event.key_code) {
-      case input::KeyCode::Left:
-      case input::KeyCode::Up:
-        detail::move_segmented_selection(*m_focused_target, -1, true);
-        handled_builtin_key = true;
-        break;
-      case input::KeyCode::Right:
-      case input::KeyCode::Down:
-        detail::move_segmented_selection(*m_focused_target, 1, true);
-        handled_builtin_key = true;
-        break;
-      case input::KeyCode::Home:
-        detail::select_segmented_option(*m_focused_target, 0u, true);
-        handled_builtin_key = true;
-        break;
-      case input::KeyCode::End:
-        if (!node->segmented_control.options.empty()) {
-          detail::select_segmented_option(
-              *m_focused_target, node->segmented_control.options.size() - 1u,
-              true);
-        }
-        handled_builtin_key = true;
-        break;
-      default:
-        break;
+        case input::KeyCode::Left:
+        case input::KeyCode::Up:
+          detail::move_segmented_selection(*m_focused_target, -1, true);
+          handled_builtin_key = true;
+          break;
+        case input::KeyCode::Right:
+        case input::KeyCode::Down:
+          detail::move_segmented_selection(*m_focused_target, 1, true);
+          handled_builtin_key = true;
+          break;
+        case input::KeyCode::Home:
+          detail::select_segmented_option(*m_focused_target, 0u, true);
+          handled_builtin_key = true;
+          break;
+        case input::KeyCode::End:
+          if (!node->segmented_control.options.empty()) {
+            detail::select_segmented_option(
+                *m_focused_target, node->segmented_control.options.size() - 1u, true
+            );
+          }
+          handled_builtin_key = true;
+          break;
+        default:
+          break;
       }
     }
 
@@ -926,7 +902,8 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots,
 
 void UISystem::dispatch_character_input(
     const std::vector<detail::RootEntry> &roots,
-    const glm::vec2 &viewport_size) {
+    const glm::vec2 &viewport_size
+) {
   for (const QueuedCharacterInput &queued_character : m_character_inputs) {
     const auto &event = queued_character.event;
     if (!m_focused_target.has_value() ||
@@ -950,15 +927,12 @@ void UISystem::dispatch_character_input(
 
     bool handled_text_input = false;
     if (node->type == ui::NodeType::TextInput && !node->read_only) {
-      if (auto context = detail::context_for_target(roots, *m_focused_target,
-                                                    viewport_size);
+      if (auto context = detail::context_for_target(roots, *m_focused_target, viewport_size);
           context.has_value()) {
         const auto [start, end] = detail::edit_range(*node);
         std::string next_text = node->text;
-        next_text.replace(start, end - start,
-                          std::string(1, static_cast<char>(event.codepoint)));
-        detail::apply_text_input_value(*m_focused_target, std::move(next_text),
-                                       start + 1u, *context, true);
+        next_text.replace(start, end - start, std::string(1, static_cast<char>(event.codepoint)));
+        detail::apply_text_input_value(*m_focused_target, std::move(next_text), start + 1u, *context, true);
         handled_text_input = true;
       }
     }
@@ -976,7 +950,8 @@ void UISystem::dispatch_character_input(
 
 void UISystem::dispatch_scroll_input(
     const std::vector<detail::RootEntry> &roots,
-    const std::optional<detail::PointerHit> &deepest_hit) {
+    const std::optional<detail::PointerHit> &deepest_hit
+) {
   for (const QueuedMouseWheelInput &queued_wheel : m_mouse_wheel_inputs) {
     if (m_panel_resize_drag.has_value() || m_splitter_resize_drag.has_value()) {
       continue;
@@ -987,7 +962,8 @@ void UISystem::dispatch_scroll_input(
     }
 
     auto scroll_dispatch = detail::find_scroll_dispatch(
-        roots, deepest_hit->target, queued_wheel.event);
+        roots, deepest_hit->target, queued_wheel.event
+    );
     if (!scroll_dispatch.has_value() ||
         scroll_dispatch->target.document == nullptr) {
       continue;
@@ -996,25 +972,27 @@ void UISystem::dispatch_scroll_input(
     auto *node =
         scroll_dispatch->target.document->node(scroll_dispatch->target.node_id);
     auto *scroll = scroll_dispatch->target.document->scroll_state(
-        scroll_dispatch->target.node_id);
+        scroll_dispatch->target.node_id
+    );
     if (node == nullptr || scroll == nullptr) {
       continue;
     }
 
     const glm::vec2 next_offset =
-        ui::clamp_scroll_offset(scroll->offset + scroll_dispatch->delta,
-                                scroll->max_offset, node->style.scroll_mode);
+        ui::clamp_scroll_offset(scroll->offset + scroll_dispatch->delta, scroll->max_offset, node->style.scroll_mode);
 
     if (next_offset != scroll->offset) {
       scroll_dispatch->target.document->set_scroll_offset(
-          scroll_dispatch->target.node_id, next_offset);
+          scroll_dispatch->target.node_id, next_offset
+      );
     }
 
     if (node->on_mouse_wheel) {
       auto callback = node->on_mouse_wheel;
       auto event = queued_wheel.event;
       scroll_dispatch->target.document->queue_callback(
-          [callback, event]() { callback(event); });
+          [callback, event]() { callback(event); }
+      );
     }
   }
 }
@@ -1036,8 +1014,7 @@ void UISystem::tick_caret_blink(double dt) {
   }
 }
 
-void UISystem::flush_and_relayout(const std::vector<detail::RootEntry> &roots,
-                                  const glm::vec2 &viewport_size) {
+void UISystem::flush_and_relayout(const std::vector<detail::RootEntry> &roots, const glm::vec2 &viewport_size) {
   for (const detail::RootEntry &entry : roots) {
     auto context = detail::make_context(entry, viewport_size);
     entry.document->flush_callbacks();
@@ -1050,7 +1027,8 @@ void UISystem::flush_and_relayout(const std::vector<detail::RootEntry> &roots,
 
 void UISystem::apply_visual_state(
     const std::vector<detail::RootEntry> &roots,
-    const std::optional<detail::PointerHit> &deepest_hit) {
+    const std::optional<detail::PointerHit> &deepest_hit
+) {
   std::optional<detail::PointerHit> scrollbar_hover_hit;
   if (!m_text_selection_drag.has_value() && !m_scrollbar_drag.has_value() &&
       deepest_hit.has_value() &&
@@ -1076,19 +1054,19 @@ void UISystem::apply_visual_state(
         std::make_pair(m_panel_resize_drag->target, m_panel_resize_drag->part);
   }
 
-  detail::apply_scrollbar_visual_state(roots, scrollbar_hover_hit,
-                                       active_scrollbar);
+  detail::apply_scrollbar_visual_state(roots, scrollbar_hover_hit, active_scrollbar);
   detail::apply_resize_visual_state(roots, resize_hover_hit, active_resize_hit);
   detail::apply_select_visual_state(roots, deepest_hit);
   detail::apply_item_control_visual_state(
-      roots, deepest_hit, m_active_target, m_active_item_part,
-      m_active_item_index);
+      roots, deepest_hit, m_active_target, m_active_item_part, m_active_item_index
+  );
 }
 
 void UISystem::resolve_cursor_icon(
     const std::vector<detail::RootEntry> &roots,
     const std::optional<detail::PointerHit> &deepest_hit,
-    bool pointer_enabled) const {
+    bool pointer_enabled
+) const {
   auto window = window_manager()->active_window();
   if (window == nullptr) {
     return;
@@ -1099,32 +1077,35 @@ void UISystem::resolve_cursor_icon(
     if (m_panel_resize_drag.has_value()) {
       cursor_icon = detail::cursor_icon_for_hit_part(
           *m_panel_resize_drag->target.document,
-          m_panel_resize_drag->target.node_id, m_panel_resize_drag->part);
+          m_panel_resize_drag->target.node_id,
+          m_panel_resize_drag->part
+      );
     } else if (m_splitter_resize_drag.has_value()) {
       cursor_icon = detail::cursor_icon_for_hit_part(
           *m_splitter_resize_drag->target.document,
-          m_splitter_resize_drag->target.node_id, ui::UIHitPart::SplitterBar);
+          m_splitter_resize_drag->target.node_id,
+          ui::UIHitPart::SplitterBar
+      );
     } else if (m_panel_move_drag.has_value()) {
       cursor_icon = CursorIcon::Move;
-    } else if (deepest_hit.has_value() &&
-               ui::is_resize_part(deepest_hit->part)) {
+    } else if (deepest_hit.has_value() && ui::is_resize_part(deepest_hit->part)) {
       cursor_icon = detail::cursor_icon_for_hit_part(
-          *deepest_hit->target.document, deepest_hit->target.node_id,
-          deepest_hit->part);
-    } else if (deepest_hit.has_value() &&
-               deepest_hit->part == ui::UIHitPart::Body) {
+          *deepest_hit->target.document, deepest_hit->target.node_id, deepest_hit->part
+      );
+    } else if (deepest_hit.has_value() && deepest_hit->part == ui::UIHitPart::Body) {
       const detail::RootEntry *root_entry =
           detail::find_root_entry(roots, deepest_hit->target);
       if (root_entry != nullptr &&
-          !detail::find_hoverable_target(*root_entry,
-                                         deepest_hit->target.node_id)
+          !detail::find_hoverable_target(*root_entry, deepest_hit->target.node_id)
                .has_value()) {
         auto drag_handle_target = detail::find_drag_handle_target(
-            *root_entry, deepest_hit->target.node_id);
+            *root_entry, deepest_hit->target.node_id
+        );
         if (drag_handle_target.has_value() &&
             detail::find_draggable_panel_target(
                 *root_entry, drag_handle_target->node_id
-            ).has_value()) {
+            )
+                .has_value()) {
           cursor_icon = CursorIcon::Move;
         }
       }
@@ -1134,8 +1115,7 @@ void UISystem::resolve_cursor_icon(
   window->set_cursor_icon(cursor_icon);
 }
 
-void UISystem::build_draw_lists(const std::vector<detail::RootEntry> &roots,
-                                const glm::vec2 &viewport_size) const {
+void UISystem::build_draw_lists(const std::vector<detail::RootEntry> &roots, const glm::vec2 &viewport_size) const {
   for (const detail::RootEntry &entry : roots) {
     auto context = detail::make_context(entry, viewport_size);
     ui::build_draw_list(*entry.document, context);
@@ -1179,8 +1159,8 @@ void UISystem::clear_focused_target(bool queue_blur) {
     if (node != nullptr && node->type == ui::NodeType::TextInput) {
       document->set_text_selection(
           m_focused_target->node_id,
-          ui::UITextSelection{.anchor = node->caret.index,
-                              .focus = node->caret.index});
+          ui::UITextSelection{.anchor = node->caret.index, .focus = node->caret.index}
+      );
       document->clear_caret(m_focused_target->node_id);
     }
 

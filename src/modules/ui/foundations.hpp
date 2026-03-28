@@ -27,8 +27,7 @@ inline bool has_resize_edge(uint8_t mask, uint8_t edge) {
   return (mask & edge) != 0u;
 }
 
-inline glm::vec2 clamp_scroll_offset(glm::vec2 offset, glm::vec2 max_offset,
-                                     ScrollMode mode) {
+inline glm::vec2 clamp_scroll_offset(glm::vec2 offset, glm::vec2 max_offset, ScrollMode mode) {
   glm::vec2 clamped = offset;
 
   if (scrolls_horizontally(mode)) {
@@ -46,8 +45,7 @@ inline glm::vec2 clamp_scroll_offset(glm::vec2 offset, glm::vec2 max_offset,
   return clamped;
 }
 
-inline void apply_state_style(UIResolvedStyle &resolved,
-                              const UiStateStyle &state_style) {
+inline void apply_state_style(UIResolvedStyle &resolved, const UIStateStyle &state_style) {
   if (state_style.background_color.has_value()) {
     resolved.background_color = *state_style.background_color;
   }
@@ -77,9 +75,7 @@ inline void apply_state_style(UIResolvedStyle &resolved,
   }
 }
 
-inline UIResolvedStyle resolve_style(const UIStyle &style,
-                                     const UIPaintState &paint_state,
-                                     bool enabled) {
+inline UIResolvedStyle resolve_style(const UIStyle &style, const UIPaintState &paint_state, bool enabled) {
   UIResolvedStyle resolved{
       .background_color = style.background_color,
       .border_color = style.border_color,
@@ -113,8 +109,7 @@ inline UIResolvedStyle resolve_style(const UIStyle &style,
 }
 
 template <typename AdvanceFn>
-inline float measure_text_prefix_advance(std::string_view text, size_t index,
-                                         AdvanceFn &&advance_fn) {
+inline float measure_text_prefix_advance(std::string_view text, size_t index, AdvanceFn &&advance_fn) {
   const size_t clamped_index = std::min(index, text.size());
 
   float width = 0.0f;
@@ -126,8 +121,7 @@ inline float measure_text_prefix_advance(std::string_view text, size_t index,
 }
 
 template <typename AdvanceFn>
-inline size_t nearest_text_index(std::string_view text, float x,
-                                 AdvanceFn &&advance_fn) {
+inline size_t nearest_text_index(std::string_view text, float x, AdvanceFn &&advance_fn) {
   if (x <= 0.0f) {
     return 0u;
   }
@@ -154,8 +148,7 @@ inline size_t clamp_text_index(std::string_view text, size_t index) {
   return std::min(index, text.size());
 }
 
-inline UITextSelection clamp_text_selection(std::string_view text,
-                                            UITextSelection selection) {
+inline UITextSelection clamp_text_selection(std::string_view text, UITextSelection selection) {
   selection.anchor = clamp_text_index(text, selection.anchor);
   selection.focus = clamp_text_index(text, selection.focus);
   return selection;
@@ -251,8 +244,7 @@ inline bool is_resize_part(UIHitPart part) {
   return is_panel_resize_part(part) || is_splitter_part(part);
 }
 
-inline float clamp_resize_extent(float value, float min_value, float max_value,
-                                 float available_space) {
+inline float clamp_resize_extent(float value, float min_value, float max_value, float available_space) {
   const float clamped_max =
       std::max(0.0f, std::min(max_value, available_space));
   if (clamped_max < min_value) {
@@ -262,12 +254,7 @@ inline float clamp_resize_extent(float value, float min_value, float max_value,
   return std::clamp(value, min_value, clamped_max);
 }
 
-inline UiRect clamp_panel_resize_bounds(const UiRect &start_bounds,
-                                        UiRect next_bounds,
-                                        const UiRect &parent_bounds,
-                                        UIHitPart part, float min_width,
-                                        float max_width, float min_height,
-                                        float max_height) {
+inline UIRect clamp_panel_resize_bounds(const UIRect &start_bounds, UIRect next_bounds, const UIRect &parent_bounds, UIHitPart part, float min_width, float max_width, float min_height, float max_height) {
   if (resize_part_moves_left_edge(part)) {
     const float anchored_right = std::clamp(
         start_bounds.right(), parent_bounds.x, parent_bounds.right()
@@ -315,7 +302,7 @@ inline UiRect clamp_panel_resize_bounds(const UiRect &start_bounds,
   return next_bounds;
 }
 
-inline UiRect clamp_rect_to_bounds(UiRect rect, const UiRect &bounds) {
+inline UIRect clamp_rect_to_bounds(UIRect rect, const UIRect &bounds) {
   rect.width = std::clamp(rect.width, 0.0f, std::max(0.0f, bounds.width));
   rect.height = std::clamp(rect.height, 0.0f, std::max(0.0f, bounds.height));
 
@@ -343,17 +330,11 @@ inline bool node_supports_panel_resize(const UIDocument::UINode &node) {
          node.style.resize_edges != k_resize_edge_none;
 }
 
-inline float clamp_text_scroll_x(float scroll_x, float content_width,
-                                 float viewport_width) {
-  return std::clamp(scroll_x, 0.0f,
-                    std::max(0.0f, content_width - viewport_width));
+inline float clamp_text_scroll_x(float scroll_x, float content_width, float viewport_width) {
+  return std::clamp(scroll_x, 0.0f, std::max(0.0f, content_width - viewport_width));
 }
 
-inline float scroll_x_to_keep_range_visible(float current_scroll_x,
-                                            float range_start_x,
-                                            float range_end_x,
-                                            float content_width,
-                                            float viewport_width) {
+inline float scroll_x_to_keep_range_visible(float current_scroll_x, float range_start_x, float range_end_x, float content_width, float viewport_width) {
   float next_scroll_x = current_scroll_x;
   if (range_start_x < next_scroll_x) {
     next_scroll_x = range_start_x;
@@ -364,8 +345,7 @@ inline float scroll_x_to_keep_range_visible(float current_scroll_x,
   return clamp_text_scroll_x(next_scroll_x, content_width, viewport_width);
 }
 
-inline bool node_chain_allows_interaction(const UIDocument &document,
-                                          UINodeId node_id) {
+inline bool node_chain_allows_interaction(const UIDocument &document, UINodeId node_id) {
   UINodeId current = node_id;
 
   while (current != k_invalid_node_id) {

@@ -23,13 +23,13 @@ using namespace astralix::shader_bindings;
 
 namespace astralix {
 
-void UiPass::setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &) {
+void UIPass::setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &) {
   m_render_target = render_target;
   rendering::ensure_mesh_uploaded(m_quad, m_render_target);
   ensure_shaders_loaded();
 }
 
-void UiPass::ensure_shaders_loaded() {
+void UIPass::ensure_shaders_loaded() {
   const auto backend = m_render_target->renderer_api()->get_backend();
   resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
       backend, {"shaders::ui_solid", "shaders::ui_image", "shaders::ui_text"}
@@ -43,11 +43,11 @@ void UiPass::ensure_shaders_loaded() {
       resource_manager()->get_by_descriptor_id<Shader>("shaders::ui_text");
 }
 
-void UiPass::begin(double) {
+void UIPass::begin(double) {
   m_render_target->framebuffer()->bind(FramebufferBindType::Default, 0);
 }
 
-void UiPass::apply_clip(const ui::UiDrawCommand &command, uint32_t framebuffer_height) {
+void UIPass::apply_clip(const ui::UIDrawCommand &command, uint32_t framebuffer_height) {
   auto renderer_api = m_render_target->renderer_api();
   if (!command.has_clip || command.clip_rect.width <= 0.0f ||
       command.clip_rect.height <= 0.0f) {
@@ -71,7 +71,7 @@ void UiPass::apply_clip(const ui::UiDrawCommand &command, uint32_t framebuffer_h
   renderer_api->set_scissor_rect(clip_x, clip_y, clip_width, clip_height);
 }
 
-void UiPass::draw_rect_command(const ui::UiDrawCommand &command, glm::mat4 projection) {
+void UIPass::draw_rect_command(const ui::UIDrawCommand &command, glm::mat4 projection) {
   if (m_solid_shader == nullptr || command.rect.width <= 0.0f ||
       command.rect.height <= 0.0f) {
     return;
@@ -90,7 +90,7 @@ void UiPass::draw_rect_command(const ui::UiDrawCommand &command, glm::mat4 proje
 #endif
 }
 
-void UiPass::draw_image_command(const ui::UiDrawCommand &command, glm::mat4 projection) {
+void UIPass::draw_image_command(const ui::UIDrawCommand &command, glm::mat4 projection) {
   if (m_image_shader == nullptr || command.rect.width <= 0.0f ||
       command.rect.height <= 0.0f) {
     return;
@@ -115,7 +115,7 @@ void UiPass::draw_image_command(const ui::UiDrawCommand &command, glm::mat4 proj
 #endif
 }
 
-void UiPass::draw_text_command(const ui::UiDrawCommand &command, glm::mat4 projection) {
+void UIPass::draw_text_command(const ui::UIDrawCommand &command, glm::mat4 projection) {
   if (m_text_shader == nullptr || command.text.empty() ||
       command.font_id.empty()) {
     return;
@@ -167,7 +167,7 @@ void UiPass::draw_text_command(const ui::UiDrawCommand &command, glm::mat4 proje
   m_text_shader->unbind();
 }
 
-void UiPass::execute(double) {
+void UIPass::execute(double) {
   auto *scene = SceneManager::get()->get_active_scene();
   if (scene == nullptr) {
     return;
@@ -222,9 +222,9 @@ void UiPass::execute(double) {
   renderer_api->enable_depth_test();
 }
 
-void UiPass::end(double) {}
+void UIPass::end(double) {}
 
-void UiPass::cleanup() {
+void UIPass::cleanup() {
   m_solid_shader.reset();
   m_image_shader.reset();
   m_text_shader.reset();

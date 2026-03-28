@@ -13,8 +13,7 @@ size_t clamp_text_index(const UIDocument::UINode &node, size_t index) {
   return std::min(index, node.text.size());
 }
 
-UITextSelection clamp_text_selection(const UIDocument::UINode &node,
-                                     UITextSelection selection) {
+UITextSelection clamp_text_selection(const UIDocument::UINode &node, UITextSelection selection) {
   selection.anchor = clamp_text_index(node, selection.anchor);
   selection.focus = clamp_text_index(node, selection.focus);
   return selection;
@@ -35,7 +34,7 @@ float sanitized_slider_step(float min_value, float max_value, float step) {
   return span > 0.0f ? span / 100.0f : 1.0f;
 }
 
-float clamp_slider_value(const UiSliderState &slider, float value) {
+float clamp_slider_value(const UISliderState &slider, float value) {
   const float clamped =
       std::clamp(value, slider.min_value, slider.max_value);
   if (slider.step <= 0.0f) {
@@ -43,11 +42,10 @@ float clamp_slider_value(const UiSliderState &slider, float value) {
   }
 
   const float steps = std::round((clamped - slider.min_value) / slider.step);
-  return std::clamp(slider.min_value + steps * slider.step, slider.min_value,
-                    slider.max_value);
+  return std::clamp(slider.min_value + steps * slider.step, slider.min_value, slider.max_value);
 }
 
-void normalize_slider_state(UiSliderState &slider) {
+void normalize_slider_state(UISliderState &slider) {
   if (slider.max_value < slider.min_value) {
     std::swap(slider.min_value, slider.max_value);
   }
@@ -57,7 +55,7 @@ void normalize_slider_state(UiSliderState &slider) {
   slider.value = clamp_slider_value(slider, slider.value);
 }
 
-void normalize_select_state(UiSelectState &select) {
+void normalize_select_state(UISelectState &select) {
   if (select.options.empty()) {
     select.selected_index = 0u;
     select.highlighted_index = 0u;
@@ -70,7 +68,7 @@ void normalize_select_state(UiSelectState &select) {
   select.highlighted_index = std::min(select.highlighted_index, max_index);
 }
 
-void normalize_segmented_control_state(UiSegmentedControlState &segmented) {
+void normalize_segmented_control_state(UISegmentedControlState &segmented) {
   if (segmented.options.empty()) {
     segmented.selected_index = 0u;
     return;
@@ -80,7 +78,7 @@ void normalize_segmented_control_state(UiSegmentedControlState &segmented) {
       std::min(segmented.selected_index, segmented.options.size() - 1u);
 }
 
-void normalize_chip_group_state(UiChipGroupState &chip_group) {
+void normalize_chip_group_state(UIChipGroupState &chip_group) {
   if (chip_group.options.empty()) {
     chip_group.selected.clear();
     return;
@@ -107,12 +105,11 @@ UINodeId UIDocument::allocate_node(NodeType type, std::string name) {
 
   UINodeId node_id = static_cast<UINodeId>(m_nodes.size());
   m_nodes.push_back(NodeSlot{
-      .node =
-          UINode{
-              .id = node_id,
-              .type = type,
-              .name = std::move(name),
-          },
+      .node = UINode{
+          .id = node_id,
+          .type = type,
+          .name = std::move(name),
+      },
       .alive = true,
   });
 
@@ -145,8 +142,7 @@ UINodeId UIDocument::create_text(std::string text, std::string name) {
   return node_id;
 }
 
-UINodeId UIDocument::create_image(ResourceDescriptorID texture_id,
-                                  std::string name) {
+UINodeId UIDocument::create_image(ResourceDescriptorID texture_id, std::string name) {
   UINodeId node_id = allocate_node(NodeType::Image, std::move(name));
   set_texture(node_id, std::move(texture_id));
   return node_id;
@@ -161,9 +157,7 @@ UINodeId UIDocument::create_pressable(std::string name) {
   return node_id;
 }
 
-UINodeId UIDocument::create_icon_button(ResourceDescriptorID texture_id,
-                                        const std::function<void()> &on_click,
-                                        std::string name) {
+UINodeId UIDocument::create_icon_button(ResourceDescriptorID texture_id, const std::function<void()> &on_click, std::string name) {
   UINodeId button_id = create_pressable(std::move(name));
   UINodeId icon_id = create_image(std::move(texture_id), "icon");
   append_child(button_id, icon_id);
@@ -198,9 +192,7 @@ UINodeId UIDocument::create_icon_button(ResourceDescriptorID texture_id,
   return button_id;
 }
 
-UINodeId UIDocument::create_segmented_control(std::vector<std::string> options,
-                                              size_t selected_index,
-                                              std::string name) {
+UINodeId UIDocument::create_segmented_control(std::vector<std::string> options, size_t selected_index, std::string name) {
   UINodeId node_id =
       allocate_node(NodeType::SegmentedControl, std::move(name));
   if (UINode *node = this->node(node_id); node != nullptr) {
@@ -226,9 +218,7 @@ UINodeId UIDocument::create_segmented_control(std::vector<std::string> options,
   return node_id;
 }
 
-UINodeId UIDocument::create_chip_group(std::vector<std::string> options,
-                                       std::vector<bool> selected,
-                                       std::string name) {
+UINodeId UIDocument::create_chip_group(std::vector<std::string> options, std::vector<bool> selected, std::string name) {
   UINodeId node_id = allocate_node(NodeType::ChipGroup, std::move(name));
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->chip_group.options = std::move(options);
@@ -247,9 +237,7 @@ UINodeId UIDocument::create_chip_group(std::vector<std::string> options,
   return node_id;
 }
 
-UINodeId UIDocument::create_text_input(std::string value,
-                                       std::string placeholder,
-                                       std::string name) {
+UINodeId UIDocument::create_text_input(std::string value, std::string placeholder, std::string name) {
   UINodeId node_id = allocate_node(NodeType::TextInput, std::move(name));
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
@@ -295,8 +283,7 @@ UINodeId UIDocument::create_splitter(std::string name) {
   return node_id;
 }
 
-UINodeId UIDocument::create_checkbox(std::string label, bool checked,
-                                     std::string name) {
+UINodeId UIDocument::create_checkbox(std::string label, bool checked, std::string name) {
   UINodeId node_id = allocate_node(NodeType::Checkbox, std::move(name));
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
@@ -318,12 +305,11 @@ UINodeId UIDocument::create_checkbox(std::string label, bool checked,
   return node_id;
 }
 
-UINodeId UIDocument::create_slider(float value, float min_value, float max_value,
-                                   float step, std::string name) {
+UINodeId UIDocument::create_slider(float value, float min_value, float max_value, float step, std::string name) {
   UINodeId node_id = allocate_node(NodeType::Slider, std::move(name));
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
-    node->slider = UiSliderState{
+    node->slider = UISliderState{
         .value = value,
         .min_value = min_value,
         .max_value = max_value,
@@ -348,10 +334,7 @@ UINodeId UIDocument::create_slider(float value, float min_value, float max_value
   return node_id;
 }
 
-UINodeId UIDocument::create_select(std::vector<std::string> options,
-                                   size_t selected_index,
-                                   std::string placeholder,
-                                   std::string name) {
+UINodeId UIDocument::create_select(std::vector<std::string> options, size_t selected_index, std::string placeholder, std::string name) {
   UINodeId node_id = allocate_node(NodeType::Select, std::move(name));
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
@@ -379,9 +362,7 @@ UINodeId UIDocument::create_select(std::vector<std::string> options,
   return node_id;
 }
 
-UINodeId UIDocument::create_button(const std::string &label,
-                                   const std::function<void()> &on_click,
-                                   std::string name) {
+UINodeId UIDocument::create_button(const std::string &label, const std::function<void()> &on_click, std::string name) {
   UINodeId button_id = create_pressable(std::move(name));
   UINodeId label_id = create_text(label, "label");
   append_child(button_id, label_id);
@@ -428,8 +409,7 @@ void UIDocument::detach_from_parent(UINodeId child_id) {
   UINode *parent = node(child->parent);
   if (parent != nullptr) {
     auto &children = parent->children;
-    children.erase(std::remove(children.begin(), children.end(), child_id),
-                   children.end());
+    children.erase(std::remove(children.begin(), children.end(), child_id), children.end());
   }
 
   child->parent = k_invalid_node_id;
@@ -439,8 +419,7 @@ void UIDocument::append_child(UINodeId parent_id, UINodeId child_id) {
   UINode *parent = node(parent_id);
   UINode *child = node(child_id);
 
-  ASTRA_ENSURE(parent == nullptr || child == nullptr,
-               "cannot append invalid ui child");
+  ASTRA_ENSURE(parent == nullptr || child == nullptr, "cannot append invalid ui child");
   ASTRA_ENSURE(parent_id == child_id, "ui node cannot be its own parent");
 
   detach_from_parent(child_id);
@@ -492,8 +471,7 @@ void UIDocument::set_style(UINodeId node_id, const UIStyle &style) {
   m_paint_dirty = true;
 }
 
-void UIDocument::mutate_style(UINodeId node_id,
-                              const std::function<void(UIStyle &)> &fn) {
+void UIDocument::mutate_style(UINodeId node_id, const std::function<void(UIStyle &)> &fn) {
   UINode *target = node(node_id);
   if (target == nullptr) {
     return;
@@ -520,8 +498,7 @@ void UIDocument::set_text(UINodeId node_id, std::string text) {
   m_paint_dirty = true;
 }
 
-void UIDocument::set_texture(UINodeId node_id,
-                             ResourceDescriptorID texture_id) {
+void UIDocument::set_texture(UINodeId node_id, ResourceDescriptorID texture_id) {
   UINode *target = node(node_id);
   if (target == nullptr) {
     return;
@@ -618,8 +595,7 @@ void UIDocument::set_read_only(UINodeId node_id, bool read_only) {
   m_paint_dirty = true;
 }
 
-void UIDocument::set_select_all_on_focus(UINodeId node_id,
-                                         bool select_all_on_focus) {
+void UIDocument::set_select_all_on_focus(UINodeId node_id, bool select_all_on_focus) {
   UINode *target = node(node_id);
   if (target == nullptr || target->select_all_on_focus == select_all_on_focus) {
     return;
@@ -673,14 +649,13 @@ float UIDocument::slider_value(UINodeId node_id) const {
   return target->slider.value;
 }
 
-void UIDocument::set_slider_range(UINodeId node_id, float min_value,
-                                  float max_value, float step) {
+void UIDocument::set_slider_range(UINodeId node_id, float min_value, float max_value, float step) {
   UINode *target = node(node_id);
   if (target == nullptr || target->type != NodeType::Slider) {
     return;
   }
 
-  const UiSliderState previous = target->slider;
+  const UISliderState previous = target->slider;
   target->slider.min_value = min_value;
   target->slider.max_value = max_value;
   target->slider.step = step;
@@ -697,8 +672,7 @@ void UIDocument::set_slider_range(UINodeId node_id, float min_value,
   m_paint_dirty = true;
 }
 
-void UIDocument::set_select_options(UINodeId node_id,
-                                    std::vector<std::string> options) {
+void UIDocument::set_select_options(UINodeId node_id, std::vector<std::string> options) {
   UINode *target = node(node_id);
   if (target == nullptr || target->type != NodeType::Select) {
     return;
@@ -800,8 +774,7 @@ bool UIDocument::select_open(UINodeId node_id) const {
   return target->select.open;
 }
 
-void UIDocument::set_segmented_options(UINodeId node_id,
-                                       std::vector<std::string> options) {
+void UIDocument::set_segmented_options(UINodeId node_id, std::vector<std::string> options) {
   UINode *target = node(node_id);
   if (target == nullptr || target->type != NodeType::SegmentedControl) {
     return;
@@ -823,8 +796,7 @@ UIDocument::segmented_options(UINodeId node_id) const {
   return &target->segmented_control.options;
 }
 
-void UIDocument::set_segmented_selected_index(UINodeId node_id,
-                                              size_t selected_index) {
+void UIDocument::set_segmented_selected_index(UINodeId node_id, size_t selected_index) {
   UINode *target = node(node_id);
   if (target == nullptr || target->type != NodeType::SegmentedControl) {
     return;
@@ -850,9 +822,7 @@ size_t UIDocument::segmented_selected_index(UINodeId node_id) const {
   return target->segmented_control.selected_index;
 }
 
-void UIDocument::set_chip_options(UINodeId node_id,
-                                  std::vector<std::string> options,
-                                  std::vector<bool> selected) {
+void UIDocument::set_chip_options(UINodeId node_id, std::vector<std::string> options, std::vector<bool> selected) {
   UINode *target = node(node_id);
   if (target == nullptr || target->type != NodeType::ChipGroup) {
     return;
@@ -903,40 +873,35 @@ bool UIDocument::chip_selected(UINodeId node_id, size_t index) const {
   return target->chip_group.selected[index];
 }
 
-void UIDocument::set_on_hover(UINodeId node_id,
-                              std::function<void()> callback) {
+void UIDocument::set_on_hover(UINodeId node_id, std::function<void()> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_hover = std::move(callback);
   }
 }
 
-void UIDocument::set_on_press(UINodeId node_id,
-                              std::function<void()> callback) {
+void UIDocument::set_on_press(UINodeId node_id, std::function<void()> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_press = std::move(callback);
   }
 }
 
-void UIDocument::set_on_release(UINodeId node_id,
-                                std::function<void()> callback) {
+void UIDocument::set_on_release(UINodeId node_id, std::function<void()> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_release = std::move(callback);
   }
 }
 
-void UIDocument::set_on_click(UINodeId node_id,
-                              std::function<void()> callback) {
+void UIDocument::set_on_click(UINodeId node_id, std::function<void()> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_click = std::move(callback);
   }
 }
 
-void UIDocument::set_on_focus(UINodeId node_id,
-                              std::function<void()> callback) {
+void UIDocument::set_on_focus(UINodeId node_id, std::function<void()> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_focus = std::move(callback);
@@ -951,7 +916,8 @@ void UIDocument::set_on_blur(UINodeId node_id, std::function<void()> callback) {
 }
 
 void UIDocument::set_on_key_input(
-    UINodeId node_id, std::function<void(const UIKeyInputEvent &)> callback) {
+    UINodeId node_id, std::function<void(const UIKeyInputEvent &)> callback
+) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_key_input = std::move(callback);
@@ -960,7 +926,8 @@ void UIDocument::set_on_key_input(
 
 void UIDocument::set_on_character_input(
     UINodeId node_id,
-    std::function<void(const UiCharacterInputEvent &)> callback) {
+    std::function<void(const UICharacterInputEvent &)> callback
+) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_character_input = std::move(callback);
@@ -969,7 +936,8 @@ void UIDocument::set_on_character_input(
 
 void UIDocument::set_on_mouse_wheel(
     UINodeId node_id,
-    std::function<void(const UiMouseWheelInputEvent &)> callback) {
+    std::function<void(const UIMouseWheelInputEvent &)> callback
+) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_mouse_wheel = std::move(callback);
@@ -977,7 +945,8 @@ void UIDocument::set_on_mouse_wheel(
 }
 
 void UIDocument::set_on_change(
-    UINodeId node_id, std::function<void(const std::string &)> callback) {
+    UINodeId node_id, std::function<void(const std::string &)> callback
+) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_change = std::move(callback);
@@ -985,23 +954,22 @@ void UIDocument::set_on_change(
 }
 
 void UIDocument::set_on_submit(
-    UINodeId node_id, std::function<void(const std::string &)> callback) {
+    UINodeId node_id, std::function<void(const std::string &)> callback
+) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_submit = std::move(callback);
   }
 }
 
-void UIDocument::set_on_toggle(UINodeId node_id,
-                               std::function<void(bool)> callback) {
+void UIDocument::set_on_toggle(UINodeId node_id, std::function<void(bool)> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_toggle = std::move(callback);
   }
 }
 
-void UIDocument::set_on_value_change(UINodeId node_id,
-                                     std::function<void(float)> callback) {
+void UIDocument::set_on_value_change(UINodeId node_id, std::function<void(float)> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_value_change = std::move(callback);
@@ -1010,7 +978,8 @@ void UIDocument::set_on_value_change(UINodeId node_id,
 
 void UIDocument::set_on_select(
     UINodeId node_id,
-    std::function<void(size_t, const std::string &)> callback) {
+    std::function<void(size_t, const std::string &)> callback
+) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_select = std::move(callback);
@@ -1019,15 +988,15 @@ void UIDocument::set_on_select(
 
 void UIDocument::set_on_chip_toggle(
     UINodeId node_id,
-    std::function<void(size_t, const std::string &, bool)> callback) {
+    std::function<void(size_t, const std::string &, bool)> callback
+) {
   UINode *target = node(node_id);
   if (target != nullptr) {
     target->on_chip_toggle = std::move(callback);
   }
 }
 
-void UIDocument::set_text_selection(UINodeId node_id,
-                                    UITextSelection selection) {
+void UIDocument::set_text_selection(UINodeId node_id, UITextSelection selection) {
   UINode *target = node(node_id);
   if (target == nullptr) {
     return;
@@ -1246,12 +1215,12 @@ UINodeId UIDocument::parent(UINodeId node_id) const {
   return target != nullptr ? target->parent : k_invalid_node_id;
 }
 
-UiScrollState *UIDocument::scroll_state(UINodeId node_id) {
+UIScrollState *UIDocument::scroll_state(UINodeId node_id) {
   UINode *target = node(node_id);
   return target != nullptr ? &target->layout.scroll : nullptr;
 }
 
-const UiScrollState *UIDocument::scroll_state(UINodeId node_id) const {
+const UIScrollState *UIDocument::scroll_state(UINodeId node_id) const {
   const UINode *target = node(node_id);
   return target != nullptr ? &target->layout.scroll : nullptr;
 }

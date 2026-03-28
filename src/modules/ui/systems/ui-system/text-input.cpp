@@ -1,28 +1,25 @@
 #include "systems/ui-system/text-input.hpp"
 
+#include "foundations.hpp"
 #include "managers/resource-manager.hpp"
 #include "resources/font.hpp"
-#include "foundations.hpp"
 #include <algorithm>
 #include <cmath>
 
 namespace astralix::ui_system_core {
 namespace {
 
-ResourceDescriptorID resolve_font_id(const ui::UIDocument::UINode &node,
-                                     const ui::UILayoutContext &context) {
+ResourceDescriptorID resolve_font_id(const ui::UIDocument::UINode &node, const ui::UILayoutContext &context) {
   return node.style.font_id.empty() ? context.default_font_id
                                     : node.style.font_id;
 }
 
-float resolve_font_size(const ui::UIDocument::UINode &node,
-                        const ui::UILayoutContext &context) {
+float resolve_font_size(const ui::UIDocument::UINode &node, const ui::UILayoutContext &context) {
   return node.style.font_size > 0.0f ? node.style.font_size
                                      : context.default_font_size;
 }
 
-Ref<Font> resolve_font(const ui::UIDocument::UINode &node,
-                       const ui::UILayoutContext &context) {
+Ref<Font> resolve_font(const ui::UIDocument::UINode &node, const ui::UILayoutContext &context) {
   const auto font_id = resolve_font_id(node, context);
   if (font_id.empty()) {
     return nullptr;
@@ -40,8 +37,7 @@ float glyph_advance(const Font &font, char character, uint32_t pixel_size) {
   return static_cast<float>(glyph->advance >> 6);
 }
 
-float measure_text_width(const Font &font, std::string_view text,
-                         uint32_t pixel_size) {
+float measure_text_width(const Font &font, std::string_view text, uint32_t pixel_size) {
   float width = 0.0f;
   for (const char character : text) {
     width += glyph_advance(font, character, pixel_size);
@@ -50,13 +46,12 @@ float measure_text_width(const Font &font, std::string_view text,
   return width;
 }
 
-ui::UiRect resolve_single_line_text_rect(const ui::UiRect &content_bounds,
-                                         float line_height) {
+ui::UIRect resolve_single_line_text_rect(const ui::UIRect &content_bounds, float line_height) {
   const float resolved_height = std::max(content_bounds.height, line_height);
   const float y_offset =
       std::max(0.0f, (content_bounds.height - line_height) * 0.5f);
 
-  return ui::UiRect{
+  return ui::UIRect{
       .x = content_bounds.x,
       .y = content_bounds.y + y_offset,
       .width = content_bounds.width,
@@ -64,8 +59,7 @@ ui::UiRect resolve_single_line_text_rect(const ui::UiRect &content_bounds,
   };
 }
 
-ui::UiRect text_input_text_rect(const ui::UIDocument::UINode &node,
-                                const ui::UILayoutContext &context) {
+ui::UIRect text_input_text_rect(const ui::UIDocument::UINode &node, const ui::UILayoutContext &context) {
   auto font = resolve_font(node, context);
   const float font_size = resolve_font_size(node, context);
   const float line_height =
@@ -90,9 +84,7 @@ void queue_text_input_change(const Target &target) {
 
 } // namespace
 
-size_t text_input_index_from_pointer(const ui::UIDocument::UINode &node,
-                                     const ui::UILayoutContext &context,
-                                     glm::vec2 point) {
+size_t text_input_index_from_pointer(const ui::UIDocument::UINode &node, const ui::UILayoutContext &context, glm::vec2 point) {
   auto font = resolve_font(node, context);
   if (font == nullptr) {
     return point.x <= node.layout.content_bounds.x ? 0u : node.text.size();
@@ -101,7 +93,7 @@ size_t text_input_index_from_pointer(const ui::UIDocument::UINode &node,
   const float font_size = resolve_font_size(node, context);
   const uint32_t resolved_font_size =
       static_cast<uint32_t>(std::max(1.0f, std::round(font_size)));
-  const ui::UiRect text_rect = text_input_text_rect(node, context);
+  const ui::UIRect text_rect = text_input_text_rect(node, context);
   const float local_x = point.x - text_rect.x + node.text_scroll_x;
 
   return ui::nearest_text_index(node.text, local_x, [&](char character) {
@@ -109,8 +101,7 @@ size_t text_input_index_from_pointer(const ui::UIDocument::UINode &node,
   });
 }
 
-void sync_text_input_scroll(const Target &target,
-                            const ui::UILayoutContext &context) {
+void sync_text_input_scroll(const Target &target, const ui::UILayoutContext &context) {
   if (target.document == nullptr) {
     return;
   }
@@ -133,11 +124,12 @@ void sync_text_input_scroll(const Target &target,
     const float caret_x = ui::measure_text_prefix_advance(
         node->text, node->caret.index, [&](char character) {
           return glyph_advance(*font, character, resolved_font_size);
-        });
+        }
+    );
 
     next_scroll_x = ui::scroll_x_to_keep_range_visible(
-        node->text_scroll_x, caret_x, caret_x + 1.0f, content_width,
-        viewport_width);
+        node->text_scroll_x, caret_x, caret_x + 1.0f, content_width, viewport_width
+    );
   }
 
   if (node->text_scroll_x != next_scroll_x) {
@@ -146,21 +138,19 @@ void sync_text_input_scroll(const Target &target,
   }
 }
 
-void set_text_input_selection_and_caret(const Target &target, size_t anchor,
-                                        size_t focus,
-                                        const ui::UILayoutContext &context) {
+void set_text_input_selection_and_caret(const Target &target, size_t anchor, size_t focus, const ui::UILayoutContext &context) {
   if (target.document == nullptr) {
     return;
   }
 
   target.document->set_text_selection(
-      target.node_id, ui::UITextSelection{.anchor = anchor, .focus = focus});
+      target.node_id, ui::UITextSelection{.anchor = anchor, .focus = focus}
+  );
   target.document->set_caret(target.node_id, focus, true);
   sync_text_input_scroll(target, context);
 }
 
-void focus_text_input(const Target &target, const ui::UILayoutContext &context,
-                      bool select_all) {
+void focus_text_input(const Target &target, const ui::UILayoutContext &context, bool select_all) {
   if (target.document == nullptr) {
     return;
   }
@@ -174,8 +164,7 @@ void focus_text_input(const Target &target, const ui::UILayoutContext &context,
       select_all ? node->text.size()
                  : ui::clamp_text_index(node->text, node->caret.index);
   const size_t anchor_index = select_all ? 0u : caret_index;
-  set_text_input_selection_and_caret(target, anchor_index, caret_index,
-                                     context);
+  set_text_input_selection_and_caret(target, anchor_index, caret_index, context);
 }
 
 std::string selected_text(const ui::UIDocument::UINode &node) {
@@ -183,8 +172,7 @@ std::string selected_text(const ui::UIDocument::UINode &node) {
     return {};
   }
 
-  return node.text.substr(node.selection.start(),
-                          node.selection.end() - node.selection.start());
+  return node.text.substr(node.selection.start(), node.selection.end() - node.selection.start());
 }
 
 std::pair<size_t, size_t> edit_range(const ui::UIDocument::UINode &node) {
@@ -195,10 +183,7 @@ std::pair<size_t, size_t> edit_range(const ui::UIDocument::UINode &node) {
   return {node.caret.index, node.caret.index};
 }
 
-bool apply_text_input_value(const Target &target, std::string next_text,
-                            size_t caret_index,
-                            const ui::UILayoutContext &context,
-                            bool queue_change) {
+bool apply_text_input_value(const Target &target, std::string next_text, size_t caret_index, const ui::UILayoutContext &context, bool queue_change) {
   if (target.document == nullptr) {
     return false;
   }

@@ -17,7 +17,7 @@ public:
     UINodeId parent = k_invalid_node_id;
     std::vector<UINodeId> children;
     UIStyle style;
-    UiLayoutMetrics layout;
+    UILayoutMetrics layout;
     UIPaintState paint_state;
     std::string name;
     std::string text;
@@ -30,12 +30,12 @@ public:
     bool select_all_on_focus = false;
     float text_scroll_x = 0.0f;
     UITextSelection selection;
-    UiCaretState caret;
-    UiCheckboxState checkbox;
-    UiSliderState slider;
-    UiSelectState select;
-    UiSegmentedControlState segmented_control;
-    UiChipGroupState chip_group;
+    UICaretState caret;
+    UICheckboxState checkbox;
+    UISliderState slider;
+    UISelectState select;
+    UISegmentedControlState segmented_control;
+    UIChipGroupState chip_group;
 
     std::function<void()> on_hover;
     std::function<void()> on_press;
@@ -44,8 +44,8 @@ public:
     std::function<void()> on_focus;
     std::function<void()> on_blur;
     std::function<void(const UIKeyInputEvent &)> on_key_input;
-    std::function<void(const UiCharacterInputEvent &)> on_character_input;
-    std::function<void(const UiMouseWheelInputEvent &)> on_mouse_wheel;
+    std::function<void(const UICharacterInputEvent &)> on_character_input;
+    std::function<void(const UIMouseWheelInputEvent &)> on_mouse_wheel;
     std::function<void(const std::string &)> on_change;
     std::function<void(const std::string &)> on_submit;
     std::function<void(bool)> on_toggle;
@@ -58,34 +58,18 @@ public:
 
   UINodeId create_view(std::string name = {});
   UINodeId create_text(std::string text = {}, std::string name = {});
-  UINodeId create_image(ResourceDescriptorID texture_id = {},
-                        std::string name = {});
+  UINodeId create_image(ResourceDescriptorID texture_id = {}, std::string name = {});
   UINodeId create_pressable(std::string name = {});
-  UINodeId create_icon_button(ResourceDescriptorID texture_id = {},
-                              const std::function<void()> &on_click = {},
-                              std::string name = {});
-  UINodeId create_segmented_control(std::vector<std::string> options = {},
-                                    size_t selected_index = 0u,
-                                    std::string name = {});
-  UINodeId create_chip_group(std::vector<std::string> options = {},
-                             std::vector<bool> selected = {},
-                             std::string name = {});
-  UINodeId create_text_input(std::string value = {},
-                             std::string placeholder = {},
-                             std::string name = {});
+  UINodeId create_icon_button(ResourceDescriptorID texture_id = {}, const std::function<void()> &on_click = {}, std::string name = {});
+  UINodeId create_segmented_control(std::vector<std::string> options = {}, size_t selected_index = 0u, std::string name = {});
+  UINodeId create_chip_group(std::vector<std::string> options = {}, std::vector<bool> selected = {}, std::string name = {});
+  UINodeId create_text_input(std::string value = {}, std::string placeholder = {}, std::string name = {});
   UINodeId create_scroll_view(std::string name = {});
   UINodeId create_splitter(std::string name = {});
-  UINodeId create_checkbox(std::string label = {}, bool checked = false,
-                           std::string name = {});
-  UINodeId create_slider(float value = 0.0f, float min_value = 0.0f,
-                         float max_value = 1.0f, float step = 0.1f,
-                         std::string name = {});
-  UINodeId create_select(std::vector<std::string> options = {},
-                         size_t selected_index = 0u,
-                         std::string placeholder = {}, std::string name = {});
-  UINodeId create_button(const std::string &label,
-                         const std::function<void()> &on_click,
-                         std::string name = {});
+  UINodeId create_checkbox(std::string label = {}, bool checked = false, std::string name = {});
+  UINodeId create_slider(float value = 0.0f, float min_value = 0.0f, float max_value = 1.0f, float step = 0.1f, std::string name = {});
+  UINodeId create_select(std::vector<std::string> options = {}, size_t selected_index = 0u, std::string placeholder = {}, std::string name = {});
+  UINodeId create_button(const std::string &label, const std::function<void()> &on_click, std::string name = {});
 
   void set_root(UINodeId root_id);
   UINodeId root() const { return m_root_id; }
@@ -111,8 +95,7 @@ public:
   bool checked(UINodeId node_id) const;
   void set_slider_value(UINodeId node_id, float value);
   float slider_value(UINodeId node_id) const;
-  void set_slider_range(UINodeId node_id, float min_value, float max_value,
-                        float step = 0.1f);
+  void set_slider_range(UINodeId node_id, float min_value, float max_value, float step = 0.1f);
   void set_select_options(UINodeId node_id, std::vector<std::string> options);
   const std::vector<std::string> *select_options(UINodeId node_id) const;
   void set_selected_index(UINodeId node_id, size_t selected_index);
@@ -123,8 +106,7 @@ public:
   const std::vector<std::string> *segmented_options(UINodeId node_id) const;
   void set_segmented_selected_index(UINodeId node_id, size_t selected_index);
   size_t segmented_selected_index(UINodeId node_id) const;
-  void set_chip_options(UINodeId node_id, std::vector<std::string> options,
-                        std::vector<bool> selected = {});
+  void set_chip_options(UINodeId node_id, std::vector<std::string> options, std::vector<bool> selected = {});
   const std::vector<std::string> *chip_options(UINodeId node_id) const;
   void set_chip_selected(UINodeId node_id, size_t index, bool selected);
   bool chip_selected(UINodeId node_id, size_t index) const;
@@ -134,27 +116,27 @@ public:
   void set_on_click(UINodeId node_id, std::function<void()> callback);
   void set_on_focus(UINodeId node_id, std::function<void()> callback);
   void set_on_blur(UINodeId node_id, std::function<void()> callback);
-  void set_on_key_input(UINodeId node_id,
-                        std::function<void(const UIKeyInputEvent &)> callback);
+  void set_on_key_input(UINodeId node_id, std::function<void(const UIKeyInputEvent &)> callback);
   void set_on_character_input(
       UINodeId node_id,
-      std::function<void(const UiCharacterInputEvent &)> callback);
+      std::function<void(const UICharacterInputEvent &)> callback
+  );
   void set_on_mouse_wheel(
       UINodeId node_id,
-      std::function<void(const UiMouseWheelInputEvent &)> callback);
-  void set_on_change(UINodeId node_id,
-                     std::function<void(const std::string &)> callback);
-  void set_on_submit(UINodeId node_id,
-                     std::function<void(const std::string &)> callback);
+      std::function<void(const UIMouseWheelInputEvent &)> callback
+  );
+  void set_on_change(UINodeId node_id, std::function<void(const std::string &)> callback);
+  void set_on_submit(UINodeId node_id, std::function<void(const std::string &)> callback);
   void set_on_toggle(UINodeId node_id, std::function<void(bool)> callback);
-  void set_on_value_change(UINodeId node_id,
-                           std::function<void(float)> callback);
+  void set_on_value_change(UINodeId node_id, std::function<void(float)> callback);
   void set_on_select(
       UINodeId node_id,
-      std::function<void(size_t, const std::string &)> callback);
+      std::function<void(size_t, const std::string &)> callback
+  );
   void set_on_chip_toggle(
       UINodeId node_id,
-      std::function<void(size_t, const std::string &, bool)> callback);
+      std::function<void(size_t, const std::string &, bool)> callback
+  );
   void set_text_selection(UINodeId node_id, UITextSelection selection);
   void clear_text_selection(UINodeId node_id);
   void set_caret(UINodeId node_id, size_t index, bool active = true);
@@ -180,8 +162,8 @@ public:
   void clear_paint_dirty();
   void clear_dirty();
 
-  UiDrawList &draw_list() { return m_draw_list; }
-  const UiDrawList &draw_list() const { return m_draw_list; }
+  UIDrawList &draw_list() { return m_draw_list; }
+  const UIDrawList &draw_list() const { return m_draw_list; }
 
   void queue_callback(const std::function<void()> &callback);
   void flush_callbacks();
@@ -201,8 +183,8 @@ public:
   UINodeId open_select_node() const { return m_open_select_node; }
 
   UINodeId parent(UINodeId node_id) const;
-  UiScrollState *scroll_state(UINodeId node_id);
-  const UiScrollState *scroll_state(UINodeId node_id) const;
+  UIScrollState *scroll_state(UINodeId node_id);
+  const UIScrollState *scroll_state(UINodeId node_id) const;
 
   std::vector<UINodeId> root_to_leaf_order() const;
 
@@ -221,7 +203,7 @@ private:
   glm::vec2 m_canvas_size = glm::vec2(0.0f);
   float m_root_font_size = 16.0f;
 
-  UiDrawList m_draw_list;
+  UIDrawList m_draw_list;
   std::vector<std::function<void()>> m_callback_queue;
 
   bool m_structure_dirty = true;
