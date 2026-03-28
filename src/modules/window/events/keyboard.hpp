@@ -16,7 +16,7 @@ public:
 
   struct KeyState {
     KeyEvent event;
-    SchedulerID scheduler_id;
+    SchedulerID scheduler_id = SchedulerID{};
   };
 
   Keyboard(WindowID &window_id);

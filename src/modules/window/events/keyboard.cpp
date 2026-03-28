@@ -1,6 +1,7 @@
 #include "keyboard.hpp"
 
-#include "event-scheduler.hpp"
+#include "event-dispatcher.hpp"
+#include "events/event-scheduler.hpp"
 #include "events/key-event.hpp"
 #include "guid.hpp"
 #include "key-codes.hpp"
@@ -20,7 +21,8 @@ void Keyboard::release_keys() {
     auto state = glfwGetKey(window->handle(), (int)key);
 
     if (state == GLFW_RELEASE) {
-      auto keycode = KeyReleasedEvent(KeyCode(key), window->id());
+      auto keycode =
+          KeyReleasedEvent(KeyCode(key), window->id(), KeyModifiers{});
 
       EventDispatcher::get()->dispatch(&keycode);
 
@@ -37,7 +39,7 @@ void Keyboard::release_key(KeyCode key, WindowID window_id) {
   if (key_exists == m_key_events.end())
     return;
 
-  auto event = KeyReleasedEvent(key, window_id);
+  auto event = KeyReleasedEvent(key, window_id, KeyModifiers{});
 
   EventDispatcher::get()->dispatch(&event);
 
@@ -64,17 +66,17 @@ void Keyboard::destroy_release_keys() {
 bool Keyboard::is_key_down(KeyCode key_code) {
   auto at = m_key_events.find(key_code);
 
-  return at != nullptr && at->second.event == KeyEvent::KeyDown;
+  return at != m_key_events.end() && at->second.event == KeyEvent::KeyDown;
 }
 
 bool Keyboard::is_key_released(KeyCode key_code) {
   auto at = m_key_events.find(key_code);
 
-  return at != nullptr && at->second.event == KeyEvent::KeyReleased;
+  return at != m_key_events.end() && at->second.event == KeyEvent::KeyReleased;
 }
 
 void Keyboard::attach_key(KeyCode keycode, KeyState key_state) {
-  m_key_events.emplace(keycode, key_state);
+  m_key_events.insert_or_assign(keycode, key_state);
 };
 
 void Keyboard::destroy_key(KeyCode keycode) { m_key_events.erase(keycode); }
