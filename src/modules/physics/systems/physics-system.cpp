@@ -7,6 +7,7 @@
 #include "components/collider.hpp"
 #include "components/rigidbody.hpp"
 #include "components/transform.hpp"
+#include "console.hpp"
 #include "events/key-codes.hpp"
 #include "events/keyboard.hpp"
 #include "extensions/PxRigidBodyExt.h"
@@ -33,6 +34,13 @@ static PxPvd *g_pvd = nullptr;
 static bool g_simulate = true;
 
 namespace astralix {
+
+bool physics_simulation_enabled() { return g_simulate; }
+
+void set_physics_simulation_enabled(bool enabled) { g_simulate = enabled; }
+
+void toggle_physics_simulation() { g_simulate = !g_simulate; }
+
 namespace {
 
 PxTransform to_px_transform(const scene::Transform &transform) {
@@ -240,8 +248,12 @@ void PhysicsSystem::fixed_update(double fixed_dt) {
 void PhysicsSystem::pre_update(double dt) {}
 
 void PhysicsSystem::update(double dt) {
+  if (ConsoleManager::get().captures_input()) {
+    return;
+  }
+
   if (input::IS_KEY_RELEASED(input::KeyCode::F6)) {
-    g_simulate = !g_simulate;
+    toggle_physics_simulation();
   }
 }
 

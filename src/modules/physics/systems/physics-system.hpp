@@ -7,6 +7,10 @@
 
 namespace astralix {
 
+bool physics_simulation_enabled();
+void set_physics_simulation_enabled(bool enabled);
+void toggle_physics_simulation();
+
 struct Pvd {
   std::string host;
   int port;
