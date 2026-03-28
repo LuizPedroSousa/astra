@@ -1,0 +1,22 @@
+@version 450;
+
+@uniform
+interface Text {
+  sampler2D glyph;
+  vec4 color;
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@fragment
+fn main(VertexOutput vertex, Text text) -> FragmentOutput {
+  float alpha = texture(text.glyph, vertex.texture_coordinates).r;
+
+  return FragmentOutput(vec4(text.color.rgb, text.color.a * alpha));
+}
