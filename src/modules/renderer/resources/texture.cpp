@@ -61,6 +61,12 @@ Texture2D::create(const ResourceDescriptorID &resource_id,
       Texture2DDescriptor::create(resource_id, config));
 };
 
+Ref<Texture2DDescriptor>
+Texture2D::define(const ResourceDescriptorID &resource_id,
+                  TextureConfig config) {
+  return Texture2DDescriptor::create(resource_id, config);
+};
+
 Ref<Texture2D> Texture2D::from_descriptor(const ResourceHandle &id,
                                           Ref<Texture2DDescriptor> descriptor) {
   return create_renderer_component_ref<Texture2D, OpenGLTexture2D>(

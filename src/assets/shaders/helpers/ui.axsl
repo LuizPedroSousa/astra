@@ -1,0 +1,5 @@
+fn rounded_rect_sdf(vec2 pixel, vec2 size, float radius) -> float {
+  vec2 center = size * 0.5;
+  vec2 q = abs(pixel - center) - (center - vec2(radius));
+  return length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - radius;
+}

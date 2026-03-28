@@ -21,11 +21,13 @@ include_directories(${PROJECT_SOURCE_DIR}/external)
 target_include_directories(renderer
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/ui>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/physics>
     ${ASSIMP_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${ASTRALIX_ENGINE_GENERATED_DIR}>
     $<INSTALL_INTERFACE:include/astralix/modules/physics>
-  $<INSTALL_INTERFACE:include/astralix/modules/renderer>
+    $<INSTALL_INTERFACE:include/astralix/modules/renderer>
+    $<INSTALL_INTERFACE:include/astralix/modules/ui>
 )                                   
 
 target_link_libraries(

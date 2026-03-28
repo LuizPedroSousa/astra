@@ -21,6 +21,7 @@ target_link_libraries(
   shared::ecs
   physics
   renderer
+  ui
   streams)
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${ENGINE_SOURCES} ${ENGINE_HEADERS})

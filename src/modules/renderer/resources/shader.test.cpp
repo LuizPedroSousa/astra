@@ -25,7 +25,9 @@ public:
   void set_int(const std::string &, int) const override {}
   void set_matrix(const std::string &, glm::mat4) const override {}
   void set_float(const std::string &, float) const override {}
+  void set_vec2(const std::string &, glm::vec2) const override {}
   void set_vec3(const std::string &, glm::vec3) const override {}
+  void set_vec4(const std::string &, glm::vec4) const override {}
   uint32_t renderer_id() const override { return 0; }
 
   mutable std::vector<UploadRecord> uploads;

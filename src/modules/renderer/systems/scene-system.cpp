@@ -1,3 +1,4 @@
+#include "console.hpp"
 #include "scene-system.hpp"
 #include "systems/render-resource-expansion.hpp"
 #include "systems/camera-system/camera-controller-system.hpp"
@@ -42,6 +43,7 @@ void SceneSystem::update(double dt) {
   rendering::expand_render_resource_requests(world);
 
   auto window = window_manager()->active_window();
+  const bool console_captures_input = ConsoleManager::get().captures_input();
   const float aspect_ratio = (window != nullptr && window->height() != 0.0)
                                  ? static_cast<float>(window->width()) /
                                        static_cast<float>(window->height())
@@ -51,16 +53,21 @@ void SceneSystem::update(double dt) {
                   scene::CameraController>() > 0u) {
     using namespace input;
 
-    const auto mouse_delta = MOUSE_DELTA();
+    const auto mouse_delta =
+        (window != nullptr && window->cursor_captured() &&
+         !console_captures_input)
+            ? MOUSE_DELTA()
+            : input::Mouse::Position{.x = 0.0, .y = 0.0};
 
     scene::update_camera_controllers(
         world, scene::CameraControllerInput{
-                   .forward = IS_KEY_DOWN(KeyCode::W),
-                   .backward = IS_KEY_DOWN(KeyCode::S),
-                   .left = IS_KEY_DOWN(KeyCode::A),
-                   .right = IS_KEY_DOWN(KeyCode::D),
-                   .up = IS_KEY_DOWN(KeyCode::Space),
-                   .down = IS_KEY_DOWN(KeyCode::LeftControl),
+                   .forward = !console_captures_input && IS_KEY_DOWN(KeyCode::W),
+                   .backward = !console_captures_input && IS_KEY_DOWN(KeyCode::S),
+                   .left = !console_captures_input && IS_KEY_DOWN(KeyCode::A),
+                   .right = !console_captures_input && IS_KEY_DOWN(KeyCode::D),
+                   .up = !console_captures_input && IS_KEY_DOWN(KeyCode::Space),
+                   .down = !console_captures_input &&
+                           IS_KEY_DOWN(KeyCode::LeftControl),
                    .mouse_delta = glm::vec2(static_cast<float>(mouse_delta.x),
                                             static_cast<float>(mouse_delta.y)),
                    .dt = static_cast<float>(dt),

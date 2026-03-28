@@ -1,0 +1,20 @@
+@version 450;
+
+@uniform
+interface Image {
+  sampler2D texture;
+  vec4 tint;
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@fragment
+fn main(VertexOutput vertex, Image image) -> FragmentOutput {
+  return FragmentOutput(texture(image.texture, vertex.texture_coordinates) * image.tint);
+}

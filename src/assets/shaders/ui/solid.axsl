@@ -1,0 +1,51 @@
+@version 450;
+
+@include "../helpers/ui.axsl";
+
+@uniform
+interface SolidBorder {
+  vec4 color;
+  float width;
+  float radius;
+}
+
+@uniform
+interface Solid {
+  vec4 rect;
+  vec4 fill_color;
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@fragment
+fn main(VertexOutput vertex, Solid solid, SolidBorder solid_border) -> FragmentOutput {
+  vec2 size = max(solid.rect.zw, vec2(0.0001));
+  vec2 pixel = vertex.texture_coordinates * size;
+  float radius = clamp(solid_border.radius, 0.0, min(size.x, size.y) * 0.5);
+
+  float outer = rounded_rect_sdf(pixel, size, radius);
+  if (outer > 0.0) {
+    discard;
+  }
+
+  vec4 color = solid.fill_color;
+
+  if (solid_border.width > 0.0) {
+    vec2 inner_size = max(size - vec2(solid_border.width * 2.0), vec2(0.0));
+    vec2 inner_pixel = pixel - vec2(solid_border.width);
+    float inner_radius = max(radius - solid_border.width, 0.0);
+    float inner = rounded_rect_sdf(inner_pixel, inner_size, inner_radius);
+
+    if (inner > 0.0) {
+      color = solid_border.color;
+    }
+  }
+
+  return FragmentOutput(color);
+}

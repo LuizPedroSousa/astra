@@ -5,7 +5,6 @@
 #include "render-pass.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
 #include "resources/mesh.hpp"
-#include "shaders/engine_shaders_post_process_axsl.hpp"
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 
@@ -23,16 +22,13 @@ public:
   ~PostProcessPass() override = default;
 
   void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override {
+  setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &resources) override {
     m_render_target = render_target;
-
-    Shader::create("shaders::hdr", "shaders/fragment/hdr.glsl"_engine,
-                   "shaders/vertex/postprocessing.glsl"_engine);
 
     const auto backend = m_render_target->renderer_api()->get_backend();
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::hdr"});
+        backend, {"shaders::hdr"}
+    );
     m_shader = resource_manager()->get_by_descriptor_id<Shader>("shaders::hdr");
 
     rendering::ensure_mesh_uploaded(m_fullscreen_quad, m_render_target);
@@ -50,7 +46,8 @@ public:
     if (m_shader != nullptr) {
       m_shader->bind();
       m_shader->set(
-          engine_shaders_post_process_axsl::QuadUniform::screen_texture, 0);
+          engine_shaders_post_process_axsl::QuadUniform::screen_texture, 0
+      );
       m_shader->unbind();
     }
 #endif
@@ -71,7 +68,8 @@ public:
     m_shader->bind();
     bind_screen_texture();
     m_render_target->renderer_api()->draw_indexed(
-        m_fullscreen_quad.vertex_array, m_fullscreen_quad.draw_type);
+        m_fullscreen_quad.vertex_array, m_fullscreen_quad.draw_type
+    );
     m_shader->unbind();
   }
 

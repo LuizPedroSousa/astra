@@ -84,7 +84,6 @@ public:
     auto &world = scene->world();
     auto sprites = rendering::collect_text_sprites(world);
     if (sprites.empty()) {
-      LOG_WARN("[TextPass] Skipping execute: no text sprites collected");
       return;
     }
 

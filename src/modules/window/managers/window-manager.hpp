@@ -4,6 +4,7 @@
 #include "events/mouse.hpp"
 #include "guid.hpp"
 #include "window.hpp"
+#include <string>
 #include <unordered_map>
 
 namespace astralix {
@@ -56,8 +57,38 @@ namespace input {
   return window_manager()->active_window()->mouse()->delta();
 }
 
+[[nodiscard]] static inline const input::Mouse::Position CURSOR_POSITION() {
+  return window_manager()->active_window()->mouse()->position();
+}
+
 [[nodiscard]] static inline const bool HAS_MOUSE_MOVED() {
   return window_manager()->active_window()->mouse()->has_moved();
+}
+
+[[nodiscard]] static inline bool IS_MOUSE_BUTTON_DOWN(input::MouseButton button) {
+  return window_manager()->active_window()->mouse()->is_button_down(button);
+}
+
+[[nodiscard]] static inline bool
+IS_MOUSE_BUTTON_PRESSED(input::MouseButton button) {
+  return window_manager()->active_window()->mouse()->is_button_pressed(button);
+}
+
+[[nodiscard]] static inline bool
+IS_MOUSE_BUTTON_RELEASED(input::MouseButton button) {
+  return window_manager()->active_window()->mouse()->is_button_released(button);
+}
+
+[[nodiscard]] static inline bool IS_CURSOR_CAPTURED() {
+  return window_manager()->active_window()->cursor_captured();
+}
+
+[[nodiscard]] static inline std::string CLIPBOARD_TEXT() {
+  return window_manager()->active_window()->clipboard_text();
+}
+
+static inline void SET_CLIPBOARD_TEXT(const std::string &text) {
+  window_manager()->active_window()->set_clipboard_text(text);
 }
 
 inline void SET_MOUSE_POSITION(input::Mouse::Position &position) {

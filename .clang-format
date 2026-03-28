@@ -2,3 +2,9 @@ BasedOnStyle: LLVM
 IndentWidth: 2
 IndentCaseLabels: true
 UseTab: Never
+BreakAfterOpenBracketFunction: true
+BreakBeforeCloseBracketFunction: true
+AlignAfterOpenBracket: BlockIndent
+BinPackArguments: false
+ContinuationIndentWidth: 4
+ColumnLimit: 0

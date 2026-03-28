@@ -4,13 +4,17 @@ enum EventType {
   /* KEYBOARD */
   KeyPressed = 0,
   KeyReleased = 1,
+  CharacterInput = 2,
   /* MOUSE */
-  MouseMovement = 2,
+  MouseMovement = 3,
+  MouseButtonPressed = 4,
+  MouseButtonReleased = 5,
+  MouseWheel = 6,
 
   /* ENTITY */
-  EntityCreated = 3,
-  Viewport = 4,
-  Logs = 5
+  EntityCreated = 7,
+  Viewport = 8,
+  Logs = 9
 };
 
 class Event {

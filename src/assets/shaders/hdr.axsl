@@ -1,6 +1,8 @@
 @version 450;
 
-in vec2 texture_coordinates;
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
 
 uniform sampler2D screen_texture;
 uniform float gamma = 1.1;
@@ -11,12 +13,12 @@ interface FragmentOutput {
 }
 
 @fragment
-fn main() -> FragmentOutput {
-    vec3 color = texture(screen_texture, texture_coordinates).rgb;
+fn main(VertexOutput vertex) -> FragmentOutput {
+    vec3 color = texture(screen_texture, vertex.texture_coordinates).rgb;
 
     vec3 mapped = vec3(1.) - exp(-color * exposure);
 
     mapped = pow(mapped, vec3(1.0 / gamma));
 
-    FragmentOutput(vec4(mapped, 1.0));
+    return FragmentOutput(vec4(mapped, 1.0));
 }

@@ -1,6 +1,11 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
+#include <deque>
+#include <functional>
+#include <sstream>
+#include <string>
 #include <unordered_map>
 #include <vector>
 #define RESET "\033[0m"
@@ -13,18 +18,14 @@
 #include <iostream>
 #endif
 
-#include <chrono>
-#include <ctime>
-#include <iomanip>
-#include <sstream>
-#include <string>
-
 namespace astralix {
 
 enum class LogLevel { INFO = 0, WARNING = 1, ERROR = 2, DEBUG = 3 };
 
 class Logger {
 public:
+  using SinkID = uint64_t;
+
   static Logger &get() {
     static Logger instance;
     return instance;
@@ -34,52 +35,42 @@ public:
     std::string message;
     std::string timestamp;
     LogLevel level;
-    const char *caller;
+    std::string caller;
     std::string file;
     int line;
   };
+
+  Logger(const Logger &) = delete;
+  Logger &operator=(const Logger &) = delete;
 
   template <typename... Args>
   void log(LogLevel level, const char *caller, const char *file, int line,
            Args &&...args) {
 #ifdef ENABLE_LOGS
-    std::ostringstream log_stream;
-
-    auto now = std::chrono::system_clock::now();
-    std::time_t current_time = std::chrono::system_clock::to_time_t(now);
-    std::tm *local_time = std::localtime(&current_time);
-    std::ostringstream timestamp_stream;
-    timestamp_stream << std::put_time(local_time, "%Y-%m-%d %H:%M:%S");
-
-    std::string message = build_message(std::forward<Args>(args)...);
-    std::size_t msg_hash = std::hash<std::string>{}(message);
-
-    Log *log = nullptr;
-
-    if (m_log_map.find(msg_hash) != m_log_map.end()) {
-      log = m_log_map[msg_hash];
-      log->timestamp = timestamp_stream.str();
-    } else {
-      log = new Log{.message = message,
-                    .timestamp = timestamp_stream.str(),
-                    .level = level,
-                    .caller = caller,
-                    .file = extract_filename(file),
-                    .line = line};
-      m_log_map[msg_hash] = log;
-    }
-
-    if (m_logs.size() > 100) {
-      m_logs.clear();
-    }
-
-    m_logs.push_back(log);
-
-    render_log(log);
+    push_log(Log{
+        .message = build_message(std::forward<Args>(args)...),
+        .timestamp = timestamp_now(),
+        .level = level,
+        .caller = caller != nullptr ? caller : "",
+        .file = extract_filename(file),
+        .line = line,
+    });
 #endif
   }
 
-  std::vector<Log *> logs() const { return m_logs; }
+  const std::deque<Log> &logs() const { return m_logs; }
+  size_t max_entries() const { return m_max_entries; }
+  void set_max_entries(size_t max_entries);
+  void clear();
+
+  SinkID add_sink(std::function<void(const Log &)> sink);
+  void remove_sink(SinkID sink_id);
+
+  void set_terminal_output_enabled(bool enabled) {
+    m_terminal_output_enabled = enabled;
+  }
+
+  static std::string timestamp_now();
 
   template <typename... Args> std::string build_message(Args &&...args) {
     std::ostringstream message_stream;
@@ -94,49 +85,19 @@ public:
   }
 
 private:
-  std::unordered_map<std::size_t, Log *> m_log_map;
+  Logger() = default;
+  ~Logger() = default;
 
-  void render_log(Log *log) {
-    std::ostringstream log_stream;
+  void push_log(Log log);
+  void trim_to_capacity();
+  void render_terminal_log(const Log &log) const;
+  static std::string extract_filename(const char *file);
 
-    log_stream << BOLD << "[" << log->timestamp << "] :: ";
-
-    switch (log->level) {
-    case LogLevel::INFO:
-      log_stream << CYAN << "[INFO] ";
-      break;
-    case LogLevel::WARNING:
-      log_stream << YELLOW << "[WARNING] ";
-      break;
-    case LogLevel::ERROR:
-      log_stream << RED << "[ERROR] ";
-      break;
-    case LogLevel::DEBUG:
-      log_stream << CYAN << "[DEBUG] ";
-      break;
-    }
-
-    log_stream << RESET << BOLD << "[" << log->file << "::" << log->line << "]";
-    log_stream << " [" << log->caller << "]";
-
-    log_stream << RESET << " :: " << log->message << "\n";
-
-#ifdef LOG_TO_CONSOLE
-    std::cout << log_stream.str();
-#endif
-  }
-
-private:
-  std::string extract_filename(const char *file) {
-    std::string file_path(file);
-    size_t pos = file_path.find_last_of("/\\");
-    if (pos != std::string::npos) {
-      return file_path.substr(pos + 1);
-    }
-    return file_path;
-  }
-
-  std::vector<Log *> m_logs;
+  std::deque<Log> m_logs;
+  size_t m_max_entries = 500u;
+  SinkID m_next_sink_id = 1u;
+  bool m_terminal_output_enabled = true;
+  std::unordered_map<SinkID, std::function<void(const Log &)>> m_sinks;
 };
 
 #ifdef ENABLE_LOGS

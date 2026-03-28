@@ -26,6 +26,7 @@ public:
 
   virtual bool is_enabled() const { return m_enabled; }
   virtual void set_enabled(bool enabled) { m_enabled = enabled; }
+  virtual bool has_side_effects() const { return false; }
 
   virtual int priority() const { return m_priority; }
   virtual void set_priority(int priority) { m_priority = priority; }

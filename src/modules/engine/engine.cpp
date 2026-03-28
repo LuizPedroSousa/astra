@@ -6,6 +6,7 @@
 #include "systems/physics-system.hpp"
 #include "systems/render-system/render-system.hpp"
 #include "systems/scene-system.hpp"
+#include "systems/ui-system/ui-system.hpp"
 
 namespace astralix {
 Engine *Engine::m_instance = nullptr;
@@ -26,6 +27,7 @@ void Engine::start() {
   auto project_config = active_project()->get_config();
 
   system_manager->add_system<SceneSystem>();
+  system_manager->add_system<UISystem>();
 
   for (auto system : project_config.systems) {
     switch (system.type) {

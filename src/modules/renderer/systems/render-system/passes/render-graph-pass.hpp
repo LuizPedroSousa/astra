@@ -52,6 +52,7 @@ public:
   int get_priority() const { return m_pass->priority(); }
 
   bool is_enabled() const { return m_pass->is_enabled(); }
+  bool has_side_effects() const { return m_pass->has_side_effects(); }
 
   void add_dependency(RenderPass *dependency) {
     m_pass->add_dependency(dependency);
