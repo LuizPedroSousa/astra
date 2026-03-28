@@ -130,7 +130,7 @@ void Window::start() {
         glfwCreateStandardCursor(GLFW_RESIZE_NWSE_CURSOR);
     m_diagonal_nesw_resize_cursor =
         glfwCreateStandardCursor(GLFW_RESIZE_NESW_CURSOR);
-    set_cursor_captured(true);
+    set_cursor_captured(m_cursor_captured);
   }
 }
 

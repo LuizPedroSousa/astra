@@ -83,7 +83,7 @@ private:
   Ref<input::Mouse> m_mouse;
 
   bool m_headless = false;
-  bool m_cursor_captured = true;
+  bool m_cursor_captured = false;
   CursorIcon m_cursor_icon = CursorIcon::Default;
   GLFWcursor *m_horizontal_resize_cursor = nullptr;
   GLFWcursor *m_vertical_resize_cursor = nullptr;
