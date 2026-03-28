@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 project(astralix VERSION 0.1.0 LANGUAGES CXX)
 
-option(BUILD_EXAMPLES "Build example projects" OFF)
 option(ASTRA_EDITOR "Astra internal Layer Editor" false)
 option(ASTRA_EDITOR_USOCKET "Astra forward serialization with USocket for external Editor" true)
 option(ASTRA_ENABLE_TESTS "Enable unit tests" false)
@@ -73,8 +72,10 @@ if(ASTRA_ENABLE_TESTS)
   find_package(GTest CONFIG REQUIRED)
 
   file(GLOB_RECURSE ARCHETYPE_ECS_TEST_SRC
+       ${CMAKE_SOURCE_DIR}/src/shared/foundation/*.test.cpp
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/ui/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/camera-system/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/*.test.hpp
@@ -82,10 +83,13 @@ if(ASTRA_ENABLE_TESTS)
        ${CMAKE_SOURCE_DIR}/src/shared/ecs/*.test.cpp)
   set(TEST_SUPPORT_SRC
       ${CMAKE_SOURCE_DIR}/src/shared/ecs/guid.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/ui/document.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/window/clipboard.cpp
       ${CMAKE_SOURCE_DIR}/tests/model-stub.cpp)
   set_source_files_properties(
     ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/scene-snapshot.test.hpp
     ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/collider-shape-resolution.test.hpp
+    ${CMAKE_SOURCE_DIR}/src/modules/ui/ui-foundations.test.hpp
     ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-resource-expansion.test.hpp
     ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/camera-system/camera-controller-system.test.hpp
     ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/light-frame.test.hpp
@@ -99,9 +103,11 @@ if(ASTRA_ENABLE_TESTS)
                                      ${TEST_SUPPORT_SRC})
   target_include_directories(
     archetype_ecs_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/shared/ecs
+                                ${CMAKE_SOURCE_DIR}/src/shared/events
                                 ${CMAKE_SOURCE_DIR}/src/shared/foundation
                                 ${CMAKE_SOURCE_DIR}/src/modules/streams
                                 ${CMAKE_SOURCE_DIR}/src/modules/renderer
+                                ${CMAKE_SOURCE_DIR}/src/modules/ui
                                 ${CMAKE_SOURCE_DIR}/src/modules/physics
                                 ${CMAKE_SOURCE_DIR}/src/modules/project
                                 ${CMAKE_SOURCE_DIR}/src/modules/window)
@@ -152,6 +158,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/modules/project)
   add_subdirectory(src/modules/window)
   add_subdirectory(src/modules/renderer)
+  add_subdirectory(src/modules/ui)
   add_subdirectory(src/modules/physics)
   add_subdirectory(src/modules/engine)
   add_subdirectory(src/modules/application)
@@ -170,7 +177,7 @@ endif()
 if(ASTRA_ENABLE_TESTS)
   target_link_libraries(
     archetype_ecs_tests PRIVATE shared::foundation glm::glm GTest::gtest
-                                GTest::gtest_main GTest::gmock
+                                GTest::gtest_main GTest::gmock glfw
                                 GTest::gmock_main)
   target_include_directories(
     archetype_ecs_tests PRIVATE ${ASTRALIX_ENGINE_GENERATED_DIR})
@@ -190,6 +197,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       window
       shader-lang
       renderer
+      ui
       physics
       engine
       application
@@ -230,6 +238,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       astralix::window
       astralix::shader-lang
       astralix::renderer
+      astralix::ui
       astralix::physics
       astralix::engine
       astralix::application
@@ -245,6 +254,7 @@ if(NOT ASTRA_ENABLE_TESTS)
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/project>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/window>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/renderer>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/ui>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/physics>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/engine>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/application>
@@ -258,6 +268,7 @@ if(NOT ASTRA_ENABLE_TESTS)
     $<INSTALL_INTERFACE:include/astralix/modules/project>
     $<INSTALL_INTERFACE:include/astralix/modules/window>
     $<INSTALL_INTERFACE:include/astralix/modules/renderer>
+    $<INSTALL_INTERFACE:include/astralix/modules/ui>
     $<INSTALL_INTERFACE:include/astralix/modules/physics>
     $<INSTALL_INTERFACE:include/astralix/modules/engine>
     $<INSTALL_INTERFACE:include/astralix/modules/application>
@@ -303,6 +314,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       project
       window
       renderer
+      ui
       physics
       engine
       application
@@ -317,11 +329,6 @@ if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(axgen)
 endif()
 
-if(BUILD_EXAMPLES)
-  add_subdirectory(examples/sandbox)
-endif()
-
-
 if(NOT ASTRA_ENABLE_TESTS)
   install(TARGETS astra
           foundation
@@ -333,6 +340,7 @@ if(NOT ASTRA_ENABLE_TESTS)
           window
           shader-lang
           renderer
+          ui
           physics
           engine
           application
@@ -344,6 +352,16 @@ if(NOT ASTRA_ENABLE_TESTS)
           RUNTIME DESTINATION bin
           INCLUDES DESTINATION include
   )
+
+  install(CODE [[
+    file(REMOVE_RECURSE
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/ui/ui"
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/ui"
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/systems/ui-system")
+    file(REMOVE
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/components/ui.hpp"
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/systems/ui-system.hpp")
+  ]])
 
   if(ASTRA_EDITOR)
     install(DIRECTORY src/ DESTINATION include/astralix FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

@@ -1,4 +1,5 @@
 #include "application.hpp"
+#include "console.hpp"
 #include "engine.hpp"
 #include "event-dispatcher.hpp"
 #include "event-scheduler.hpp"
@@ -16,6 +17,7 @@ Application *Application::init() {
   EventDispatcher::init();
   EventScheduler::init();
   Time::init();
+  ConsoleManager::get();
   ProjectManager::init();
   Engine::init();
   SystemManager::init();
