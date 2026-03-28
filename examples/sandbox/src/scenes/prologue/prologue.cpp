@@ -158,7 +158,6 @@ void Prologue::update() {
 
   if (m_request_toggle_split_view) {
     m_is_resizable_split_view_open = !m_is_resizable_split_view_open;
-    LOG_DEBUG("test ", m_is_resizable_split_view_open);
     m_hud_document->set_visible(m_resizable_split_demo_node, m_is_resizable_split_view_open);
     m_request_toggle_split_view = false;
   }
