@@ -146,7 +146,8 @@ void Window::mouse_callback(GLFWwindow *window, double x, double y) {
   auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
   self->m_mouse->set_position(input::Mouse::Position{.x = x, .y = y});
 
-  EventDispatcher::get()->dispatch(new MouseEvent(x, y, self->id()));
+  auto event = MouseEvent(x, y, self->id());
+  EventDispatcher::get()->dispatch(&event);
 };
 
 void Window::mouse_button_callback(GLFWwindow *window, int button, int action,
@@ -175,12 +176,13 @@ void Window::mouse_button_callback(GLFWwindow *window, int button, int action,
 
   if (action == GLFW_PRESS) {
     self->m_mouse->set_button_state(mapped_button, true);
-    EventDispatcher::get()->dispatch(
-        new MouseButtonPressedEvent(mapped_button, self->id(), modifiers));
+    auto event = MouseButtonPressedEvent(mapped_button, self->id(), modifiers);
+    EventDispatcher::get()->dispatch(&event);
   } else if (action == GLFW_RELEASE) {
     self->m_mouse->set_button_state(mapped_button, false);
-    EventDispatcher::get()->dispatch(
-        new MouseButtonReleasedEvent(mapped_button, self->id(), modifiers));
+    auto event =
+        MouseButtonReleasedEvent(mapped_button, self->id(), modifiers);
+    EventDispatcher::get()->dispatch(&event);
   }
 }
 
@@ -208,8 +210,9 @@ void Window::char_callback(GLFWwindow *window, unsigned int codepoint) {
     mods |= GLFW_MOD_SUPER;
   }
 
-  EventDispatcher::get()->dispatch(new input::CharacterInputEvent(
-      codepoint, self->id(), input::KeyModifiers::from_glfw(mods)));
+  auto event = input::CharacterInputEvent(
+      codepoint, self->id(), input::KeyModifiers::from_glfw(mods));
+  EventDispatcher::get()->dispatch(&event);
 }
 
 void Window::scroll_callback(GLFWwindow *window, double xoffset,
@@ -237,8 +240,9 @@ void Window::scroll_callback(GLFWwindow *window, double xoffset,
     mods |= GLFW_MOD_SUPER;
   }
 
-  EventDispatcher::get()->dispatch(new MouseWheelEvent(
-      xoffset, yoffset, self->id(), input::KeyModifiers::from_glfw(mods)));
+  auto event = MouseWheelEvent(
+      xoffset, yoffset, self->id(), input::KeyModifiers::from_glfw(mods));
+  EventDispatcher::get()->dispatch(&event);
 }
 
 void Window::key_callback(GLFWwindow *window, int key, int scancode, int action,
