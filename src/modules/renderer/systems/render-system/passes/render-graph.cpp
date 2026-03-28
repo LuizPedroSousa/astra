@@ -238,6 +238,10 @@ void RenderGraph::cull_passes() {
       if (pass->is_culled())
         continue;
 
+      if (pass->has_side_effects()) {
+        continue;
+      }
+
       bool has_useful_output = false;
 
       for (const auto &access : pass->get_resource_accesses()) {

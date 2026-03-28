@@ -22,6 +22,7 @@
 #include "systems/render-system/passes/shadow-pass.hpp"
 #include "systems/render-system/passes/skybox-pass.hpp"
 #include "systems/render-system/passes/text-pass.hpp"
+#include "systems/render-system/passes/ui-pass.hpp"
 #include "targets/render-target.hpp"
 #include "trace.hpp"
 
@@ -116,6 +117,8 @@ void RenderSystem::start() {
 
   target_graph.add_pass(create_scope<PostProcessPass>())
       .read_write(scene_color);
+
+  target_graph.add_pass(create_scope<UiPass>()).read(scene_color);
 
   m_render_graph = target_graph.build();
   m_render_graph->compile(m_render_target);
