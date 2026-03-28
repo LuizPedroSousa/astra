@@ -443,7 +443,9 @@ void ConsoleController::refresh(bool force) {
   }
 
   auto &console = ConsoleManager::get();
-  if (!force && m_entries_version == console.entries_version()) {
+  const uint64_t next_entries_version = console.entries_version();
+  const bool entries_changed = m_entries_version != next_entries_version;
+  if (!force && !entries_changed) {
     return;
   }
 
@@ -499,7 +501,10 @@ void ConsoleController::refresh(bool force) {
                              });
   }
 
-  m_entries_version = console.entries_version();
+  m_entries_version = next_entries_version;
+  if (entries_changed && m_follow_tail) {
+    m_force_follow_on_next_refresh = true;
+  }
 }
 
 void ConsoleController::ensure_row_capacity(size_t count) {
