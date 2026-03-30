@@ -24,6 +24,11 @@
       "path": "fonts/roboto.ttf"
     },
     {
+      "id": "fonts::noto_sans_mono",
+      "type": "Font",
+      "path": "fonts/noto-sans-mono.ttf"
+    },
+    {
       "id": "icons::adjust",
       "type": "Texture2D",
       "path": "@engine/icons/adjust.png",
@@ -33,6 +38,12 @@
       "id": "icons::clear",
       "type": "Texture2D",
       "path": "@engine/icons/clear.png",
+      "flip": false
+    },
+    {
+      "id": "icons::cube",
+      "type": "Texture2D",
+      "path": "@engine/icons/cube.png",
       "flip": false
     },
     {
@@ -148,6 +159,12 @@
       "type": "Shader",
       "vertex": "@engine/shaders/light.axsl",
       "fragment": "@engine/shaders/light.axsl"
+    },
+    {
+      "id": "shaders::ssao",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssao.axsl",
+      "fragment": "@engine/shaders/ssao.axsl"
     },
     {
       "id": "shaders::lighting_forward",

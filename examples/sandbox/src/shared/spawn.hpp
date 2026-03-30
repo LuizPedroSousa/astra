@@ -9,10 +9,9 @@
 
 using namespace astralix;
 
-extern const glm::vec3 arena_offset;
+astralix::scene::Transform make_transform(glm::vec3 position, glm::vec3 scale = glm::vec3(1.0f));
 
-astralix::scene::Transform make_transform(glm::vec3 position,
-                                          glm::vec3 scale = glm::vec3(1.0f));
+void rotate_transform(astralix::scene::Transform &transform, glm::vec3 axis, float degrees);
 
 struct cube_spawn_spec {
   const char *name;
@@ -26,10 +25,4 @@ struct cube_spawn_spec {
 extern const std::array<cube_spawn_spec, 2> ramp_specs;
 extern const std::array<cube_spawn_spec, 9> dynamic_cube_specs;
 
-void spawn_arena_cube(Scene &scene, std::string name, glm::vec3 position,
-                      glm::vec3 scale, physics::RigidBodyMode mode,
-                      float mass = 1.0f,
-                      glm::vec3 rotation_axis = glm::vec3(0.0f),
-                      float rotation_degrees = 0.0f);
-
-void init_arena(Scene &scene);
+void spawn_arena_cube(Scene &scene, std::string name, glm::vec3 position, glm::vec3 scale, physics::RigidBodyMode mode, float mass = 1.0f, glm::vec3 rotation_axis = glm::vec3(0.0f), float rotation_degrees = 0.0f);
