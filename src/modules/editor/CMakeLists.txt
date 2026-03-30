@@ -1,22 +1,73 @@
-file(GLOB_RECURSE EDITOR_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
-file(GLOB_RECURSE EDITOR_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
+set(EDITOR_SRC
+    ${CMAKE_CURRENT_SOURCE_DIR}/builtin-plugins.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor-selection-store.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/layouts/layout-registry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/panels/panel-registry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/systems/workspace-shell-system.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/console-panel-controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/entry-presentation.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/rows.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/actions.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/cards.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/component-descriptors.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/inspector-panel-controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/refresh.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/snapshot.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/timing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/refresh.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/rows.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/scene-hierarchy-panel-controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/snapshot.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/viewport/viewport-panel-controller.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/workspaces/workspace-registry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/workspaces/workspace-store.cpp)
+
+set(EDITOR_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/builtin-plugins.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor-selection-store.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor-theme.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/layouts/layout-node.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/layouts/layout-registry.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/panels/panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/panels/panel-registry.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/systems/workspace-shell-system.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/console-panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/entry-presentation.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/build.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/inspector-panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/build.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/scene-hierarchy-panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/viewport/viewport-panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/workspaces/workspace-definition.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/workspaces/workspace-registry.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/workspaces/workspace-store.hpp)
 
 add_library(editor STATIC ${EDITOR_SRC} ${EDITOR_HEADERS})
 
-include_directories(${CMAKE_SOURCE_DIR}/external)
-target_include_directories(editor PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(
+  editor
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include/astralix/modules/editor>)
 
 target_link_libraries(
   editor
-  glad::glad
-  ${OPENGL_LIBRARIES}
-  ${GLFW_LIBRARIES}
-  imgui::imgui
-  # imgui_impl
-  shared::foundation
-  shared::allocators
-  shared::events
-  physics
-  renderer
-  window
-  JsonCpp::JsonCpp)
+  PRIVATE
+    application
+    project
+    streams
+    renderer
+    ui
+    window
+    shared::foundation
+    shared::allocators
+    shared::events)
