@@ -3,10 +3,134 @@
 #include <algorithm>
 #include <cctype>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 namespace astralix {
 namespace {
+
+enum class SuggestionBucket : uint8_t {
+  Exact = 0u,
+  Prefix = 1u,
+  Subsequence = 2u,
+};
+
+struct SuggestionHistoryStats {
+  double frecency = 0.0;
+  size_t use_count = 0u;
+  size_t last_seen_index = 0u;
+};
+
+std::string trim_copy(std::string_view text) {
+  size_t begin = 0u;
+  size_t end = text.size();
+
+  while (begin < end &&
+         std::isspace(static_cast<unsigned char>(text[begin]))) {
+    ++begin;
+  }
+
+  while (end > begin &&
+         std::isspace(static_cast<unsigned char>(text[end - 1u]))) {
+    --end;
+  }
+
+  return std::string(text.substr(begin, end - begin));
+}
+
+std::string normalize_suggestion_text(std::string_view text) {
+  std::string normalized = trim_copy(text);
+  for (char &character : normalized) {
+    character = static_cast<char>(
+        std::tolower(static_cast<unsigned char>(character))
+    );
+  }
+
+  return normalized;
+}
+
+std::string lowercase_copy(std::string_view text) {
+  std::string normalized;
+  normalized.reserve(text.size());
+  for (const char character : text) {
+    normalized.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(character))));
+  }
+
+  return normalized;
+}
+
+bool starts_with_case_insensitive(
+    std::string_view text, std::string_view prefix
+) {
+  if (prefix.size() > text.size()) {
+    return false;
+  }
+
+  for (size_t index = 0u; index < prefix.size(); ++index) {
+    if (std::tolower(static_cast<unsigned char>(text[index])) !=
+        std::tolower(static_cast<unsigned char>(prefix[index]))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+std::string_view first_history_token(std::string_view line) {
+  size_t begin = 0u;
+  while (begin < line.size() &&
+         std::isspace(static_cast<unsigned char>(line[begin]))) {
+    ++begin;
+  }
+
+  size_t end = begin;
+  while (end < line.size() &&
+         !std::isspace(static_cast<unsigned char>(line[end]))) {
+    ++end;
+  }
+
+  return line.substr(begin, end - begin);
+}
+
+bool is_subsequence_match(
+    std::string_view needle, std::string_view haystack
+) {
+  if (needle.empty()) {
+    return true;
+  }
+
+  size_t needle_index = 0u;
+  for (char character : haystack) {
+    if (needle_index < needle.size() && character == needle[needle_index]) {
+      ++needle_index;
+    }
+  }
+
+  return needle_index == needle.size();
+}
+
+std::optional<SuggestionBucket>
+match_suggestion_bucket(
+    std::string_view normalized_query, std::string_view normalized_candidate
+) {
+  if (normalized_query.empty()) {
+    return SuggestionBucket::Prefix;
+  }
+
+  if (normalized_candidate == normalized_query) {
+    return SuggestionBucket::Exact;
+  }
+
+  if (normalized_candidate.starts_with(normalized_query)) {
+    return SuggestionBucket::Prefix;
+  }
+
+  if (is_subsequence_match(normalized_query, normalized_candidate)) {
+    return SuggestionBucket::Subsequence;
+  }
+
+  return std::nullopt;
+}
 
 ConsoleEntry make_output_entry(std::string message, LogLevel level) {
   return ConsoleEntry{
@@ -21,21 +145,20 @@ ConsoleEntry make_output_entry(std::string message, LogLevel level) {
 
 ConsoleManager::ConsoleManager() {
   m_logger_sink_id = Logger::get().add_sink(
-      [this](const Logger::Log &log) { append_log_entry(log); });
+      [this](const Logger::Log &log) { append_log_entry(log); }
+  );
   register_builtin_commands();
 }
 
-void ConsoleManager::register_command(std::string name, std::string description,
-                                      CommandHandler handler) {
+void ConsoleManager::register_command(std::string name, std::string description, CommandHandler handler) {
   const std::string normalized = normalize_command_name(name);
   if (normalized.empty()) {
     return;
   }
 
   m_commands.insert_or_assign(
-      normalized, RegisteredCommand{.name = std::move(normalized),
-                                    .description = std::move(description),
-                                    .handler = std::move(handler)});
+      normalized, RegisteredCommand{.name = std::move(normalized), .description = std::move(description), .handler = std::move(handler)}
+  );
 }
 
 void ConsoleManager::unregister_command(std::string_view name) {
@@ -97,8 +220,7 @@ ConsoleCommandResult ConsoleManager::execute(std::string line) {
       .line = trimmed_line,
       .name = command_it->second.name,
       .arguments =
-          std::vector<std::string>(std::make_move_iterator(tokens.begin() + 1u),
-                                   std::make_move_iterator(tokens.end())),
+          std::vector<std::string>(std::make_move_iterator(tokens.begin() + 1u), std::make_move_iterator(tokens.end())),
   };
 
   result = command_it->second.handler(invocation);
@@ -201,7 +323,8 @@ std::string ConsoleManager::normalize_command_name(std::string_view name) {
 
   for (const char character : name) {
     normalized.push_back(
-        static_cast<char>(std::tolower(static_cast<unsigned char>(character))));
+        static_cast<char>(std::tolower(static_cast<unsigned char>(character)))
+    );
   }
 
   return trim(normalized);
@@ -226,8 +349,7 @@ std::string ConsoleManager::trim(std::string_view text) {
 
 void ConsoleManager::register_builtin_commands() {
   register_command(
-      "help", "List available console commands.",
-      [this](const ConsoleCommandInvocation &) {
+      "help", "List available console commands.", [this](const ConsoleCommandInvocation &) {
         ConsoleCommandResult result;
         result.success = true;
         for (const CommandInfo &command : commands()) {
@@ -237,16 +359,17 @@ void ConsoleManager::register_builtin_commands() {
           result.lines.push_back("no commands registered");
         }
         return result;
-      });
+      }
+  );
 
   register_command(
-      "clear", "Clear the console output buffer.",
-      [](const ConsoleCommandInvocation &) {
+      "clear", "Clear the console output buffer.", [](const ConsoleCommandInvocation &) {
         ConsoleCommandResult result;
         result.success = true;
         result.clear_entries = true;
         return result;
-      });
+      }
+  );
 }
 
 void ConsoleManager::append_log_entry(const Logger::Log &log) {
@@ -278,6 +401,209 @@ void ConsoleManager::trim_history_to_capacity() {
   while (m_history.size() > m_max_history_entries) {
     m_history.pop_front();
   }
+}
+
+std::vector<std::string> build_console_command_suggestions(
+    std::string_view query,
+    const std::vector<ConsoleManager::CommandInfo> &commands,
+    const std::deque<std::string> &history, size_t max_results
+) {
+  if (max_results == 0u) {
+    return {};
+  }
+
+  size_t query_start = 0u;
+  while (query_start < query.size() &&
+         std::isspace(static_cast<unsigned char>(query[query_start]))) {
+    ++query_start;
+  }
+
+  const std::string_view command_query = query.substr(query_start);
+  const bool query_has_whitespace =
+      std::any_of(command_query.begin(), command_query.end(), [](char character) {
+        return std::isspace(static_cast<unsigned char>(character));
+      });
+  if (query_has_whitespace) {
+    return {};
+  }
+
+  const std::string normalized_query =
+      normalize_suggestion_text(command_query);
+
+  std::map<std::string, SuggestionHistoryStats> history_stats;
+  std::map<std::string, bool> known_commands;
+  for (const auto &command : commands) {
+    const std::string normalized = normalize_suggestion_text(command.name);
+    if (!normalized.empty()) {
+      known_commands[normalized] = true;
+    }
+  }
+
+  for (size_t index = 0u; index < history.size(); ++index) {
+    const std::string candidate = trim_copy(history[index]);
+    if (candidate.empty()) {
+      continue;
+    }
+
+    const std::string normalized =
+        normalize_suggestion_text(first_history_token(candidate));
+    if (!known_commands.contains(normalized)) {
+      continue;
+    }
+
+    auto &stats = history_stats[normalized];
+    stats.use_count += 1u;
+    stats.last_seen_index = index;
+    stats.frecency +=
+        1.0 / static_cast<double>((history.size() - index));
+  }
+
+  struct RankedSuggestion {
+    std::string display;
+    std::string normalized;
+    SuggestionBucket bucket = SuggestionBucket::Subsequence;
+    double frecency = 0.0;
+    size_t use_count = 0u;
+    size_t last_seen_index = 0u;
+  };
+
+  std::map<std::string, RankedSuggestion> candidates;
+  auto register_candidate = [&](std::string_view display_text) {
+    const std::string display = trim_copy(display_text);
+    if (display.empty()) {
+      return;
+    }
+
+    const std::string normalized = normalize_suggestion_text(display);
+    const auto bucket = match_suggestion_bucket(normalized_query, normalized);
+    if (!bucket.has_value()) {
+      return;
+    }
+
+    auto [it, inserted] = candidates.try_emplace(
+        normalized,
+        RankedSuggestion{
+            .display = display,
+            .normalized = normalized,
+            .bucket = *bucket,
+        }
+    );
+
+    if (inserted || *bucket < it->second.bucket) {
+      it->second.display = display;
+      it->second.bucket = *bucket;
+    }
+
+    const auto stats_it = history_stats.find(normalized);
+    if (stats_it != history_stats.end()) {
+      it->second.frecency = stats_it->second.frecency;
+      it->second.use_count = stats_it->second.use_count;
+      it->second.last_seen_index = stats_it->second.last_seen_index;
+    }
+  };
+
+  for (const auto &command : commands) {
+    register_candidate(command.name);
+  }
+
+  std::vector<RankedSuggestion> ranked;
+  ranked.reserve(candidates.size());
+  for (const auto &[_, candidate] : candidates) {
+    ranked.push_back(candidate);
+  }
+
+  std::sort(
+      ranked.begin(), ranked.end(), [](const RankedSuggestion &lhs, const RankedSuggestion &rhs) {
+        if (lhs.bucket != rhs.bucket) {
+          return lhs.bucket < rhs.bucket;
+        }
+        if (lhs.frecency != rhs.frecency) {
+          return lhs.frecency > rhs.frecency;
+        }
+        if (lhs.last_seen_index != rhs.last_seen_index) {
+          return lhs.last_seen_index > rhs.last_seen_index;
+        }
+        if (lhs.use_count != rhs.use_count) {
+          return lhs.use_count > rhs.use_count;
+        }
+        return lhs.display < rhs.display;
+      }
+  );
+
+  std::vector<std::string> suggestions;
+  suggestions.reserve(std::min(max_results, ranked.size()));
+  for (const auto &candidate : ranked) {
+    suggestions.push_back(candidate.display);
+    if (suggestions.size() >= max_results) {
+      break;
+    }
+  }
+
+  return suggestions;
+}
+
+std::optional<std::string> build_console_history_autocomplete(
+    std::string_view query, const std::deque<std::string> &history
+) {
+  if (query.empty()) {
+    return std::nullopt;
+  }
+
+  struct RankedHistoryCandidate {
+    std::string display;
+    double frecency = 0.0;
+    size_t use_count = 0u;
+    size_t last_seen_index = 0u;
+  };
+
+  std::map<std::string, RankedHistoryCandidate> candidates;
+  for (size_t index = 0u; index < history.size(); ++index) {
+    const std::string candidate = trim_copy(history[index]);
+    if (candidate.size() <= query.size() ||
+        !starts_with_case_insensitive(candidate, query)) {
+      continue;
+    }
+
+    const std::string normalized = normalize_suggestion_text(candidate);
+    auto [it, inserted] = candidates.try_emplace(
+        normalized, RankedHistoryCandidate{.display = candidate}
+    );
+    if (!inserted && index >= it->second.last_seen_index) {
+      it->second.display = candidate;
+    }
+
+    it->second.use_count += 1u;
+    it->second.last_seen_index = index;
+    it->second.frecency +=
+        1.0 / static_cast<double>((history.size() - index));
+  }
+
+  if (candidates.empty()) {
+    return std::nullopt;
+  }
+
+  std::vector<RankedHistoryCandidate> ranked;
+  ranked.reserve(candidates.size());
+  for (const auto &[_, candidate] : candidates) {
+    ranked.push_back(candidate);
+  }
+
+  std::sort(
+      ranked.begin(), ranked.end(), [](const RankedHistoryCandidate &lhs, const RankedHistoryCandidate &rhs) {
+        if (lhs.frecency != rhs.frecency) {
+          return lhs.frecency > rhs.frecency;
+        }
+        if (lhs.last_seen_index != rhs.last_seen_index) {
+          return lhs.last_seen_index > rhs.last_seen_index;
+        }
+        if (lhs.use_count != rhs.use_count) {
+          return lhs.use_count > rhs.use_count;
+        }
+        return lowercase_copy(lhs.display) < lowercase_copy(rhs.display);
+      }
+  );
+
+  return ranked.front().display;
 }
 
 } // namespace astralix

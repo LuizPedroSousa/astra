@@ -109,5 +109,107 @@ TEST_F(LoggerConsoleTest, UnknownAndClearCommandsProduceExpectedBufferState) {
   EXPECT_TRUE(console.entries().empty());
 }
 
+TEST_F(LoggerConsoleTest, CommandSuggestionsRankByMatchBucketAndSessionFrecency) {
+  const std::vector<ConsoleManager::CommandInfo> commands{
+      {.name = "help", .description = "List commands."},
+      {.name = "hello_world", .description = "Example command."},
+      {.name = "hide_errors", .description = "Hide error rows."},
+  };
+  const std::deque<std::string> history{
+      "hide_errors",
+      "hello_world sample",
+      "help",
+      "help",
+  };
+
+  const auto suggestions =
+      build_console_command_suggestions("he", commands, history, 8u);
+
+  ASSERT_GE(suggestions.size(), 3u);
+  EXPECT_EQ(suggestions[0], "help");
+  EXPECT_EQ(suggestions[1], "hello_world");
+  EXPECT_EQ(suggestions[2], "hide_errors");
+}
+
+TEST_F(LoggerConsoleTest, EmptyCommandQueryReturnsCommandsOnlyRankedByHistory) {
+  const std::vector<ConsoleManager::CommandInfo> commands{
+      {.name = "help", .description = "List commands."},
+      {.name = "stats", .description = "Print stats."},
+      {.name = "spawn_cube", .description = "Spawn a cube."},
+      {.name = "toggle_physics", .description = "Toggle physics."},
+  };
+  const std::deque<std::string> history{
+      "help",
+      "stats",
+      "help",
+      "spawn_cube heavy",
+      "help",
+  };
+
+  const auto suggestions =
+      build_console_command_suggestions("", commands, history, 5u);
+
+  ASSERT_EQ(suggestions.size(), 4u);
+  EXPECT_EQ(suggestions[0], "help");
+  EXPECT_EQ(suggestions[1], "spawn_cube");
+  EXPECT_EQ(suggestions[2], "stats");
+  EXPECT_EQ(suggestions[3], "toggle_physics");
+}
+
+TEST_F(LoggerConsoleTest, CommandSuggestionsIgnoreArgumentQueries) {
+  const std::vector<ConsoleManager::CommandInfo> commands{
+      {.name = "help", .description = "List commands."},
+      {.name = "clear", .description = "Clear output."},
+  };
+  const std::deque<std::string> history{
+      "HELP",
+      "help",
+      "clear",
+      "clear",
+  };
+
+  const auto suggestions =
+      build_console_command_suggestions("clear now", commands, history, 5u);
+
+  EXPECT_TRUE(suggestions.empty());
+
+  const auto trailing_space =
+      build_console_command_suggestions("clear ", commands, history, 5u);
+
+  EXPECT_TRUE(trailing_space.empty());
+}
+
+TEST_F(LoggerConsoleTest, HistoryAutocompleteUsesFrecencyAndKeepsUnknownEntries) {
+  const std::deque<std::string> history{
+      "echo hello",
+      "ecoh test",
+      "ecoh test",
+  };
+
+  const auto autocomplete =
+      build_console_history_autocomplete("ec", history);
+
+  ASSERT_TRUE(autocomplete.has_value());
+  EXPECT_EQ(*autocomplete, "ecoh test");
+}
+
+TEST_F(LoggerConsoleTest, HistoryAutocompleteReturnsLongerPrefixMatchOnly) {
+  const std::deque<std::string> history{
+      "help",
+      "help verbose",
+      "help verbose",
+  };
+
+  const auto autocomplete =
+      build_console_history_autocomplete("help", history);
+
+  ASSERT_TRUE(autocomplete.has_value());
+  EXPECT_EQ(*autocomplete, "help verbose");
+
+  const auto none = build_console_history_autocomplete("help verbose", history);
+
+  EXPECT_FALSE(none.has_value());
+}
+
 } // namespace
 } // namespace astralix

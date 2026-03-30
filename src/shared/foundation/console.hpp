@@ -6,6 +6,7 @@
 #include <deque>
 #include <functional>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -64,8 +65,7 @@ public:
   bool is_open() const { return m_open; }
   bool captures_input() const { return m_open; }
 
-  void register_command(std::string name, std::string description,
-                        CommandHandler handler);
+  void register_command(std::string name, std::string description, CommandHandler handler);
   void unregister_command(std::string_view name);
   bool has_command(std::string_view name) const;
   std::vector<CommandInfo> commands() const;
@@ -119,6 +119,16 @@ private:
   std::deque<std::string> m_history;
   std::map<std::string, RegisteredCommand> m_commands;
 };
+
+std::vector<std::string> build_console_command_suggestions(
+    std::string_view query,
+    const std::vector<ConsoleManager::CommandInfo> &commands,
+    const std::deque<std::string> &history, size_t max_results = 8u
+);
+
+std::optional<std::string> build_console_history_autocomplete(
+    std::string_view query, const std::deque<std::string> &history
+);
 
 inline ConsoleManager &console_manager() { return ConsoleManager::get(); }
 
