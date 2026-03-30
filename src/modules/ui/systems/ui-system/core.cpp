@@ -95,35 +95,6 @@ std::optional<Target> map_to_ancestor_target(
                                     : std::nullopt;
 }
 
-std::optional<Target> find_hoverable_target(const RootEntry &entry, ui::UINodeId node_id) {
-  return map_to_ancestor_target(
-      entry, node_id, [](const ui::UIDocument &document, ui::UINodeId current) {
-        while (current != ui::k_invalid_node_id) {
-          const auto *node = document.node(current);
-          if (node == nullptr) {
-            return std::optional<ui::UINodeId>{};
-          }
-
-          if ((node->type == ui::NodeType::Pressable ||
-               node->type == ui::NodeType::SegmentedControl ||
-               node->type == ui::NodeType::ChipGroup ||
-               node->type == ui::NodeType::Checkbox ||
-               node->type == ui::NodeType::Slider ||
-               node->type == ui::NodeType::Select ||
-               node->type == ui::NodeType::TextInput ||
-               node->type == ui::NodeType::Splitter) &&
-              ui::node_chain_allows_interaction(document, current)) {
-            return std::optional<ui::UINodeId>{current};
-          }
-
-          current = node->parent;
-        }
-
-        return std::optional<ui::UINodeId>{};
-      }
-  );
-}
-
 std::optional<Target> find_drag_handle_target(const RootEntry &entry, ui::UINodeId node_id) {
   return map_to_ancestor_target(
       entry, node_id, [](const ui::UIDocument &document, ui::UINodeId current) {
@@ -232,23 +203,37 @@ float resolve_length(const ui::UILength &value, float basis, float rem_basis, fl
       return basis * value.value;
     case ui::UILengthUnit::Rem:
       return rem_basis * value.value;
+    case ui::UILengthUnit::MaxContent:
     case ui::UILengthUnit::Auto:
     default:
       return auto_value;
   }
 }
 
-float resolve_min_length(const ui::UILength &value, float basis, float rem_basis) {
+float resolve_min_length(
+    const ui::UILength &value,
+    float basis,
+    float rem_basis,
+    float content_value
+) {
   return value.unit == ui::UILengthUnit::Auto ? 0.0f
                                               : resolve_length(
-                                                    value, basis, rem_basis
+                                                    value,
+                                                    basis,
+                                                    rem_basis,
+                                                    content_value
                                                 );
 }
 
-float resolve_max_length(const ui::UILength &value, float basis, float rem_basis) {
+float resolve_max_length(
+    const ui::UILength &value,
+    float basis,
+    float rem_basis,
+    float content_value
+) {
   return value.unit == ui::UILengthUnit::Auto
              ? std::numeric_limits<float>::infinity()
-             : resolve_length(value, basis, rem_basis);
+             : resolve_length(value, basis, rem_basis, content_value);
 }
 
 ui::UIRect parent_content_bounds(const ui::UIDocument &document, ui::UINodeId node_id) {
@@ -305,16 +290,27 @@ void canonicalize_absolute_bounds(const Target &target) {
 
 std::pair<float, float>
 resolved_main_axis_limits(const ui::UIDocument::UINode &node, float basis, ui::FlexDirection direction, float rem_basis) {
+  const float main_content_value =
+      direction == ui::FlexDirection::Row ? node.layout.measured_size.x
+                                          : node.layout.measured_size.y;
   if (direction == ui::FlexDirection::Row) {
     return {
-        resolve_min_length(node.style.min_width, basis, rem_basis),
-        resolve_max_length(node.style.max_width, basis, rem_basis),
+        resolve_min_length(
+            node.style.min_width, basis, rem_basis, main_content_value
+        ),
+        resolve_max_length(
+            node.style.max_width, basis, rem_basis, main_content_value
+        ),
     };
   }
 
   return {
-      resolve_min_length(node.style.min_height, basis, rem_basis),
-      resolve_max_length(node.style.max_height, basis, rem_basis),
+      resolve_min_length(
+          node.style.min_height, basis, rem_basis, main_content_value
+      ),
+      resolve_max_length(
+          node.style.max_height, basis, rem_basis, main_content_value
+      ),
   };
 }
 

@@ -54,8 +54,8 @@ bool should_reset_caret_for_key(const ui::UIKeyInputEvent &event);
 bool shift_pressed();
 
 float resolve_length(const ui::UILength &value, float basis, float rem_basis, float auto_value = 0.0f);
-float resolve_min_length(const ui::UILength &value, float basis, float rem_basis);
-float resolve_max_length(const ui::UILength &value, float basis, float rem_basis);
+float resolve_min_length(const ui::UILength &value, float basis, float rem_basis, float content_value);
+float resolve_max_length(const ui::UILength &value, float basis, float rem_basis, float content_value);
 
 ui::UIRect parent_content_bounds(const ui::UIDocument &document, ui::UINodeId node_id);
 void write_absolute_bounds_to_style(const Target &target, const ui::UIRect &parent_bounds, const ui::UIRect &bounds);

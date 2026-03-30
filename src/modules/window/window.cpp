@@ -47,6 +47,9 @@ Window::Window(WindowID &id, std::string &title, int &width, int &height,
 }
 
 Window::~Window() {
+  if (m_pointer_cursor != nullptr) {
+    glfwDestroyCursor(m_pointer_cursor);
+  }
   if (m_horizontal_resize_cursor != nullptr) {
     glfwDestroyCursor(m_horizontal_resize_cursor);
   }
@@ -121,6 +124,7 @@ void Window::start() {
     glfwSetScrollCallback(m_value, scroll_callback);
 
     glfwSetKeyCallback(m_value, key_callback);
+    m_pointer_cursor = glfwCreateStandardCursor(GLFW_POINTING_HAND_CURSOR);
     m_horizontal_resize_cursor = glfwCreateStandardCursor(GLFW_HRESIZE_CURSOR);
     m_vertical_resize_cursor = glfwCreateStandardCursor(GLFW_VRESIZE_CURSOR);
 #ifdef GLFW_RESIZE_ALL_CURSOR
@@ -294,6 +298,9 @@ void Window::set_cursor_icon(CursorIcon icon) {
 
   GLFWcursor *cursor = nullptr;
   switch (icon) {
+  case CursorIcon::Pointer:
+    cursor = m_pointer_cursor;
+    break;
   case CursorIcon::Move:
     cursor = m_move_cursor;
     break;

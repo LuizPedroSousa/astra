@@ -3,6 +3,7 @@
 #include "events/key-event.hpp"
 #include "glm/glm.hpp"
 #include "guid.hpp"
+#include "systems/render-system/render-image-export.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -19,10 +20,12 @@ enum class NodeType : uint8_t {
   View,
   Text,
   Image,
+  RenderImageView,
   Pressable,
   SegmentedControl,
   ChipGroup,
   TextInput,
+  Combobox,
   ScrollView,
   Splitter,
   Checkbox,
@@ -82,6 +85,11 @@ enum class ScrollbarVisibility : uint8_t {
   Always,
 };
 
+enum class CursorStyle : uint8_t {
+  Default,
+  Pointer,
+};
+
 enum class ResizeMode : uint8_t {
   None,
   Horizontal,
@@ -101,6 +109,8 @@ constexpr uint8_t k_resize_edge_all = k_resize_edge_left | k_resize_edge_top |
 enum class UIHitPart : uint8_t {
   Body,
   TextInputText,
+  ComboboxField,
+  ComboboxOption,
   SegmentedControlItem,
   ChipItem,
   SliderTrack,
@@ -127,6 +137,7 @@ enum class UILengthUnit : uint8_t {
   Pixels,
   Percent,
   Rem,
+  MaxContent,
 };
 
 struct UILength {
@@ -143,6 +154,10 @@ struct UILength {
 
   static UILength rem(float value) {
     return UILength{.unit = UILengthUnit::Rem, .value = value};
+  }
+
+  static UILength max_content() {
+    return UILength{.unit = UILengthUnit::MaxContent, .value = 0.0f};
   }
 
   static UILength auto_value() { return UILength{}; }
@@ -303,6 +318,7 @@ struct UIStyle {
   float control_indicator_size = 16.0f;
   float slider_track_thickness = 6.0f;
   float slider_thumb_radius = 8.0f;
+  std::optional<CursorStyle> cursor;
 
   UIStateStyle hovered_style;
   UIStateStyle pressed_style;
@@ -326,6 +342,13 @@ struct UISelectState {
   size_t selected_index = 0u;
   size_t highlighted_index = 0u;
   bool open = false;
+};
+
+struct UIComboboxState {
+  std::vector<std::string> options;
+  size_t highlighted_index = 0u;
+  bool open = false;
+  bool open_on_arrow_keys = true;
 };
 
 struct UISegmentedControlState {
@@ -373,6 +396,12 @@ struct UILayoutMetrics {
     std::optional<size_t> hovered_option_index;
   };
 
+  struct ComboboxLayout {
+    UIRect popup_rect;
+    std::vector<UIRect> option_rects;
+    std::optional<size_t> hovered_option_index;
+  };
+
   struct SegmentedControlLayout {
     std::vector<UIRect> item_rects;
     std::optional<size_t> hovered_item_index;
@@ -394,6 +423,7 @@ struct UILayoutMetrics {
   CheckboxLayout checkbox;
   SliderLayout slider;
   SelectLayout select;
+  ComboboxLayout combobox;
   SegmentedControlLayout segmented_control;
   ChipGroupLayout chip_group;
   UIScrollState scroll;
@@ -462,6 +492,7 @@ struct UIResolvedStyle {
 enum class DrawCommandType : uint8_t {
   Rect,
   Image,
+  RenderImageView,
   Text,
 };
 
@@ -480,6 +511,7 @@ struct UIDrawCommand {
   ResourceDescriptorID font_id;
   float font_size = 0.0f;
   ResourceDescriptorID texture_id;
+  std::optional<RenderImageExportKey> render_image_key;
   glm::vec4 tint = glm::vec4(1.0f);
 };
 

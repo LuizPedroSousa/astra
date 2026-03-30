@@ -3,17 +3,42 @@
 #include "event-dispatcher.hpp"
 #include "events/mouse-listener.hpp"
 #include "foundations.hpp"
-#include "layout.hpp"
+#include "layout/layout.hpp"
 #include "managers/scene-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "systems/ui-system/controls.hpp"
 #include "systems/ui-system/resize.hpp"
-#include "systems/ui-system/scroll.hpp"
-#include "systems/ui-system/text-input.hpp"
+#include "systems/ui-system/widgets/layout/scroll-view.hpp"
+#include "systems/ui-system/widgets/inputs/text-input.hpp"
 #include <algorithm>
 
 namespace astralix {
 namespace detail = ui_system_core;
+
+namespace {
+
+std::optional<CursorIcon> cursor_icon_for_target(
+    const detail::Target &target
+) {
+  if (target.document == nullptr) {
+    return std::nullopt;
+  }
+
+  const auto *node = target.document->node(target.node_id);
+  if (node == nullptr || !node->style.cursor.has_value()) {
+    return std::nullopt;
+  }
+
+  switch (*node->style.cursor) {
+    case ui::CursorStyle::Pointer:
+      return CursorIcon::Pointer;
+    case ui::CursorStyle::Default:
+    default:
+      return std::nullopt;
+  }
+}
+
+} // namespace
 
 void UISystem::start() {
   auto *dispatcher = EventDispatcher::get();
@@ -156,7 +181,8 @@ void UISystem::process_programmatic_focus(
       const auto *requested_node =
           requested_target->document->node(requested_target->node_id);
       if (requested_node != nullptr &&
-          requested_node->type == ui::NodeType::TextInput) {
+          (requested_node->type == ui::NodeType::TextInput ||
+           requested_node->type == ui::NodeType::Combobox)) {
         detail::focus_text_input(*requested_target, *context, requested_node->select_all_on_focus);
       }
     }
@@ -260,7 +286,9 @@ void UISystem::update_active_drags(const std::vector<detail::RootEntry> &roots, 
       const auto *node = m_text_selection_drag->target.document->node(
           m_text_selection_drag->target.node_id
       );
-      if (node != nullptr && node->type == ui::NodeType::TextInput) {
+      if (node != nullptr &&
+          (node->type == ui::NodeType::TextInput ||
+           node->type == ui::NodeType::Combobox)) {
         const size_t focus_index =
             detail::text_input_index_from_pointer(*node, *context, pointer);
         detail::set_text_input_selection_and_caret(
@@ -395,7 +423,8 @@ void UISystem::handle_pointer_press(
       const auto *focus_node =
           focus_target->document->node(focus_target->node_id);
       if (focus_node != nullptr &&
-          focus_node->type == ui::NodeType::TextInput) {
+          (focus_node->type == ui::NodeType::TextInput ||
+           focus_node->type == ui::NodeType::Combobox)) {
         if (auto context =
                 detail::context_for_target(roots, *focus_target, viewport_size);
             context.has_value()) {
@@ -428,11 +457,7 @@ void UISystem::handle_pointer_press(
   if (deepest_hit->part == ui::UIHitPart::SplitterBar) {
     m_active_target = deepest_hit->target;
     m_active_target->document->set_active_node(m_active_target->node_id);
-    if (const auto *node =
-            m_active_target->document->node(m_active_target->node_id);
-        node != nullptr && node->on_press) {
-      m_active_target->document->queue_callback(node->on_press);
-    }
+    detail::queue_press_callback(*m_active_target);
 
     if (auto drag =
             detail::begin_splitter_resize_drag(deepest_hit->target, pointer);
@@ -472,6 +497,17 @@ void UISystem::handle_pointer_press(
     return;
   }
 
+  if (deepest_hit->part == ui::UIHitPart::ComboboxOption &&
+      deepest_hit->item_index.has_value()) {
+    if (auto context = detail::context_for_target(
+            roots, deepest_hit->target, viewport_size);
+        context.has_value()) {
+      detail::confirm_combobox_option(
+          deepest_hit->target, *deepest_hit->item_index, *context, true);
+    }
+    return;
+  }
+
   if (!interactive_target.has_value() ||
       interactive_target->document == nullptr) {
     return;
@@ -481,12 +517,7 @@ void UISystem::handle_pointer_press(
   m_active_item_part = deepest_hit->part;
   m_active_item_index = deepest_hit->item_index;
   m_active_target->document->set_active_node(m_active_target->node_id);
-
-  if (const auto *node =
-          m_active_target->document->node(m_active_target->node_id);
-      node != nullptr && node->on_press) {
-    m_active_target->document->queue_callback(node->on_press);
-  }
+  detail::queue_press_callback(*m_active_target);
 
   if (const auto *node =
           m_active_target->document->node(m_active_target->node_id);
@@ -494,7 +525,8 @@ void UISystem::handle_pointer_press(
     if (node->type == ui::NodeType::Slider) {
       m_slider_drag = SliderDrag{.target = *m_active_target};
       detail::update_slider_drag(*m_active_target, pointer);
-    } else if (node->type == ui::NodeType::TextInput) {
+    } else if (node->type == ui::NodeType::TextInput ||
+               node->type == ui::NodeType::Combobox) {
       if (auto context = detail::context_for_target(roots, *m_active_target, viewport_size);
           context.has_value()) {
         const bool extend_selection =
@@ -558,9 +590,7 @@ void UISystem::handle_pointer_release(
   }
 
   if (released_node->type == ui::NodeType::Pressable) {
-    if (released_node->on_click) {
-      released_target->document->queue_callback(released_node->on_click);
-    }
+    detail::queue_click_callback(*released_target);
   } else if (released_node->type == ui::NodeType::SegmentedControl) {
     if (deepest_hit->part == ui::UIHitPart::SegmentedControlItem &&
         released_item_part == ui::UIHitPart::SegmentedControlItem &&
@@ -581,6 +611,11 @@ void UISystem::handle_pointer_release(
     const bool next_open =
         !released_target->document->select_open(released_target->node_id);
     released_target->document->set_select_open(released_target->node_id, next_open);
+  } else if (released_node->type == ui::NodeType::Combobox) {
+    if (!released_target->document->combobox_open(released_target->node_id) &&
+        !released_node->combobox.options.empty()) {
+      released_target->document->set_combobox_open(released_target->node_id, true);
+    }
   }
 }
 
@@ -588,6 +623,25 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, c
   const auto focus_order = detail::collect_focus_order(roots);
   for (const QueuedKeyInput &queued_key : m_key_inputs) {
     const auto &event = queued_key.event;
+    if (event.key_code == input::KeyCode::Tab && !event.modifiers.shift &&
+        m_focused_target.has_value() && m_focused_target->document != nullptr) {
+      const auto *focused_node =
+          m_focused_target->document->node(m_focused_target->node_id);
+      if (focused_node != nullptr &&
+          focused_node->type == ui::NodeType::Combobox &&
+          m_focused_target->document->combobox_open(m_focused_target->node_id) &&
+          !focused_node->combobox.options.empty()) {
+        if (auto context = detail::context_for_target(
+                roots, *m_focused_target, viewport_size);
+            context.has_value()) {
+          detail::confirm_combobox_option(
+              *m_focused_target, focused_node->combobox.highlighted_index,
+              *context, true);
+          continue;
+        }
+      }
+    }
+
     if (event.key_code == input::KeyCode::Tab && !focus_order.empty()) {
       const bool backwards = event.modifiers.shift;
       auto current_it = std::find_if(
@@ -619,7 +673,9 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, c
         const auto *node = focus_order[next_index].document->node(
             focus_order[next_index].node_id
         );
-        if (node != nullptr && node->type == ui::NodeType::TextInput) {
+        if (node != nullptr &&
+            (node->type == ui::NodeType::TextInput ||
+             node->type == ui::NodeType::Combobox)) {
           detail::focus_text_input(focus_order[next_index], *context, node->select_all_on_focus);
         }
       }
@@ -638,9 +694,11 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, c
     }
 
     bool handled_builtin_key = false;
-    if (node->type == ui::NodeType::TextInput) {
+    if (node->type == ui::NodeType::TextInput ||
+        node->type == ui::NodeType::Combobox) {
       if (auto context = detail::context_for_target(roots, *m_focused_target, viewport_size);
           context.has_value()) {
+        const bool is_combobox = node->type == ui::NodeType::Combobox;
         const bool extend_selection = event.modifiers.shift;
         const bool primary_shortcut = event.modifiers.primary_shortcut();
         const size_t text_size = node->text.size();
@@ -660,8 +718,10 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, c
 
         switch (event.key_code) {
           case input::KeyCode::Escape:
-            clear_focused_target(true);
-            handled_builtin_key = true;
+            if (!is_combobox) {
+              clear_focused_target(true);
+              handled_builtin_key = true;
+            }
             break;
           case input::KeyCode::Enter:
           case input::KeyCode::KPEnter:
@@ -669,6 +729,9 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, c
               auto callback = node->on_submit;
               auto value = node->text;
               document->queue_callback([callback, value]() { callback(value); });
+            }
+            if (is_combobox) {
+              document->set_combobox_open(m_focused_target->node_id, false);
             }
             if (node->caret.active) {
               document->reset_caret_blink(m_focused_target->node_id);
@@ -777,6 +840,28 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, c
           case input::KeyCode::End:
             move_caret(text_size, extend_selection);
             handled_builtin_key = true;
+            break;
+          case input::KeyCode::Up:
+            if (is_combobox && !node->combobox.options.empty()) {
+              if (document->combobox_open(m_focused_target->node_id)) {
+                detail::move_combobox_highlight(*m_focused_target, -1);
+                handled_builtin_key = true;
+              } else if (node->combobox.open_on_arrow_keys) {
+                document->set_combobox_open(m_focused_target->node_id, true);
+                handled_builtin_key = true;
+              }
+            }
+            break;
+          case input::KeyCode::Down:
+            if (is_combobox && !node->combobox.options.empty()) {
+              if (document->combobox_open(m_focused_target->node_id)) {
+                detail::move_combobox_highlight(*m_focused_target, 1);
+                handled_builtin_key = true;
+              } else if (node->combobox.open_on_arrow_keys) {
+                document->set_combobox_open(m_focused_target->node_id, true);
+                handled_builtin_key = true;
+              }
+            }
             break;
           default:
             break;
@@ -926,7 +1011,9 @@ void UISystem::dispatch_character_input(
     }
 
     bool handled_text_input = false;
-    if (node->type == ui::NodeType::TextInput && !node->read_only) {
+    if ((node->type == ui::NodeType::TextInput ||
+         node->type == ui::NodeType::Combobox) &&
+        !node->read_only) {
       if (auto context = detail::context_for_target(roots, *m_focused_target, viewport_size);
           context.has_value()) {
         const auto [start, end] = detail::edit_range(*node);
@@ -1088,25 +1175,42 @@ void UISystem::resolve_cursor_icon(
       );
     } else if (m_panel_move_drag.has_value()) {
       cursor_icon = CursorIcon::Move;
+    } else if (m_slider_drag.has_value()) {
+      if (auto slider_cursor = cursor_icon_for_target(m_slider_drag->target);
+          slider_cursor.has_value()) {
+        cursor_icon = *slider_cursor;
+      }
     } else if (deepest_hit.has_value() && ui::is_resize_part(deepest_hit->part)) {
       cursor_icon = detail::cursor_icon_for_hit_part(
           *deepest_hit->target.document, deepest_hit->target.node_id, deepest_hit->part
       );
-    } else if (deepest_hit.has_value() && deepest_hit->part == ui::UIHitPart::Body) {
+    } else if (deepest_hit.has_value()) {
       const detail::RootEntry *root_entry =
           detail::find_root_entry(roots, deepest_hit->target);
-      if (root_entry != nullptr &&
-          !detail::find_hoverable_target(*root_entry, deepest_hit->target.node_id)
-               .has_value()) {
-        auto drag_handle_target = detail::find_drag_handle_target(
-            *root_entry, deepest_hit->target.node_id
-        );
-        if (drag_handle_target.has_value() &&
-            detail::find_draggable_panel_target(
-                *root_entry, drag_handle_target->node_id
-            )
-                .has_value()) {
-          cursor_icon = CursorIcon::Move;
+      if (root_entry != nullptr) {
+        const auto hover_target =
+            detail::find_hoverable_target(*root_entry, deepest_hit->target.node_id);
+
+        if (hover_target.has_value()) {
+          if (auto hover_cursor = cursor_icon_for_target(*hover_target);
+              hover_cursor.has_value()) {
+            cursor_icon = *hover_cursor;
+          }
+        }
+
+        if (cursor_icon == CursorIcon::Default &&
+            deepest_hit->part == ui::UIHitPart::Body &&
+            !hover_target.has_value()) {
+          auto drag_handle_target = detail::find_drag_handle_target(
+              *root_entry, deepest_hit->target.node_id
+          );
+          if (drag_handle_target.has_value() &&
+              detail::find_draggable_panel_target(
+                  *root_entry, drag_handle_target->node_id
+              )
+                  .has_value()) {
+            cursor_icon = CursorIcon::Move;
+          }
         }
       }
     }
@@ -1139,9 +1243,8 @@ void UISystem::clear_hot_target() {
 void UISystem::clear_active_target(bool queue_release) {
   if (m_active_target.has_value() && m_active_target->document != nullptr) {
     auto document = m_active_target->document;
-    const auto *node = document->node(m_active_target->node_id);
-    if (queue_release && node != nullptr && node->on_release) {
-      document->queue_callback(node->on_release);
+    if (queue_release) {
+      detail::queue_release_callback(*m_active_target);
     }
 
     document->set_active_node(ui::k_invalid_node_id);
@@ -1156,7 +1259,9 @@ void UISystem::clear_focused_target(bool queue_blur) {
   if (m_focused_target.has_value() && m_focused_target->document != nullptr) {
     auto document = m_focused_target->document;
     const auto *node = document->node(m_focused_target->node_id);
-    if (node != nullptr && node->type == ui::NodeType::TextInput) {
+    if (node != nullptr &&
+        (node->type == ui::NodeType::TextInput ||
+         node->type == ui::NodeType::Combobox)) {
       document->set_text_selection(
           m_focused_target->node_id,
           ui::UITextSelection{.anchor = node->caret.index, .focus = node->caret.index}
