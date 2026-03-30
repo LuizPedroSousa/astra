@@ -54,6 +54,24 @@ TEST_F(LoggerConsoleTest, LoggerRingBufferEvictsOldestEntries) {
   EXPECT_EQ(logs[1].message, "three");
 }
 
+TEST_F(LoggerConsoleTest, ConsoleCoalescesRepeatedLoggerEntries) {
+  Logger::get().log(
+      LogLevel::WARNING, "test", "/tmp/example.cpp", 12, "same warning"
+  );
+  Logger::get().log(
+      LogLevel::WARNING, "test", "/tmp/example.cpp", 12, "same warning"
+  );
+
+  const auto &logs = Logger::get().logs();
+  ASSERT_EQ(logs.size(), 2u);
+
+  const auto &entries = ConsoleManager::get().entries();
+  ASSERT_EQ(entries.size(), 1u);
+  EXPECT_EQ(entries.front().source, ConsoleEntrySource::Logger);
+  EXPECT_EQ(entries.front().message, "same warning");
+  EXPECT_EQ(entries.front().repeat_count, 2u);
+}
+
 TEST_F(LoggerConsoleTest, ConsoleExecutesCommandsAndKeepsBoundedHistory) {
   auto &console = ConsoleManager::get();
   console.set_max_history_entries(2u);

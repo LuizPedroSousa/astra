@@ -23,6 +23,7 @@ struct ConsoleEntry {
   uint64_t id = 0u;
   ConsoleEntrySource source = ConsoleEntrySource::Logger;
   LogLevel level = LogLevel::INFO;
+  uint32_t repeat_count = 1u;
   std::string timestamp;
   std::string message;
   std::string caller;

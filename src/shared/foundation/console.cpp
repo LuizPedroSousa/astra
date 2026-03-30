@@ -141,6 +141,16 @@ ConsoleEntry make_output_entry(std::string message, LogLevel level) {
   };
 }
 
+bool can_coalesce_logger_entry(
+    const ConsoleEntry &entry,
+    const Logger::Log &log
+) {
+  return entry.source == ConsoleEntrySource::Logger &&
+         entry.level == log.level && entry.message == log.message &&
+         entry.caller == log.caller && entry.file == log.file &&
+         entry.line == log.line;
+}
+
 } // namespace
 
 ConsoleManager::ConsoleManager() {
@@ -373,6 +383,14 @@ void ConsoleManager::register_builtin_commands() {
 }
 
 void ConsoleManager::append_log_entry(const Logger::Log &log) {
+  if (!m_entries.empty() && can_coalesce_logger_entry(m_entries.back(), log)) {
+    ConsoleEntry &entry = m_entries.back();
+    entry.repeat_count += 1u;
+    entry.timestamp = log.timestamp;
+    ++m_entries_version;
+    return;
+  }
+
   append_entry(ConsoleEntry{
       .source = ConsoleEntrySource::Logger,
       .level = log.level,
@@ -385,6 +403,7 @@ void ConsoleManager::append_log_entry(const Logger::Log &log) {
 }
 
 void ConsoleManager::append_entry(ConsoleEntry entry) {
+  entry.repeat_count = std::max(entry.repeat_count, 1u);
   entry.id = m_next_entry_id++;
   m_entries.push_back(std::move(entry));
   trim_entries_to_capacity();

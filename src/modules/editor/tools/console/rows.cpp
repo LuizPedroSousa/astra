@@ -17,8 +17,9 @@ void ConsolePanelController::refresh(bool force) {
   auto &console = ConsoleManager::get();
   const uint64_t next_entries_version = console.entries_version();
   const bool entries_changed = m_entries_version != next_entries_version;
+  const bool list_dirty = force || entries_changed;
 
-  if (force || entries_changed) {
+  if (list_dirty) {
     const auto &entries = console.entries();
     const panel::ConsoleDensityStyleContraints style_constraints =
         panel::density_style_constraints(m_density);
@@ -133,7 +134,7 @@ void ConsolePanelController::refresh(bool force) {
     m_entries_version = next_entries_version;
   }
 
-  sync_virtual_list(force || entries_changed);
+  sync_virtual_list(list_dirty);
 
   if (entries_changed && m_follow_tail) {
     m_force_follow_on_next_refresh = true;
@@ -375,18 +376,21 @@ void ConsolePanelController::sync_virtual_list(bool force) {
     return;
   }
 
-  m_virtual_list->set_item_count(m_visible_entries.size());
+  if (force) {
+    m_virtual_list->set_item_count(m_visible_entries.size());
 
-  float content_width = 0.0f;
-  for (size_t index = 0u; index < m_visible_entries.size(); ++index) {
-    const VisibleEntry &entry = m_visible_entries[index];
-    const float row_height =
-        entry.expanded ? entry.expanded_height : entry.collapsed_height;
-    m_virtual_list->set_item_height(index, row_height);
-    content_width = std::max(content_width, entry.width);
+    float content_width = 0.0f;
+    for (size_t index = 0u; index < m_visible_entries.size(); ++index) {
+      const VisibleEntry &entry = m_visible_entries[index];
+      const float row_height =
+          entry.expanded ? entry.expanded_height : entry.collapsed_height;
+      m_virtual_list->set_item_height(index, row_height);
+      content_width = std::max(content_width, entry.width);
+    }
+
+    m_virtual_list->set_content_width(content_width);
   }
 
-  m_virtual_list->set_content_width(content_width);
   m_virtual_list->refresh(force);
 }
 

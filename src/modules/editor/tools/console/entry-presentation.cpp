@@ -25,25 +25,39 @@ std::string log_level_label(LogLevel level) {
 }
 
 std::string badge_text_for_entry(const ConsoleEntry &entry) {
+  std::string label;
   switch (entry.source) {
     case ConsoleEntrySource::Command:
-      return "CMD";
+      label = "CMD";
+      break;
     case ConsoleEntrySource::Output:
       switch (entry.level) {
         case LogLevel::ERROR:
-          return "ERR";
+          label = "ERR";
+          break;
         case LogLevel::WARNING:
-          return "WARN";
+          label = "WARN";
+          break;
         case LogLevel::DEBUG:
-          return "DBG";
+          label = "DBG";
+          break;
         case LogLevel::INFO:
         default:
-          return "OUT";
+          label = "OUT";
+          break;
       }
+      break;
     case ConsoleEntrySource::Logger:
     default:
-      return log_level_label(entry.level);
+      label = log_level_label(entry.level);
+      break;
   }
+
+  if (entry.repeat_count > 1u) {
+    label += " x" + std::to_string(entry.repeat_count);
+  }
+
+  return label;
 }
 
 std::string meta_text_for_entry(const ConsoleEntry &entry) {
