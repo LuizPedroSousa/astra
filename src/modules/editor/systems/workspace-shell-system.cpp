@@ -3,6 +3,7 @@
 #include "components/tags.hpp"
 #include "components/ui.hpp"
 #include "dsl.hpp"
+#include "editor-theme.hpp"
 #include "layouts/layout-registry.hpp"
 #include "managers/project-manager.hpp"
 #include "managers/scene-manager.hpp"
@@ -18,31 +19,25 @@
 namespace astralix::editor {
 namespace {
 
-using ui::dsl::styles::rgba;
-
-const glm::vec4 kShellBackdrop = rgba(0.035f, 0.043f, 0.067f, 0.72f);
-const glm::vec4 kShellBar = rgba(0.067f, 0.082f, 0.114f, 0.98f);
-const glm::vec4 kShellPanel = rgba(0.098f, 0.125f, 0.173f, 0.96f);
-const glm::vec4 kShellPanelRaised = rgba(0.122f, 0.149f, 0.200f, 0.98f);
-const glm::vec4 kShellBorder = rgba(0.220f, 0.259f, 0.333f, 1.0f);
-const glm::vec4 kShellAccent = rgba(0.976f, 0.482f, 0.031f, 1.0f);
-const glm::vec4 kShellAccentMuted = rgba(0.871f, 0.408f, 0.082f, 0.25f);
-const glm::vec4 kShellText = rgba(0.949f, 0.961f, 0.980f, 1.0f);
-const glm::vec4 kShellMuted = rgba(0.627f, 0.682f, 0.773f, 1.0f);
+const WorkspaceShellTheme &workspace_shell_theme() {
+  static const WorkspaceShellTheme theme{};
+  return theme;
+}
 
 ui::dsl::StyleBuilder panel_close_button_style() {
   using namespace ui::dsl::styles;
+  const auto &theme = workspace_shell_theme();
 
   return width(px(34.0f))
       .height(px(34.0f))
       .padding(8.0f)
       .radius(10.0f)
-      .background(kShellPanel)
-      .border(1.0f, kShellBorder)
+      .background(theme.panel_background)
+      .border(1.0f, theme.panel_border)
       .cursor_pointer()
-      .hover(state().background(kShellAccentMuted))
-      .pressed(state().background(kShellPanelRaised))
-      .focused(state().border(2.0f, kShellAccent));
+      .hover(state().background(theme.accent_soft))
+      .pressed(state().background(theme.panel_raised_background))
+      .focused(state().border(2.0f, theme.accent));
 }
 
 ui::dsl::NodeSpec
@@ -216,16 +211,26 @@ ui::dsl::NodeSpec build_empty_workspace_state(
 ) {
   using namespace ui::dsl;
   using namespace ui::dsl::styles;
+  const auto &theme = workspace_shell_theme();
 
   const std::string root_name = name;
 
   return column(std::move(name))
-      .style(fill().justify_center().items_center().gap(8.0f).padding(20.0f).background(kShellPanel).radius(16.0f).border(1.0f, kShellBorder))
+      .style(
+          fill()
+              .justify_center()
+              .items_center()
+              .gap(8.0f)
+              .padding(20.0f)
+              .background(theme.panel_background)
+              .radius(16.0f)
+              .border(1.0f, theme.panel_border)
+      )
       .children(
           text(std::move(title), root_name + "_title")
-              .style(font_size(18.0f).text_color(kShellText)),
+              .style(font_size(18.0f).text_color(theme.text_primary)),
           text(std::move(body), root_name + "_body")
-              .style(font_size(13.0f).text_color(kShellMuted))
+              .style(font_size(13.0f).text_color(theme.text_muted))
       );
 }
 
@@ -575,6 +580,7 @@ void WorkspaceShellSystem::sync_root_visibility() {
 ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
   using namespace ui::dsl;
   using namespace ui::dsl::styles;
+  const auto &theme = workspace_shell_theme();
 
   if (active_workspace_uses_floating_panels()) {
     return build_floating_shell();
@@ -582,12 +588,39 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
 
   std::vector<ui::dsl::NodeSpec> workspace_buttons;
   for (const auto *workspace : workspace_registry()->workspaces()) {
-    const bool active = workspace != nullptr && workspace->id == m_active_workspace_id;
+    const bool active =
+        workspace != nullptr && workspace->id == m_active_workspace_id;
     workspace_buttons.push_back(
-        button(workspace != nullptr ? workspace->title : "Workspace", [this, workspace_id = workspace != nullptr ? workspace->id : std::string{}]() {
-                 if (!workspace_id.empty()) {
-                   m_requested_workspace_id = workspace_id;
-                 } }, std::string("workspace_button_") + (workspace != nullptr ? workspace->id : std::string("unknown"))).style(padding_xy(14.0f, 9.0f).radius(12.0f).background(active ? kShellAccentMuted : kShellPanel).border(1.0f, active ? kShellAccent : kShellBorder).text_color(active ? kShellText : kShellMuted).hover(ui::dsl::styles::state().background(kShellPanelRaised)).pressed(ui::dsl::styles::state().background(kShellAccentMuted)).focused(ui::dsl::styles::state().border(2.0f, kShellAccent)))
+        button(
+            workspace != nullptr ? workspace->title : "Workspace",
+            [this, workspace_id = workspace != nullptr ? workspace->id : std::string{}]() {
+              if (!workspace_id.empty()) {
+                m_requested_workspace_id = workspace_id;
+              }
+            },
+            std::string("workspace_button_") +
+                (workspace != nullptr ? workspace->id : std::string("unknown"))
+        )
+            .style(
+                padding_xy(14.0f, 9.0f)
+                    .radius(12.0f)
+                    .background(
+                        active ? theme.accent_soft : theme.panel_background
+                    )
+                    .border(
+                        1.0f, active ? theme.accent : theme.panel_border
+                    )
+                    .text_color(
+                        active ? theme.text_primary : theme.text_muted
+                    )
+                    .hover(ui::dsl::styles::state().background(theme.panel_raised_background))
+                    .pressed(
+                        ui::dsl::styles::state().background(theme.accent_soft)
+                    )
+                    .focused(
+                        ui::dsl::styles::state().border(2.0f, theme.accent)
+                    )
+            )
     );
   }
 
@@ -616,23 +649,32 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
               .style(
                   padding_xy(12.0f, 8.0f)
                       .radius(12.0f)
-                      .background(open ? kShellPanelRaised : kShellPanel)
-                      .border(1.0f, open ? kShellAccent : kShellBorder)
-                      .text_color(open ? kShellText : kShellMuted)
-                      .hover(ui::dsl::styles::state().background(kShellPanelRaised))
-                      .pressed(ui::dsl::styles::state().background(kShellAccentMuted))
-                      .focused(ui::dsl::styles::state().border(2.0f, kShellAccent))
+                      .background(
+                          open ? theme.panel_raised_background
+                               : theme.panel_background
+                      )
+                      .border(1.0f, open ? theme.accent : theme.panel_border)
+                      .text_color(open ? theme.text_primary : theme.text_muted)
+                      .hover(ui::dsl::styles::state().background(theme.panel_raised_background))
+                      .pressed(
+                          ui::dsl::styles::state().background(theme.accent_soft)
+                      )
+                      .focused(
+                          ui::dsl::styles::state().border(2.0f, theme.accent)
+                      )
               )
       );
     }
   }
 
-  auto workspace_row = row("editor_shell_workspace_row").style(items_center().gap(10.0f));
+  auto workspace_row =
+      row("editor_shell_workspace_row").style(items_center().gap(10.0f));
   for (auto &button_spec : workspace_buttons) {
     workspace_row.child(std::move(button_spec));
   }
 
-  auto panel_row = row("editor_shell_panel_row").style(items_center().gap(8.0f).justify_end());
+  auto panel_row = row("editor_shell_panel_row")
+                       .style(items_center().gap(8.0f).justify_end());
   for (auto &button_spec : panel_buttons) {
     panel_row.child(std::move(button_spec));
   }
@@ -642,7 +684,7 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
           fill()
               .padding(14.0f)
               .gap(12.0f)
-              .background(kShellBackdrop)
+              .background(theme.backdrop)
       )
       .children(
           row("editor_shell_bar")
@@ -652,8 +694,8 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
                       .padding(14.0f)
                       .gap(16.0f)
                       .radius(18.0f)
-                      .background(kShellBar)
-                      .border(1.0f, kShellBorder)
+                      .background(theme.bar_background)
+                      .border(1.0f, theme.panel_border)
                       .items_center()
               )
               .children(
@@ -664,12 +706,16 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
                       )
                       .children(
                           text("Workspace Shell", "editor_shell_title")
-                              .style(font_size(18.0f).text_color(kShellText)),
+                              .style(
+                                  font_size(18.0f).text_color(theme.text_primary)
+                              ),
                           text(
                               "Native editor chrome, layouts, and tools registered through plugins",
                               "editor_shell_subtitle"
                           )
-                              .style(font_size(12.5f).text_color(kShellMuted))
+                              .style(
+                                  font_size(12.5f).text_color(theme.text_muted)
+                              )
                       ),
                   workspace_row,
                   spacer("editor_shell_bar_spacer"),
@@ -681,8 +727,8 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
                       .flex(1.0f)
                       .padding(4.0f)
                       .radius(20.0f)
-                      .background(kShellBar)
-                      .border(1.0f, kShellBorder)
+                      .background(theme.bar_background)
+                      .border(1.0f, theme.panel_border)
               )
               .child(
                   layout_node_visible(m_active_snapshot->root)
@@ -699,6 +745,7 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
 ui::dsl::NodeSpec WorkspaceShellSystem::build_floating_shell() {
   using namespace ui::dsl;
   using namespace ui::dsl::styles;
+  const auto &theme = workspace_shell_theme();
 
   std::vector<ui::dsl::NodeSpec> workspace_buttons;
   for (const auto *workspace : workspace_registry()->workspaces()) {
@@ -718,14 +765,18 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_floating_shell() {
             .style(
                 padding_xy(14.0f, 9.0f)
                     .radius(12.0f)
-                    .background(active ? kShellAccentMuted : kShellPanel)
-                    .border(1.0f, active ? kShellAccent : kShellBorder)
-                    .text_color(active ? kShellText : kShellMuted)
-                    .hover(ui::dsl::styles::state().background(kShellPanelRaised))
-                    .pressed(
-                        ui::dsl::styles::state().background(kShellAccentMuted)
+                    .background(
+                        active ? theme.accent_soft : theme.panel_background
                     )
-                    .focused(ui::dsl::styles::state().border(2.0f, kShellAccent))
+                    .border(1.0f, active ? theme.accent : theme.panel_border)
+                    .text_color(active ? theme.text_primary : theme.text_muted)
+                    .hover(ui::dsl::styles::state().background(theme.panel_raised_background))
+                    .pressed(
+                        ui::dsl::styles::state().background(theme.accent_soft)
+                    )
+                    .focused(
+                        ui::dsl::styles::state().border(2.0f, theme.accent)
+                    )
             )
     );
   }
@@ -758,12 +809,19 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_floating_shell() {
               .style(
                   padding_xy(12.0f, 8.0f)
                       .radius(12.0f)
-                      .background(open ? kShellPanelRaised : kShellPanel)
-                      .border(1.0f, open ? kShellAccent : kShellBorder)
-                      .text_color(open ? kShellText : kShellMuted)
-                      .hover(ui::dsl::styles::state().background(kShellPanelRaised))
-                      .pressed(ui::dsl::styles::state().background(kShellAccentMuted))
-                      .focused(ui::dsl::styles::state().border(2.0f, kShellAccent))
+                      .background(
+                          open ? theme.panel_raised_background
+                               : theme.panel_background
+                      )
+                      .border(1.0f, open ? theme.accent : theme.panel_border)
+                      .text_color(open ? theme.text_primary : theme.text_muted)
+                      .hover(ui::dsl::styles::state().background(theme.panel_raised_background))
+                      .pressed(
+                          ui::dsl::styles::state().background(theme.accent_soft)
+                      )
+                      .focused(
+                          ui::dsl::styles::state().border(2.0f, theme.accent)
+                      )
               )
       );
     }
@@ -793,8 +851,8 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_floating_shell() {
                   .padding(14.0f)
                   .gap(12.0f)
                   .radius(18.0f)
-                  .background(kShellBar)
-                  .border(1.0f, kShellBorder)
+                  .background(theme.bar_background)
+                  .border(1.0f, theme.panel_border)
           )
           .children(
               row("editor_shell_bar_heading")
@@ -805,14 +863,18 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_floating_shell() {
                           .children(
                               text("Workspace Shell", "editor_shell_title")
                                   .style(
-                                      font_size(18.0f).text_color(kShellText)
+                                      font_size(18.0f).text_color(
+                                          theme.text_primary
+                                      )
                                   ),
                               text(
                                   "Open a tool window or switch back to the docked studio workspace.",
                                   "editor_shell_subtitle"
                               )
                                   .style(
-                                      font_size(12.5f).text_color(kShellMuted)
+                                      font_size(12.5f).text_color(
+                                          theme.text_muted
+                                      )
                                   )
                           ),
                       button(
@@ -823,22 +885,22 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_floating_shell() {
                           .style(
                               padding_xy(12.0f, 8.0f)
                                   .radius(10.0f)
-                                  .background(kShellPanel)
-                                  .border(1.0f, kShellBorder)
-                                  .text_color(kShellMuted)
+                                  .background(theme.panel_background)
+                                  .border(1.0f, theme.panel_border)
+                                  .text_color(theme.text_muted)
                                   .hover(
                                       ui::dsl::styles::state().background(
-                                          kShellPanelRaised
+                                          theme.panel_raised_background
                                       )
                                   )
                                   .pressed(
                                       ui::dsl::styles::state().background(
-                                          kShellAccentMuted
+                                          theme.accent_soft
                                       )
                                   )
                                   .focused(
                                       ui::dsl::styles::state().border(
-                                          2.0f, kShellAccent
+                                          2.0f, theme.accent
                                       )
                                   )
                           )
@@ -864,6 +926,7 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_layout_node(
 ) {
   using namespace ui::dsl;
   using namespace ui::dsl::styles;
+  const auto &theme = workspace_shell_theme();
 
   switch (node.kind) {
     case LayoutNodeKind::Split: {
@@ -916,7 +979,7 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_layout_node(
           .children(
               std::move(first),
               splitter(std::string("workspace_splitter_") + path)
-                  .style(background(kShellAccentMuted)),
+                  .style(background(theme.accent_soft)),
               std::move(second)
           );
     }
@@ -932,7 +995,14 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_layout_node(
         }
       }
 
-      auto header_row = row(std::string("workspace_tabs_header_") + path).style(fill_x().padding(10.0f).gap(8.0f).items_center().background(kShellPanel));
+      auto header_row = row(std::string("workspace_tabs_header_") + path)
+                            .style(
+                                fill_x()
+                                    .padding(10.0f)
+                                    .gap(8.0f)
+                                    .items_center()
+                                    .background(theme.panel_background)
+                            );
 
       if (visible_tabs.empty()) {
         return build_empty_workspace_state(
@@ -961,12 +1031,19 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_layout_node(
                   .style(
                       padding_xy(12.0f, 8.0f)
                           .radius(10.0f)
-                          .background(active ? kShellPanelRaised : kShellPanel)
-                          .border(1.0f, active ? kShellAccent : kShellBorder)
-                          .text_color(active ? kShellText : kShellMuted)
-                          .hover(ui::dsl::styles::state().background(kShellPanelRaised))
-                          .pressed(ui::dsl::styles::state().background(kShellAccentMuted))
-                          .focused(ui::dsl::styles::state().border(2.0f, kShellAccent))
+                          .background(
+                              active ? theme.panel_raised_background
+                                     : theme.panel_background
+                          )
+                          .border(
+                              1.0f, active ? theme.accent : theme.panel_border
+                          )
+                          .text_color(
+                              active ? theme.text_primary : theme.text_muted
+                          )
+                          .hover(ui::dsl::styles::state().background(theme.panel_raised_background))
+                          .pressed(ui::dsl::styles::state().background(theme.accent_soft))
+                          .focused(ui::dsl::styles::state().border(2.0f, theme.accent))
                   )
           );
         }
@@ -980,21 +1057,32 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_layout_node(
       } else {
         content.child(
             column("workspace_tabs_closed_placeholder")
-                .style(fill().justify_center().items_center().background(kShellPanel))
+                .style(
+                    fill()
+                        .justify_center()
+                        .items_center()
+                        .background(theme.panel_background)
+                )
                 .children(
                     text("No active panel", "workspace_tabs_closed_placeholder_title")
-                        .style(font_size(18.0f).text_color(kShellText)),
+                        .style(font_size(18.0f).text_color(theme.text_primary)),
                     text(
                         "Use the panel toggles in the top bar to reopen a tool in this workspace.",
                         "workspace_tabs_closed_placeholder_body"
                     )
-                        .style(font_size(13.0f).text_color(kShellMuted))
+                        .style(font_size(13.0f).text_color(theme.text_muted))
                 )
         );
       }
 
       return column(std::string("workspace_tabs_") + path)
-          .style(fill().gap(0.0f).background(kShellPanel).radius(16.0f).border(1.0f, kShellBorder))
+          .style(
+              fill()
+                  .gap(0.0f)
+                  .background(theme.panel_background)
+                  .radius(16.0f)
+                  .border(1.0f, theme.panel_border)
+          )
           .children(std::move(header_row), std::move(content));
     }
 
@@ -1008,6 +1096,7 @@ ui::dsl::NodeSpec
 WorkspaceShellSystem::build_leaf_panel(std::string_view panel_instance_id) {
   using namespace ui::dsl;
   using namespace ui::dsl::styles;
+  const auto &theme = workspace_shell_theme();
 
   const std::string instance_id(panel_instance_id);
   const auto panel_it = m_active_snapshot->panels.find(instance_id);
@@ -1019,10 +1108,19 @@ WorkspaceShellSystem::build_leaf_panel(std::string_view panel_instance_id) {
           : instance_id;
 
   auto header = row(std::string("workspace_panel_header_") + instance_id)
-                    .style(fill_x().padding_xy(14.0f, 12.0f).items_center().gap(12.0f).background(kShellPanelRaised).border(0.0f, kShellBorder))
+                    .style(
+                        fill_x()
+                            .padding_xy(14.0f, 12.0f)
+                            .items_center()
+                            .gap(12.0f)
+                            .background(theme.panel_raised_background)
+                            .border(0.0f, theme.panel_border)
+                    )
                     .children(
                         text(title, std::string("workspace_panel_title_") + instance_id)
-                            .style(font_size(14.0f).text_color(kShellText)),
+                            .style(
+                                font_size(14.0f).text_color(theme.text_primary)
+                            ),
                         spacer(std::string("workspace_panel_header_spacer_") + instance_id),
                         build_panel_close_button(
                             std::string("workspace_panel_close_") + instance_id,
@@ -1036,15 +1134,38 @@ WorkspaceShellSystem::build_leaf_panel(std::string_view panel_instance_id) {
 
   if (!open) {
     return column(std::string("workspace_panel_closed_") + instance_id)
-        .style(fill().gap(0.0f).background(kShellPanel).radius(16.0f).border(1.0f, kShellBorder))
+        .style(
+            fill()
+                .gap(0.0f)
+                .background(theme.panel_background)
+                .radius(16.0f)
+                .border(1.0f, theme.panel_border)
+        )
         .children(
             std::move(header),
             column(std::string("workspace_panel_closed_body_") + instance_id)
                 .style(fill_x().flex(1.0f).justify_center().items_center().gap(10.0f).padding(20.0f))
                 .children(
                     text("Panel closed", std::string("workspace_panel_closed_title_") + instance_id)
-                        .style(font_size(18.0f).text_color(kShellText)),
-                    button("Reopen", [this, instance_id]() { m_pending_panel_visibility.emplace_back(instance_id, true); }, std::string("workspace_panel_reopen_") + instance_id).style(padding_xy(12.0f, 8.0f).radius(10.0f).background(kShellAccentMuted).border(1.0f, kShellAccent).text_color(kShellText))
+                        .style(
+                            font_size(18.0f).text_color(theme.text_primary)
+                        ),
+                    button(
+                        "Reopen",
+                        [this, instance_id]() {
+                          m_pending_panel_visibility.emplace_back(
+                              instance_id, true
+                          );
+                        },
+                        std::string("workspace_panel_reopen_") + instance_id
+                    )
+                        .style(
+                            padding_xy(12.0f, 8.0f)
+                                .radius(10.0f)
+                                .background(theme.accent_soft)
+                                .border(1.0f, theme.accent)
+                                .text_color(theme.text_primary)
+                        )
                 )
         );
   }
@@ -1052,22 +1173,36 @@ WorkspaceShellSystem::build_leaf_panel(std::string_view panel_instance_id) {
   const auto mounted_it = m_panels.find(instance_id);
   if (mounted_it == m_panels.end() || mounted_it->second.controller == nullptr) {
     return column(std::string("workspace_panel_missing_") + instance_id)
-        .style(fill().gap(0.0f).background(kShellPanel).radius(16.0f).border(1.0f, kShellBorder))
+        .style(
+            fill()
+                .gap(0.0f)
+                .background(theme.panel_background)
+                .radius(16.0f)
+                .border(1.0f, theme.panel_border)
+        )
         .children(
             std::move(header),
             column(std::string("workspace_panel_missing_body_") + instance_id)
                 .style(fill_x().flex(1.0f).justify_center().items_center().padding(20.0f).gap(8.0f))
                 .children(
                     text("Missing panel provider", std::string("workspace_panel_missing_title_") + instance_id)
-                        .style(font_size(18.0f).text_color(kShellText)),
+                        .style(
+                            font_size(18.0f).text_color(theme.text_primary)
+                        ),
                     text("The panel is registered in the workspace, but its provider is not available.", std::string("workspace_panel_missing_body_copy_") + instance_id)
-                        .style(font_size(13.0f).text_color(kShellMuted))
+                        .style(font_size(13.0f).text_color(theme.text_muted))
                 )
         );
   }
 
   return column(std::string("workspace_panel_") + instance_id)
-      .style(fill().gap(0.0f).background(kShellPanel).radius(16.0f).border(1.0f, kShellBorder))
+      .style(
+          fill()
+              .gap(0.0f)
+              .background(theme.panel_background)
+              .radius(16.0f)
+              .border(1.0f, theme.panel_border)
+      )
       .children(
           std::move(header),
           view(std::string("workspace_panel_content_") + instance_id)
@@ -1080,6 +1215,7 @@ ui::dsl::NodeSpec
 WorkspaceShellSystem::build_floating_panel(std::string_view panel_instance_id) {
   using namespace ui::dsl;
   using namespace ui::dsl::styles;
+  const auto &theme = workspace_shell_theme();
 
   const std::string instance_id(panel_instance_id);
   const auto panel_it = m_active_snapshot->panels.find(instance_id);
@@ -1096,13 +1232,15 @@ WorkspaceShellSystem::build_floating_panel(std::string_view panel_instance_id) {
                             .padding_xy(14.0f, 12.0f)
                             .items_center()
                             .gap(12.0f)
-                            .background(kShellPanelRaised)
-                            .border(0.0f, kShellBorder)
+                            .background(theme.panel_raised_background)
+                            .border(0.0f, theme.panel_border)
                             .drag_handle()
                     )
                     .children(
                         text(title, std::string("workspace_panel_title_") + instance_id)
-                            .style(font_size(14.0f).text_color(kShellText)),
+                            .style(
+                                font_size(14.0f).text_color(theme.text_primary)
+                            ),
                         spacer(std::string("workspace_panel_header_spacer_") + instance_id),
                         build_panel_close_button(
                             std::string("workspace_panel_close_") + instance_id,
@@ -1127,9 +1265,9 @@ WorkspaceShellSystem::build_floating_panel(std::string_view panel_instance_id) {
                 .resizable_all()
                 .draggable()
                 .overflow_hidden()
-                .background(kShellPanel)
+                .background(theme.panel_background)
                 .radius(16.0f)
-                .border(1.0f, kShellBorder)
+                .border(1.0f, theme.panel_border)
         )
         .children(
             std::move(header),
@@ -1137,9 +1275,11 @@ WorkspaceShellSystem::build_floating_panel(std::string_view panel_instance_id) {
                 .style(fill_x().flex(1.0f).justify_center().items_center().padding(20.0f).gap(8.0f))
                 .children(
                     text("Missing panel provider", std::string("workspace_panel_missing_title_") + instance_id)
-                        .style(font_size(18.0f).text_color(kShellText)),
+                        .style(
+                            font_size(18.0f).text_color(theme.text_primary)
+                        ),
                     text("The panel is registered in the workspace, but its provider is not available.", std::string("workspace_panel_missing_body_copy_") + instance_id)
-                        .style(font_size(13.0f).text_color(kShellMuted))
+                        .style(font_size(13.0f).text_color(theme.text_muted))
                 )
         );
   }
@@ -1157,9 +1297,9 @@ WorkspaceShellSystem::build_floating_panel(std::string_view panel_instance_id) {
               .resizable_all()
               .draggable()
               .overflow_hidden()
-              .background(kShellPanel)
+              .background(theme.panel_background)
               .radius(16.0f)
-              .border(1.0f, kShellBorder)
+              .border(1.0f, theme.panel_border)
       )
       .children(
           std::move(header),

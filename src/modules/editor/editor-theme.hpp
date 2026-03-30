@@ -34,8 +34,19 @@ struct Theme {
   glm::vec4 cabaret_500 = glm::vec4(0.914f, 0.247f, 0.522f, 1.0f);
   glm::vec4 cabaret_300 = glm::vec4(0.976f, 0.659f, 0.800f, 1.0f);
 
-  glm::vec4 editor_surface = glm::vec4(0.024f, 0.031f, 0.047f, 1.0f);
-  glm::vec4 editor_placeholder_text = glm::vec4(0.514f, 0.545f, 0.639f, 1.0f);
+  glm::vec4 storm_1100 = glm::vec4(0.024f, 0.031f, 0.047f, 1.0f);
+  glm::vec4 storm_1050 = glm::vec4(0.035f, 0.043f, 0.067f, 0.72f);
+  glm::vec4 storm_1000 =
+      glm::vec4(0.067f, 0.082f, 0.114f, 0.98f);
+  glm::vec4 storm_950 =
+      glm::vec4(0.098f, 0.125f, 0.173f, 0.96f);
+  glm::vec4 storm_900 =
+      glm::vec4(0.122f, 0.149f, 0.200f, 0.98f);
+  glm::vec4 storm_800 = glm::vec4(0.220f, 0.259f, 0.333f, 1.0f);
+  glm::vec4 storm_500 = glm::vec4(0.514f, 0.545f, 0.639f, 1.0f);
+  glm::vec4 storm_300 = glm::vec4(0.627f, 0.682f, 0.773f, 1.0f);
+  glm::vec4 storm_50 =
+      glm::vec4(0.949f, 0.961f, 0.980f, 1.0f);
   glm::vec4 success = glm::vec4(0.576f, 0.945f, 0.576f, 1.0f);
   glm::vec4 success_soft = glm::vec4(0.078f, 0.259f, 0.110f, 0.92f);
 };
@@ -46,8 +57,20 @@ inline glm::vec4 theme_alpha(const glm::vec4 &color, float value) {
   return glm::vec4(color.r, color.g, color.b, value);
 }
 
+struct WorkspaceShellTheme {
+  glm::vec4 backdrop = k_theme.storm_1050;
+  glm::vec4 bar_background = k_theme.storm_1000;
+  glm::vec4 panel_background = k_theme.storm_950;
+  glm::vec4 panel_raised_background = k_theme.storm_900;
+  glm::vec4 panel_border = k_theme.storm_800;
+  glm::vec4 accent = k_theme.sunset_500;
+  glm::vec4 accent_soft = theme_alpha(k_theme.sunset_600, 0.25f);
+  glm::vec4 text_primary = k_theme.storm_50;
+  glm::vec4 text_muted = k_theme.storm_300;
+};
+
 struct ViewportPanelTheme {
-  glm::vec4 surface = k_theme.editor_surface;
+  glm::vec4 surface = k_theme.storm_1100;
 };
 
 struct ConsolePanelTheme {
@@ -60,7 +83,7 @@ struct ConsolePanelTheme {
   glm::vec4 handle = k_theme.bunker_900;
   glm::vec4 prompt_background = theme_alpha(k_theme.sunset_950, 0.96f);
   glm::vec4 prompt_text = k_theme.sunset_300;
-  glm::vec4 placeholder_text = k_theme.editor_placeholder_text;
+  glm::vec4 placeholder_text = k_theme.storm_500;
   ResourceDescriptorID mono_font = "fonts::noto_sans_mono";
 };
 
