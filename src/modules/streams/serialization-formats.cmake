@@ -27,65 +27,6 @@ function(astralix_streams_link_serialization_dependencies target)
   endif()
 
   list(REMOVE_DUPLICATES ASTRALIX_STREAMS_FORMATS)
-
-  foreach(format IN LISTS ASTRALIX_STREAMS_FORMATS)
-    if(format STREQUAL "Json")
-      if(NOT TARGET JsonCpp::JsonCpp)
-        if(DEFINED VCPKG_INSTALLED_ROOT AND
-           EXISTS "${VCPKG_INSTALLED_ROOT}/share/jsoncpp")
-          set(jsoncpp_DIR "${VCPKG_INSTALLED_ROOT}/share/jsoncpp")
-        endif()
-
-        find_package(jsoncpp CONFIG REQUIRED)
-      endif()
-
-      target_link_libraries(${target} ${ASTRALIX_STREAMS_LINK_SCOPE} JsonCpp::JsonCpp)
-    elseif(format STREQUAL "Yaml")
-      if(NOT TARGET yaml-cpp::yaml-cpp AND NOT TARGET yaml-cpp)
-        if(DEFINED VCPKG_INSTALLED_ROOT AND
-           EXISTS "${VCPKG_INSTALLED_ROOT}/share/yaml-cpp")
-          set(yaml-cpp_DIR "${VCPKG_INSTALLED_ROOT}/share/yaml-cpp")
-        endif()
-
-        find_package(yaml-cpp CONFIG REQUIRED)
-      endif()
-
-      if(TARGET yaml-cpp::yaml-cpp)
-        target_link_libraries(${target} ${ASTRALIX_STREAMS_LINK_SCOPE} yaml-cpp::yaml-cpp)
-      else()
-        target_link_libraries(${target} ${ASTRALIX_STREAMS_LINK_SCOPE} yaml-cpp)
-      endif()
-    elseif(format STREQUAL "Toml")
-      if(NOT TARGET tomlplusplus::tomlplusplus)
-        if(DEFINED VCPKG_INSTALLED_ROOT AND
-           EXISTS "${VCPKG_INSTALLED_ROOT}/share/tomlplusplus")
-          set(tomlplusplus_DIR "${VCPKG_INSTALLED_ROOT}/share/tomlplusplus")
-        endif()
-
-        find_package(tomlplusplus CONFIG REQUIRED)
-      endif()
-
-      target_link_libraries(${target} ${ASTRALIX_STREAMS_LINK_SCOPE} tomlplusplus::tomlplusplus)
-    elseif(format STREQUAL "Xml")
-      if(NOT TARGET pugixml::pugixml AND NOT TARGET pugixml)
-        if(DEFINED VCPKG_INSTALLED_ROOT AND
-           EXISTS "${VCPKG_INSTALLED_ROOT}/share/pugixml")
-          set(pugixml_DIR "${VCPKG_INSTALLED_ROOT}/share/pugixml")
-        endif()
-
-        find_package(pugixml CONFIG REQUIRED)
-      endif()
-
-      if(TARGET pugixml::pugixml)
-        target_link_libraries(${target} ${ASTRALIX_STREAMS_LINK_SCOPE} pugixml::pugixml)
-      else()
-        target_link_libraries(${target} ${ASTRALIX_STREAMS_LINK_SCOPE} pugixml)
-      endif()
-    else()
-      message(FATAL_ERROR
-              "astralix_streams_link_serialization_dependencies: unknown format '${format}'")
-    endif()
-  endforeach()
 endfunction()
 
 function(astralix_streams_enable_serialization_formats target)

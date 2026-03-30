@@ -6,27 +6,55 @@
 #include "serialization-context.hpp"
 #include "stream-buffer.hpp"
 
-#include <optional>
-#include <stack>
+#include <memory>
 #include <string>
-#include <variant>
+#include <vector>
 
-#include <toml++/toml.hpp>
+namespace astralix::toml_detail {
+
+enum class NodeKind {
+  Undefined,
+  String,
+  Int,
+  Float,
+  Bool,
+  Table,
+  Array,
+};
+
+struct Node;
+
+struct TableEntry {
+  std::string key;
+  std::unique_ptr<Node> value;
+};
+
+struct Node {
+  NodeKind kind = NodeKind::Undefined;
+  std::string string_value;
+  int int_value = 0;
+  float float_value = 0.0f;
+  bool bool_value = false;
+  std::vector<TableEntry> table_items;
+  std::vector<std::unique_ptr<Node>> array_items;
+};
+
+} // namespace astralix::toml_detail
 
 namespace astralix {
 
 class TomlSerializationContext : public SerializationContext {
 public:
-  TomlSerializationContext() { m_current.push(&m_root); }
+  TomlSerializationContext();
   TomlSerializationContext(Scope<StreamBuffer> buffer);
 
   ~TomlSerializationContext() = default;
   void set_value(const SerializableValue &value) override;
   void set_value(Ref<SerializationContext> ctx) override;
 
-  std::any get_root() override { return m_root; }
+  std::any get_root() override { return m_root.get(); }
 
-  size_t root_size() override { return m_root.size(); };
+  size_t root_size() override;
   size_t size() override;
 
   ElasticArena::Block *to_buffer(ElasticArena &arena) override;
@@ -38,21 +66,7 @@ public:
 
   std::vector<std::any> as_array() override;
 
-  SerializationTypeKind kind() override {
-#define MAP_WHEN_KIND(t, k)                                                    \
-  if (is_##t())                                                                \
-    return SerializationTypeKind::k;
-
-    MAP_WHEN_KIND(int, Int)
-    MAP_WHEN_KIND(string, String)
-    MAP_WHEN_KIND(float, Float)
-    MAP_WHEN_KIND(bool, Bool)
-    MAP_WHEN_KIND(array, Array)
-    MAP_WHEN_KIND(object, Object)
-
-#undef MAP_WHEN_KIND
-    return SerializationTypeKind::Unknown;
-  }
+  SerializationTypeKind kind() override;
 
   bool is_string() override;
   bool is_int() override;
@@ -80,20 +94,14 @@ public:
     ASTRA_EXCEPTION("NO SUITABLE TYPE STRING CASTING FOR KEY");
   }
 
-protected:
-  TomlSerializationContext(toml::table root) : m_root(std::move(root)) {
-    m_current.push(&m_root);
-  }
+private:
+  using Node = toml_detail::Node;
 
-  toml::table m_root;
-  std::stack<toml::node *> m_current;
+  TomlSerializationContext(std::shared_ptr<Node> root, Node *current);
 
-  // Parent tracking for set_value — toml++ nodes are strongly typed and
-  // cannot be replaced in-place, so we need to re-insert into the parent.
-  struct ParentInfo {
-    toml::node *parent;
-    std::variant<std::string, int> key;
-  };
-  std::optional<ParentInfo> m_parent_info;
+  static size_t node_size(const Node *node);
+
+  std::shared_ptr<Node> m_root;
+  Node *m_current = nullptr;
 };
 } // namespace astralix

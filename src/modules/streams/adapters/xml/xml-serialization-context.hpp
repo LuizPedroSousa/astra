@@ -6,10 +6,14 @@
 #include "serialization-context.hpp"
 #include "stream-buffer.hpp"
 
-#include <stack>
+#include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
-#include <pugixml.hpp>
+namespace astralix::xml_detail {
+struct Node;
+}
 
 namespace astralix {
 
@@ -22,7 +26,7 @@ public:
   void set_value(const SerializableValue &value) override;
   void set_value(Ref<SerializationContext> ctx) override;
 
-  std::any get_root() override { return m_current.top(); }
+  std::any get_root() override { return m_root.get(); }
 
   size_t root_size() override;
   size_t size() override;
@@ -36,21 +40,7 @@ public:
 
   std::vector<std::any> as_array() override;
 
-  SerializationTypeKind kind() override {
-#define MAP_WHEN_KIND(t, k)                                                    \
-  if (is_##t())                                                                \
-    return SerializationTypeKind::k;
-
-    MAP_WHEN_KIND(int, Int)
-    MAP_WHEN_KIND(string, String)
-    MAP_WHEN_KIND(float, Float)
-    MAP_WHEN_KIND(bool, Bool)
-    MAP_WHEN_KIND(array, Array)
-    MAP_WHEN_KIND(object, Object)
-
-#undef MAP_WHEN_KIND
-    return SerializationTypeKind::Unknown;
-  }
+  SerializationTypeKind kind() override;
 
   bool is_string() override;
   bool is_int() override;
@@ -78,18 +68,17 @@ public:
     ASTRA_EXCEPTION("NO SUITABLE TYPE STRING CASTING FOR KEY");
   }
 
-protected:
-  XmlSerializationContext(pugi::xml_node node) { m_current.push(node); }
-
-  pugi::xml_document m_document;
-  std::stack<pugi::xml_node> m_current;
-
-  // Tracks whether current node was accessed via @-prefix (attribute mode)
-  bool m_is_attribute = false;
-  std::string m_attribute_name;
-
 private:
-  static size_t count_children(pugi::xml_node node);
-  bool has_text_only() const;
+  using Node = xml_detail::Node;
+
+  XmlSerializationContext(std::shared_ptr<Node> root, Node *current,
+                          std::optional<std::string> attribute_name =
+                              std::nullopt);
+
+  static size_t node_size(const Node *node);
+
+  std::shared_ptr<Node> m_root;
+  Node *m_current = nullptr;
+  std::optional<std::string> m_attribute_name;
 };
 } // namespace astralix
