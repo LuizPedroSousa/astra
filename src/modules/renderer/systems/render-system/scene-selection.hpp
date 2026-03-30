@@ -31,8 +31,7 @@ inline std::optional<CameraSelection> select_main_camera(ecs::World &world) {
   std::optional<CameraSelection> selection;
 
   world.each<MainCamera, scene::Transform, Camera>(
-      [&](EntityID entity_id, MainCamera &, scene::Transform &transform,
-          Camera &camera) {
+      [&](EntityID entity_id, MainCamera &, scene::Transform &transform, Camera &camera) {
         if (!selection.has_value() && world.active(entity_id)) {
           selection = CameraSelection{
               .entity_id = entity_id,
@@ -40,7 +39,8 @@ inline std::optional<CameraSelection> select_main_camera(ecs::World &world) {
               .camera = &camera,
           };
         }
-      });
+      }
+  );
 
   if (selection.has_value()) {
     return selection;
@@ -55,7 +55,8 @@ inline std::optional<CameraSelection> select_main_camera(ecs::World &world) {
               .camera = &camera,
           };
         }
-      });
+      }
+  );
 
   return selection;
 }

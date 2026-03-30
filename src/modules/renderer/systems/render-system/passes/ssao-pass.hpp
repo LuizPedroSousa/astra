@@ -21,10 +21,10 @@
 
 namespace astralix {
 
-class LightingPass : public RenderPass {
+class SSAOPass : public RenderPass {
 public:
-  LightingPass() = default;
-  ~LightingPass() override = default;
+  SSAOPass() = default;
+  ~SSAOPass() override = default;
 
   void
   setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &resources) override {
@@ -60,17 +60,17 @@ public:
   void begin(double dt) override {}
 
   void execute(double dt) override {
-    ASTRA_PROFILE_N("LightingPass Update");
+    ASTRA_PROFILE_N("SSAOPass Update");
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
     auto scene = SceneManager::get()->get_active_scene();
     if (scene == nullptr) {
-      LOG_WARN("[LightingPass] Skipping execute: no active scene");
+      LOG_WARN("[SSAOPass] Skipping execute: no active scene");
       return;
     }
 
     if (m_shadow_map == nullptr) {
-      LOG_WARN("[LightingPass] Skipping execute: shadow_map framebuffer is not "
+      LOG_WARN("[SSAOPass] Skipping execute: shadow_map framebuffer is not "
                "available");
       return;
     }
@@ -78,21 +78,21 @@ public:
     auto &world = scene->world();
     auto camera = rendering::select_main_camera(world);
     if (!camera.has_value()) {
-      LOG_WARN("[LightingPass] Skipping execute: no main camera selected");
+      LOG_WARN("[SSAOPass] Skipping execute: no main camera selected");
       return;
     }
 
     auto renderer_api = m_render_target->renderer_api();
     const auto backend = renderer_api->get_backend();
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::lighting"}
+        backend, {"shaders::ssao"}
     );
 
     auto shader =
         resource_manager()->get_by_descriptor_id<Shader>("shaders::lighting");
     if (shader == nullptr) {
       LOG_WARN(
-          "[LightingPass] Skipping execute: failed to load shaders::lighting"
+          "[SSAOPass] Skipping execute: failed to load shaders::lighting"
       );
       return;
     }
@@ -117,7 +117,8 @@ public:
       renderer_api->bind_texture_2d(color_attachments[i], texture_unit + i);
     }
 
-    shader->set_all(rendering::build_deferred_light_params(light_frame, shadow_map_slot, texture_unit, texture_unit + 1, texture_unit + 2));
+    shader->set_all(rendering::build_ssao_g_buffer_params(texture_unit, texture_unit + 1, texture_unit + 2));
+    shader->set_all(rendering::build_ssao_light_params(light_frame, shadow_map_slot));
     shader->set(CameraUniform::position, camera->transform->position);
 
     m_scene_color->bind();
@@ -133,7 +134,7 @@ public:
 
   void cleanup() override {}
 
-  std::string name() const noexcept override { return "LightingPass"; }
+  std::string name() const noexcept override { return "SSAOPass"; }
 
 private:
   Framebuffer *m_shadow_map = nullptr;

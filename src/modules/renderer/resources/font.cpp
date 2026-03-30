@@ -9,9 +9,9 @@
 #include FT_FREETYPE_H
 #include "glad/glad.h"
 
-#include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <iostream>
 #include <utility>
 
 namespace astralix {
@@ -33,20 +33,17 @@ void Font::ensure_size_loaded(uint32_t pixel_size) const {
 
   FT_Library ft;
 
-  ASTRA_ENSURE(FT_Init_FreeType(&ft),
-               "ERROR::FREETYPE: Could not init FreeType Library");
+  ASTRA_ENSURE(FT_Init_FreeType(&ft), "ERROR::FREETYPE: Could not init FreeType Library");
 
   FT_Face face;
 
   auto base_path = path_manager()->resolve(m_path);
 
-  ASTRA_ENSURE(FT_New_Face(ft, base_path.c_str(), 0, &face),
-               "ERROR::FREETYPE: Failed to load font");
+  ASTRA_ENSURE(FT_New_Face(ft, base_path.c_str(), 0, &face), "ERROR::FREETYPE: Failed to load font");
 
   FT_Set_Pixel_Sizes(face, 0, pixel_size);
 
-  ASTRA_ENSURE(FT_Load_Char(face, 'X', FT_LOAD_RENDER),
-               "ERROR::FREETYTPE: Failed to load Glyph");
+  ASTRA_ENSURE(FT_Load_Char(face, 'X', FT_LOAD_RENDER), "ERROR::FREETYTPE: Failed to load Glyph");
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -65,10 +62,7 @@ void Font::ensure_size_loaded(uint32_t pixel_size) const {
         .height = face->glyph->bitmap.rows,
         .bitmap = false,
         .format = TextureFormat::Red,
-        .parameters = {{TextureParameter::WrapS, TextureValue::ClampToBorder},
-                       {TextureParameter::WrapT, TextureValue::ClampToBorder},
-                       {TextureParameter::MagFilter, TextureValue::Linear},
-                       {TextureParameter::MinFilter, TextureValue::Linear}},
+        .parameters = {{TextureParameter::WrapS, TextureValue::ClampToBorder}, {TextureParameter::WrapT, TextureValue::ClampToBorder}, {TextureParameter::MagFilter, TextureValue::Linear}, {TextureParameter::MinFilter, TextureValue::Linear}},
         .buffer = face->glyph->bitmap.buffer,
 
     };
@@ -78,16 +72,19 @@ void Font::ensure_size_loaded(uint32_t pixel_size) const {
                       std::to_string(c) + std::string("]");
 
     auto texture = resource_manager->register_texture(
-        Texture2D::define(texture_id, config));
+        Texture2D::define(texture_id, config)
+    );
     resource_manager->load_from_descriptors_by_ids<Texture2DDescriptor>(
-        m_backend, {texture_id});
+        m_backend, {texture_id}
+    );
 
     CharacterGlyph character = {
         .texture_id = texture->id,
         .size = glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
         .bearing =
             glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
-        .advance = static_cast<unsigned int>(face->glyph->advance.x)};
+        .advance = static_cast<unsigned int>(face->glyph->advance.x)
+    };
 
     characters.insert(std::pair<char, CharacterGlyph>(c, character));
   }
@@ -110,8 +107,7 @@ const std::map<char, CharacterGlyph> &Font::characters(uint32_t pixel_size) cons
   return m_glyph_sets.at(pixel_size).characters;
 }
 
-std::optional<CharacterGlyph> Font::glyph(char character,
-                                          uint32_t pixel_size) const {
+std::optional<CharacterGlyph> Font::glyph(char character, uint32_t pixel_size) const {
   const auto &glyphs = characters(pixel_size);
   auto it = glyphs.find(character);
   if (it == glyphs.end()) {
@@ -153,20 +149,18 @@ float Font::ascent(float pixel_size) const {
   return m_glyph_sets.at(resolved_size).ascent;
 }
 
-Ref<FontDescriptor> Font::create(const ResourceDescriptorID &id,
-                                 const Ref<Path> &font_path) {
+Ref<FontDescriptor> Font::create(const ResourceDescriptorID &id, const Ref<Path> &font_path) {
 
   return resource_manager()->register_font(
-      FontDescriptor::create(id, font_path));
+      FontDescriptor::create(id, font_path)
+  );
 }
 
-Ref<FontDescriptor> Font::define(const ResourceDescriptorID &id,
-                                 const Ref<Path> &font_path) {
+Ref<FontDescriptor> Font::define(const ResourceDescriptorID &id, const Ref<Path> &font_path) {
   return FontDescriptor::create(id, font_path);
 }
 
-Ref<Font> Font::from_descriptor(const ResourceHandle &id,
-                                Ref<FontDescriptor> descriptor) {
+Ref<Font> Font::from_descriptor(const ResourceHandle &id, Ref<FontDescriptor> descriptor) {
   return create_ref<Font>(id, descriptor);
 }
 

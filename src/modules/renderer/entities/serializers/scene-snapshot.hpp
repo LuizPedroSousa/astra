@@ -6,44 +6,62 @@
 
 namespace astralix::serialization {
 
+inline std::vector<ComponentSnapshot>
+collect_entity_component_snapshots(ecs::EntityRef entity) {
+  std::vector<ComponentSnapshot> components;
+  if (!entity.exists()) {
+    return components;
+  }
+
+  append_snapshot_if_present<scene::SceneEntity>(entity, components);
+  append_snapshot_if_present<scene::Transform>(entity, components);
+  append_snapshot_if_present<rendering::Camera>(entity, components);
+  append_snapshot_if_present<scene::CameraController>(entity, components);
+  append_snapshot_if_present<rendering::Light>(entity, components);
+  append_snapshot_if_present<rendering::PointLightAttenuation>(entity, components);
+  append_snapshot_if_present<rendering::SpotLightCone>(entity, components);
+  append_snapshot_if_present<rendering::DirectionalShadowSettings>(
+      entity, components
+  );
+  append_snapshot_if_present<rendering::SpotLightTarget>(entity, components);
+  append_snapshot_if_present<rendering::ModelRef>(entity, components);
+  append_snapshot_if_present<rendering::MeshSet>(entity, components);
+  append_snapshot_if_present<rendering::MaterialSlots>(entity, components);
+  append_snapshot_if_present<rendering::ShaderBinding>(entity, components);
+  append_snapshot_if_present<rendering::TextureBindings>(entity, components);
+  append_snapshot_if_present<rendering::SkyboxBinding>(entity, components);
+  append_snapshot_if_present<rendering::TextSprite>(entity, components);
+  append_snapshot_if_present<physics::RigidBody>(entity, components);
+  append_snapshot_if_present<physics::BoxCollider>(entity, components);
+  append_snapshot_if_present<physics::FitBoxColliderFromRenderMesh>(
+      entity, components
+  );
+  append_snapshot_if_present<rendering::Renderable>(entity, components);
+  append_snapshot_if_present<rendering::MainCamera>(entity, components);
+  append_snapshot_if_present<rendering::ShadowCaster>(entity, components);
+  return components;
+}
+
+inline EntitySnapshot collect_entity_snapshot(ecs::EntityRef entity) {
+  EntitySnapshot snapshot{};
+  if (!entity.exists()) {
+    return snapshot;
+  }
+
+  snapshot.id = entity.id();
+  snapshot.name = std::string(entity.name());
+  snapshot.active = entity.active();
+  snapshot.components = collect_entity_component_snapshots(entity);
+  return snapshot;
+}
+
 inline std::vector<EntitySnapshot> collect_scene_snapshots(const ecs::World &world) {
   std::vector<EntitySnapshot> snapshots;
 
   world.each<scene::SceneEntity>([&](EntityID entity_id, const scene::SceneEntity &) {
-    auto entity = const_cast<ecs::World &>(world).entity(entity_id);
-    EntitySnapshot snapshot{
-        .id = entity_id,
-        .name = std::string(entity.name()),
-        .active = entity.active(),
-    };
-
-    append_snapshot_if_present<scene::SceneEntity>(entity, snapshot.components);
-    append_snapshot_if_present<scene::Transform>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::Camera>(entity, snapshot.components);
-    append_snapshot_if_present<scene::CameraController>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::Light>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::PointLightAttenuation>(entity,
-                                                      snapshot.components);
-    append_snapshot_if_present<rendering::SpotLightCone>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::DirectionalShadowSettings>(
-        entity, snapshot.components);
-    append_snapshot_if_present<rendering::SpotLightTarget>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::ModelRef>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::MeshSet>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::MaterialSlots>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::ShaderBinding>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::TextureBindings>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::SkyboxBinding>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::TextSprite>(entity, snapshot.components);
-    append_snapshot_if_present<physics::RigidBody>(entity, snapshot.components);
-    append_snapshot_if_present<physics::BoxCollider>(entity, snapshot.components);
-    append_snapshot_if_present<physics::FitBoxColliderFromRenderMesh>(
-        entity, snapshot.components);
-    append_snapshot_if_present<rendering::Renderable>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::MainCamera>(entity, snapshot.components);
-    append_snapshot_if_present<rendering::ShadowCaster>(entity, snapshot.components);
-
-    snapshots.push_back(std::move(snapshot));
+    snapshots.push_back(
+        collect_entity_snapshot(const_cast<ecs::World &>(world).entity(entity_id))
+    );
   });
 
   return snapshots;

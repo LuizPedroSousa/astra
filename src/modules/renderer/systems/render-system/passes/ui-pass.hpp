@@ -25,6 +25,7 @@ namespace astralix {
     void ensure_shaders_loaded();
     void draw_rect_command(const ui::UIDrawCommand& command, glm::mat4 projection);
     void draw_image_command(const ui::UIDrawCommand& command, glm::mat4 projection);
+    void draw_render_image_view_command(const ui::UIDrawCommand& command, glm::mat4 projection);
     void draw_text_command(const ui::UIDrawCommand& command, glm::mat4 projection);
     void apply_clip(const ui::UIDrawCommand& command, uint32_t framebuffer_height);
 

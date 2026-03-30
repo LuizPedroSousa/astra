@@ -62,11 +62,7 @@ inline bool matrix_equal(const glm::mat4 &lhs, const glm::mat4 &rhs) {
   return std::equal(lhs_ptr, lhs_ptr + 16, rhs_ptr);
 }
 
-inline size_t compute_batch_key(const ModelRef *model_ref,
-                                const MeshSet *mesh_set,
-                                const ShaderBinding &shader,
-                                const MaterialSlots *materials,
-                                const TextureBindings *textures) {
+inline size_t compute_batch_key(const ModelRef *model_ref, const MeshSet *mesh_set, const ShaderBinding &shader, const MaterialSlots *materials, const TextureBindings *textures) {
   size_t seed = std::hash<std::string>{}(shader.shader);
 
   if (model_ref != nullptr) {
@@ -98,17 +94,16 @@ inline size_t compute_batch_key(const ModelRef *model_ref,
   return seed;
 }
 
-inline RenderFrameData collect_render_frame(ecs::World &world,
-                                            RenderRuntimeStore &runtime_store) {
+inline RenderFrameData collect_render_frame(ecs::World &world, RenderRuntimeStore &runtime_store) {
   runtime_store.prune(world);
 
   RenderFrameData frame;
   std::unordered_map<size_t, size_t> batch_lookup;
 
   world.each<Renderable, scene::Transform, ShaderBinding>([&](EntityID entity_id,
-                                                       Renderable &,
-                                                       scene::Transform &transform,
-                                                       ShaderBinding &shader) {
+                                                              Renderable &,
+                                                              scene::Transform &transform,
+                                                              ShaderBinding &shader) {
     if (!world.active(entity_id)) {
       return;
     }

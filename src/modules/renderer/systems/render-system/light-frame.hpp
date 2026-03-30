@@ -6,6 +6,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "material-binding.hpp"
 #include "scene-selection.hpp"
+#include "shaders/engine_shaders_ssao_axsl.hpp"
 #include "world.hpp"
 #include <array>
 
@@ -65,13 +66,11 @@ inline glm::vec3 light_term(const Light &light, const glm::vec3 &base) {
 }
 
 inline glm::mat4
-build_directional_light_space_matrix(const scene::Transform &transform,
-                                     const DirectionalShadowSettings &shadow) {
+build_directional_light_space_matrix(const scene::Transform &transform, const DirectionalShadowSettings &shadow) {
   const glm::mat4 projection = glm::ortho(
-      -shadow.ortho_extent, shadow.ortho_extent, -shadow.ortho_extent,
-      shadow.ortho_extent, shadow.near_plane, shadow.far_plane);
-  const glm::mat4 view = glm::lookAt(transform.position, glm::vec3(0.0f),
-                                     glm::vec3(0.0f, 1.0f, 0.0f));
+      -shadow.ortho_extent, shadow.ortho_extent, -shadow.ortho_extent, shadow.ortho_extent, shadow.near_plane, shadow.far_plane
+  );
+  const glm::mat4 view = glm::lookAt(transform.position, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
   return projection * view;
 }
@@ -101,8 +100,7 @@ inline LightFrameData collect_light_frame(ecs::World &world) {
   const auto main_camera = select_main_camera(world);
   size_t point_index = 0u;
 
-  world.each<scene::Transform, Light>([&](EntityID entity_id, scene::Transform &transform,
-                                   Light &light) {
+  world.each<scene::Transform, Light>([&](EntityID entity_id, scene::Transform &transform, Light &light) {
     if (!world.active(entity_id)) {
       return;
     }
@@ -200,8 +198,7 @@ inline LightFrameData collect_light_frame(ecs::World &world) {
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
 
 template <typename Params>
-inline void populate_directional_light_params(const LightFrameData &frame,
-                                              Params &params) {
+inline void populate_directional_light_params(const LightFrameData &frame, Params &params) {
   const auto &directional = frame.directional;
   params.directional.exposure.ambient = directional.ambient;
   params.directional.exposure.diffuse = directional.diffuse;
@@ -213,8 +210,7 @@ inline void populate_directional_light_params(const LightFrameData &frame,
 }
 
 template <typename Params>
-inline void populate_point_light_params(const LightFrameData &frame,
-                                        Params &params) {
+inline void populate_point_light_params(const LightFrameData &frame, Params &params) {
   for (size_t i = 0; i < frame.point_lights.size(); ++i) {
     const auto &source = frame.point_lights[i];
     params.point_lights[i].position = source.position;
@@ -228,8 +224,7 @@ inline void populate_point_light_params(const LightFrameData &frame,
 }
 
 template <typename Params>
-inline void populate_spot_light_params(const LightFrameData &frame,
-                                       Params &params) {
+inline void populate_spot_light_params(const LightFrameData &frame, Params &params) {
   params.spot_light.exposure.ambient = frame.spot.ambient;
   params.spot_light.exposure.diffuse = frame.spot.diffuse;
   params.spot_light.exposure.specular = frame.spot.specular;
@@ -240,8 +235,7 @@ inline void populate_spot_light_params(const LightFrameData &frame,
 }
 
 inline shader_bindings::engine_shaders_g_buffer_axsl::LightParams
-build_gbuffer_light_params(const LightFrameData &frame,
-                           const MaterialBindingState &material_binding) {
+build_gbuffer_light_params(const LightFrameData &frame, const MaterialBindingState &material_binding) {
   using namespace shader_bindings::engine_shaders_g_buffer_axsl;
 
   LightParams params{};
@@ -260,9 +254,7 @@ build_gbuffer_light_params(const LightFrameData &frame,
 }
 
 inline shader_bindings::engine_shaders_light_axsl::LightParams
-build_deferred_light_params(const LightFrameData &frame, int shadow_map_slot,
-                            int g_position_slot, int g_normal_slot,
-                            int g_albedo_slot) {
+build_deferred_light_params(const LightFrameData &frame, int shadow_map_slot, int g_position_slot, int g_normal_slot, int g_albedo_slot) {
   using namespace shader_bindings::engine_shaders_light_axsl;
 
   LightParams params{};
@@ -276,10 +268,32 @@ build_deferred_light_params(const LightFrameData &frame, int shadow_map_slot,
   return params;
 }
 
+inline shader_bindings::engine_shaders_ssao_axsl::LightParams
+build_ssao_light_params(const LightFrameData &frame, int shadow_map_slot) {
+  using namespace shader_bindings::engine_shaders_ssao_axsl;
+
+  LightParams params{};
+  params.shadow_map = shadow_map_slot;
+  populate_directional_light_params(frame, params);
+  populate_point_light_params(frame, params);
+
+  return params;
+}
+
+inline shader_bindings::engine_shaders_ssao_axsl::GBufferParams
+build_ssao_g_buffer_params(int g_position_slot, int g_normal_slot, int g_albedo_slot) {
+  using namespace shader_bindings::engine_shaders_ssao_axsl;
+
+  GBufferParams params{};
+  params.g_position = g_position_slot;
+  params.g_normal = g_normal_slot;
+  params.g_albedo = g_albedo_slot;
+
+  return params;
+}
+
 inline shader_bindings::engine_shaders_lighting_forward_axsl::LightParams
-build_forward_light_params(const LightFrameData &frame,
-                           const MaterialBindingState &material_binding,
-                           int shadow_map_slot) {
+build_forward_light_params(const LightFrameData &frame, const MaterialBindingState &material_binding, int shadow_map_slot) {
   using namespace shader_bindings::engine_shaders_lighting_forward_axsl;
 
   LightParams params{};

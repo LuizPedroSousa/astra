@@ -4,6 +4,7 @@
 #include "framebuffer.hpp"
 #include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
+#include "managers/system-manager.hpp"
 #include "path.hpp"
 #include "renderer-api.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
@@ -12,6 +13,7 @@
 #include "shaders/engine_shaders_ui_quad_axsl.hpp"
 #include "shaders/engine_shaders_ui_solid_axsl.hpp"
 #include "systems/render-system/mesh-resolution.hpp"
+#include "systems/render-system/render-system.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -22,6 +24,25 @@ using namespace astralix::shader_bindings;
 #endif
 
 namespace astralix {
+namespace {
+
+ui::UIRect clamp_clip_rect_to_framebuffer(
+    const ui::UIRect &clip_rect,
+    uint32_t framebuffer_width,
+    uint32_t framebuffer_height
+) {
+  return ui::intersect_rect(
+      clip_rect,
+      ui::UIRect{
+          .x = 0.0f,
+          .y = 0.0f,
+          .width = static_cast<float>(framebuffer_width),
+          .height = static_cast<float>(framebuffer_height),
+      }
+  );
+}
+
+} // namespace
 
 void UIPass::setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &) {
   m_render_target = render_target;
@@ -55,17 +76,24 @@ void UIPass::apply_clip(const ui::UIDrawCommand &command, uint32_t framebuffer_h
     return;
   }
 
+  const auto &spec = m_render_target->framebuffer()->get_specification();
+  const ui::UIRect clipped =
+      clamp_clip_rect_to_framebuffer(command.clip_rect, spec.width, framebuffer_height);
+  if (clipped.width <= 0.0f || clipped.height <= 0.0f) {
+    renderer_api->disable_scissor();
+    return;
+  }
+
   renderer_api->enable_scissor();
 
-  const uint32_t clip_x =
-      static_cast<uint32_t>(std::max(0.0f, command.clip_rect.x));
+  const uint32_t clip_x = static_cast<uint32_t>(std::max(0.0f, clipped.x));
   const uint32_t clip_height =
-      static_cast<uint32_t>(std::max(0.0f, command.clip_rect.height));
+      static_cast<uint32_t>(std::max(0.0f, clipped.height));
   const uint32_t clip_width =
-      static_cast<uint32_t>(std::max(0.0f, command.clip_rect.width));
+      static_cast<uint32_t>(std::max(0.0f, clipped.width));
 
   const float bottom = static_cast<float>(framebuffer_height) -
-                       (command.clip_rect.y + command.clip_rect.height);
+                       (clipped.y + clipped.height);
   const uint32_t clip_y = static_cast<uint32_t>(std::max(0.0f, bottom));
 
   renderer_api->set_scissor_rect(clip_x, clip_y, clip_width, clip_height);
@@ -108,11 +136,53 @@ void UIPass::draw_image_command(const ui::UIDrawCommand &command, glm::mat4 proj
   m_image_shader->set(engine_shaders_ui_quad_axsl::QuadUniform::rect, glm::vec4(command.rect.x, command.rect.y, command.rect.width, command.rect.height));
   m_image_shader->set(engine_shaders_ui_image_axsl::ImageUniform::tint, command.tint);
   m_image_shader->set(engine_shaders_ui_image_axsl::ImageUniform::texture, 0);
+  m_image_shader->set(engine_shaders_ui_image_axsl::ImageUniform::sample_flip_y, 0.0f);
 
   m_render_target->renderer_api()->bind_texture_2d(texture->renderer_id(), 0);
   m_render_target->renderer_api()->draw_indexed(m_quad.vertex_array, m_quad.draw_type);
   m_image_shader->unbind();
 #endif
+}
+
+void UIPass::draw_render_image_view_command(
+    const ui::UIDrawCommand &command, glm::mat4 projection
+) {
+  if (m_image_shader == nullptr || command.rect.width <= 0.0f ||
+      command.rect.height <= 0.0f || !command.render_image_key.has_value()) {
+    return;
+  }
+
+  auto *render_system = SystemManager::get()->get_system<RenderSystem>();
+  if (render_system == nullptr) {
+    return;
+  }
+
+  auto resolved =
+      render_system->resolve_render_image(*command.render_image_key);
+  if (!resolved.has_value() || !resolved->available) {
+    return;
+  }
+
+  switch (resolved->target) {
+    case RenderImageTarget::Texture2D:
+#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
+      m_image_shader->bind();
+      m_image_shader->set(engine_shaders_ui_quad_axsl::CameraUniform::projection, projection);
+      m_image_shader->set(engine_shaders_ui_quad_axsl::QuadUniform::rect, glm::vec4(command.rect.x, command.rect.y, command.rect.width, command.rect.height));
+      m_image_shader->set(engine_shaders_ui_image_axsl::ImageUniform::tint, command.tint);
+      m_image_shader->set(engine_shaders_ui_image_axsl::ImageUniform::texture, 0);
+      m_image_shader->set(engine_shaders_ui_image_axsl::ImageUniform::sample_flip_y, 1.0f);
+
+      m_render_target->renderer_api()->bind_texture_2d(
+          resolved->renderer_texture_id, 0
+      );
+      m_render_target->renderer_api()->draw_indexed(
+          m_quad.vertex_array, m_quad.draw_type
+      );
+      m_image_shader->unbind();
+#endif
+      break;
+  }
 }
 
 void UIPass::draw_text_command(const ui::UIDrawCommand &command, glm::mat4 projection) {
@@ -155,8 +225,22 @@ void UIPass::draw_text_command(const ui::UIDrawCommand &command, glm::mat4 proje
     const float ypos = baseline_y - static_cast<float>(glyph.bearing.y);
     const float width = static_cast<float>(glyph.size.x);
     const float height = static_cast<float>(glyph.size.y);
+    const ui::UIRect glyph_rect{
+        .x = xpos,
+        .y = ypos,
+        .width = width,
+        .height = height,
+    };
 
-    m_text_shader->set(engine_shaders_ui_quad_axsl::QuadUniform::rect, glm::vec4(xpos, ypos, width, height));
+    if (command.has_clip && !ui::intersects(glyph_rect, command.clip_rect)) {
+      current_x += static_cast<float>(glyph.advance >> 6);
+      continue;
+    }
+
+    m_text_shader->set(
+        engine_shaders_ui_quad_axsl::QuadUniform::rect,
+        glm::vec4(glyph_rect.x, glyph_rect.y, glyph_rect.width, glyph_rect.height)
+    );
     m_render_target->renderer_api()->bind_texture_2d(texture->renderer_id(), 0);
     m_render_target->renderer_api()->draw_indexed(m_quad.vertex_array, m_quad.draw_type);
 
@@ -208,6 +292,9 @@ void UIPass::execute(double) {
           break;
         case ui::DrawCommandType::Image:
           draw_image_command(command, projection);
+          break;
+        case ui::DrawCommandType::RenderImageView:
+          draw_render_image_view_command(command, projection);
           break;
         case ui::DrawCommandType::Text:
           draw_text_command(command, projection);

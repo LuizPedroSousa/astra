@@ -4,6 +4,7 @@
 interface Image {
   sampler2D texture;
   vec4 tint;
+  float sample_flip_y;
 }
 
 interface FragmentOutput {
@@ -16,5 +17,11 @@ interface VertexOutput {
 
 @fragment
 fn main(VertexOutput vertex, Image image) -> FragmentOutput {
-  return FragmentOutput(texture(image.texture, vertex.texture_coordinates) * image.tint);
+  vec2 sample_uv = mix(
+      vertex.texture_coordinates,
+      vec2(vertex.texture_coordinates.x, 1.0 - vertex.texture_coordinates.y),
+      clamp(image.sample_flip_y, 0.0, 1.0)
+  );
+
+  return FragmentOutput(texture(image.texture, sample_uv) * image.tint);
 }

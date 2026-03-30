@@ -28,6 +28,10 @@ public:
   void export_graph(const RenderGraphExporter &exporter,
                     const std::string &filename) const;
 
+  const RenderGraphResource *resource_at(uint32_t index) const {
+    return index < m_resources.size() ? &m_resources[index] : nullptr;
+  }
+
 private:
   void compute_resource_lifetimes();
   void infer_dependencies();

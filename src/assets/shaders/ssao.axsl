@@ -1,0 +1,49 @@
+@version 450;
+
+@include "helpers/light.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface GBuffer {
+  sampler2D g_position;
+  sampler2D g_normal;
+  sampler2D g_albedo;
+}
+
+@uniform
+interface Light {
+  DirectionalLight directional;
+  mat4 light_space_matrix;
+  PointLight point_lights[4];
+  sampler2D shadow_map;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+
+  return vertex_output;
+}
+
+@fragment
+fn main(Light light, GBuffer g_buffer) -> FragmentOutput {
+
+}
