@@ -30,24 +30,9 @@ find_dependency(freetype CONFIG)
 find_dependency(imgui CONFIG)
 
 list(FIND _astralix_streams_formats "Json" _astralix_json_index)
-if(NOT _astralix_json_index EQUAL -1)
-  find_dependency(jsoncpp CONFIG)
-endif()
-
 list(FIND _astralix_streams_formats "Yaml" _astralix_yaml_index)
-if(NOT _astralix_yaml_index EQUAL -1)
-  find_dependency(yaml-cpp CONFIG)
-endif()
-
 list(FIND _astralix_streams_formats "Toml" _astralix_toml_index)
-if(NOT _astralix_toml_index EQUAL -1)
-  find_dependency(tomlplusplus CONFIG)
-endif()
-
 list(FIND _astralix_streams_formats "Xml" _astralix_xml_index)
-if(NOT _astralix_xml_index EQUAL -1)
-  find_dependency(pugixml CONFIG)
-endif()
 
 find_dependency(ZLIB)
 find_dependency(OpenMP)
@@ -55,36 +40,6 @@ find_dependency(X11)
 
 if(NOT TARGET astralix::streams_serialization_deps)
   add_library(astralix::streams_serialization_deps INTERFACE IMPORTED)
-endif()
-
-if(NOT _astralix_json_index EQUAL -1)
-  set_property(TARGET astralix::streams_serialization_deps APPEND PROPERTY
-    INTERFACE_LINK_LIBRARIES JsonCpp::JsonCpp)
-endif()
-
-if(NOT _astralix_yaml_index EQUAL -1)
-  if(TARGET yaml-cpp::yaml-cpp)
-    set_property(TARGET astralix::streams_serialization_deps APPEND PROPERTY
-      INTERFACE_LINK_LIBRARIES yaml-cpp::yaml-cpp)
-  else()
-    set_property(TARGET astralix::streams_serialization_deps APPEND PROPERTY
-      INTERFACE_LINK_LIBRARIES yaml-cpp)
-  endif()
-endif()
-
-if(NOT _astralix_toml_index EQUAL -1)
-  set_property(TARGET astralix::streams_serialization_deps APPEND PROPERTY
-    INTERFACE_LINK_LIBRARIES tomlplusplus::tomlplusplus)
-endif()
-
-if(NOT _astralix_xml_index EQUAL -1)
-  if(TARGET pugixml::pugixml)
-    set_property(TARGET astralix::streams_serialization_deps APPEND PROPERTY
-      INTERFACE_LINK_LIBRARIES pugixml::pugixml)
-  else()
-    set_property(TARGET astralix::streams_serialization_deps APPEND PROPERTY
-      INTERFACE_LINK_LIBRARIES pugixml)
-  endif()
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/astralixTargets.cmake")

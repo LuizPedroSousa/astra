@@ -41,16 +41,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            vcpkg
             vcpkg_installed
           key: ${{ runner.os }}-x64-linux-vcpkg-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
           restore-keys: |
             ${{ runner.os }}-x64-linux-vcpkg-
 
       - name: Setup vcpkg
-        if: steps.vcpkg-cache.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/microsoft/vcpkg.git
+          if [ ! -d vcpkg/.git ]; then
+            git clone https://github.com/microsoft/vcpkg.git
+          fi
           ./vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
       - name: Install vcpkg packages

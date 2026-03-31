@@ -125,6 +125,93 @@ TEST(AxgenSync, DiscoversManifestShaderPathsAcrossProjectAndEngineRoots) {
   std::filesystem::remove_all(root);
 }
 
+TEST(AxgenSync, DiscoversManifestShaderPathsFromYamlManifest) {
+  const auto root = make_temp_root("yaml-discovery");
+  const auto local_shader = root / "assets" / "shaders" / "local.axsl";
+  const auto manifest_path = root / "project.ax";
+
+  write_file(local_shader, kSimpleShader);
+  write_file(manifest_path, R"ax(
+project:
+  name: Sandbox
+  resources:
+    directory: assets
+  serialization:
+    format: yaml
+resources:
+  - id: shaders::local
+    type: Shader
+    vertex: "@project/shaders/local.axsl"
+    fragment: "@project/shaders/local.axsl"
+  - id: shaders::engine
+    type: Shader
+    vertex: "@engine/shaders/light.axsl"
+    fragment: "@engine/shaders/light.axsl"
+)ax");
+
+  std::string error;
+  auto discovery = discover_project_shaders(manifest_path, &error);
+  ASSERT_TRUE(discovery.has_value()) << error;
+  ASSERT_EQ(discovery->shaders.size(), 2u);
+
+  EXPECT_EQ(discovery->shaders[0].canonical_id, "engine/shaders/light.axsl");
+  EXPECT_EQ(discovery->shaders[0].source_path.lexically_normal(),
+            (std::filesystem::path(ASTRALIX_ENGINE_ASSETS_DIR) / "shaders" /
+             "light.axsl")
+                .lexically_normal());
+  EXPECT_EQ(discovery->shaders[1].canonical_id, "project/shaders/local.axsl");
+  EXPECT_EQ(discovery->shaders[1].source_path.lexically_normal(),
+            local_shader.lexically_normal());
+
+  std::filesystem::remove_all(root);
+}
+
+TEST(AxgenSync, DiscoversManifestShaderPathsFromTomlManifest) {
+  const auto root = make_temp_root("toml-discovery");
+  const auto local_shader = root / "assets" / "shaders" / "local.axsl";
+  const auto manifest_path = root / "project.ax";
+
+  write_file(local_shader, kSimpleShader);
+  write_file(manifest_path, R"ax(
+[project]
+name = "Sandbox"
+
+[project.resources]
+directory = "assets"
+
+[project.serialization]
+format = "toml"
+
+[[resources]]
+id = "shaders::local"
+type = "Shader"
+vertex = "@project/shaders/local.axsl"
+fragment = "@project/shaders/local.axsl"
+
+[[resources]]
+id = "shaders::engine"
+type = "Shader"
+vertex = "@engine/shaders/light.axsl"
+fragment = "@engine/shaders/light.axsl"
+)ax");
+
+  std::string error;
+  auto discovery = discover_project_shaders(manifest_path, &error);
+  ASSERT_TRUE(discovery.has_value()) << error;
+  ASSERT_EQ(discovery->shaders.size(), 2u);
+
+  EXPECT_EQ(discovery->shaders[0].canonical_id, "engine/shaders/light.axsl");
+  EXPECT_EQ(discovery->shaders[0].source_path.lexically_normal(),
+            (std::filesystem::path(ASTRALIX_ENGINE_ASSETS_DIR) / "shaders" /
+             "light.axsl")
+                .lexically_normal());
+  EXPECT_EQ(discovery->shaders[1].canonical_id, "project/shaders/local.axsl");
+  EXPECT_EQ(discovery->shaders[1].source_path.lexically_normal(),
+            local_shader.lexically_normal());
+
+  std::filesystem::remove_all(root);
+}
+
 TEST(AxgenSync, AppliesArtifactPlanFromDiscoveredProjectShaders) {
   const auto root = make_temp_root("apply");
   const auto shader_path = root / "assets" / "shaders" / "light.axsl";

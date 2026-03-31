@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.11)
 project(astralix VERSION 0.1.0 LANGUAGES CXX)
 
+if(POLICY CMP0079)
+  cmake_policy(SET CMP0079 NEW)
+endif()
+
 option(ASTRA_EDITOR "Astra internal Layer Editor" false)
 option(ASTRA_EDITOR_USOCKET "Astra forward serialization with USocket for external Editor" true)
 option(ASTRA_ENABLE_TESTS "Enable unit tests" false)
@@ -33,7 +37,6 @@ find_package(assimp REQUIRED)
 
 set(VCPKG_INSTALLED_ROOT "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-linux")
 
-set(jsoncpp_DIR "${VCPKG_INSTALLED_ROOT}/share/jsoncpp")
 set(freetype_DIR "${VCPKG_INSTALLED_ROOT}/share/freetype")
 set(imgui_DIR "${VCPKG_INSTALLED_ROOT}/share/imgui")
 set(imguizmo_DIR "${VCPKG_INSTALLED_ROOT}/share/imguizmo")
@@ -52,7 +55,6 @@ find_package(ZLIB REQUIRED)
 
 
 find_package(glm CONFIG REQUIRED)
-find_package(jsoncpp CONFIG REQUIRED)
 find_package(freetype CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 
@@ -70,6 +72,13 @@ if(ASTRA_ENABLE_TESTS)
   enable_testing()
 
   find_package(GTest CONFIG REQUIRED)
+  file(GLOB_RECURSE UI_DOCUMENT_SUPPORT_SRC CONFIGURE_DEPENDS
+       ${CMAKE_SOURCE_DIR}/src/modules/ui/document/*.cpp)
+  file(GLOB_RECURSE UI_LAYOUT_SUPPORT_SRC CONFIGURE_DEPENDS
+       ${CMAKE_SOURCE_DIR}/src/modules/ui/layout/*.cpp)
+  list(
+    FILTER UI_LAYOUT_SUPPORT_SRC EXCLUDE
+    REGEX ".*/widgets/content/render-image-view\\.cpp$")
 
   file(GLOB_RECURSE ARCHETYPE_ECS_TEST_SRC
        ${CMAKE_SOURCE_DIR}/src/shared/foundation/*.test.cpp
@@ -81,22 +90,23 @@ if(ASTRA_ENABLE_TESTS)
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/transform-system/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/shared/ecs/*.test.cpp)
+  file(GLOB_RECURSE HEADER_ONLY_TEST_SRC
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/ui/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/camera-system/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/*.test.hpp
+       ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/transform-system/*.test.hpp)
   set(TEST_SUPPORT_SRC
       ${CMAKE_SOURCE_DIR}/src/shared/ecs/guid.cpp
-      ${CMAKE_SOURCE_DIR}/src/modules/ui/document.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/window/clipboard.cpp
-      ${CMAKE_SOURCE_DIR}/tests/model-stub.cpp)
+      ${CMAKE_SOURCE_DIR}/tests/model-stub.cpp
+      ${CMAKE_SOURCE_DIR}/tests/ui-layout-renderer-stub.cpp
+      ${UI_DOCUMENT_SUPPORT_SRC}
+      ${UI_LAYOUT_SUPPORT_SRC})
   set_source_files_properties(
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/scene-snapshot.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/collider-shape-resolution.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/ui/ui-foundations.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-resource-expansion.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/camera-system/camera-controller-system.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/light-frame.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/material-binding.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/render-frame.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/render-system/scene-selection.test.hpp
-    ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/transform-system/transform-system.test.hpp
+    ${HEADER_ONLY_TEST_SRC}
     PROPERTIES LANGUAGE CXX HEADER_FILE_ONLY OFF COMPILE_FLAGS "-x c++")
 
   add_executable(archetype_ecs_tests tests/main.cpp ${ARCHETYPE_ECS_TEST_SRC}
@@ -164,9 +174,8 @@ if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/modules/application)
 endif()
 
-if(ASTRA_EDITOR)
+if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/modules/editor)
-  set(EDITOR editor)
 endif()
 
 # if(OpenMP_CXX_FOUND)
@@ -277,7 +286,6 @@ if(NOT ASTRA_ENABLE_TESTS)
 
   target_link_libraries(astra INTERFACE
       "$<LINK_GROUP:RESCAN,${ASTRALIX_CORE_LIBS_RESCAN}>"
-      ${EDITOR}
       ZLIB::ZLIB
       OpenMP::OpenMP_CXX
       glfw
@@ -323,6 +331,11 @@ if(NOT ASTRA_ENABLE_TESTS)
           PUBLIC ASTRALIX_ASSETS_DIR="${ASTRALIX_ASSETS_DIR_VALUE}"
       )
   endforeach()
+
+  if(TARGET editor)
+    target_link_libraries(editor PUBLIC astra)
+    set_property(TARGET editor PROPERTY INTERFACE_LINK_LIBRARIES astra)
+  endif()
 endif()
 
 if(NOT ASTRA_ENABLE_TESTS)
@@ -344,7 +357,7 @@ if(NOT ASTRA_ENABLE_TESTS)
           physics
           engine
           application
-          ${EDITOR}
+          editor
           stb_image
           EXPORT astralixTargets
           ARCHIVE DESTINATION lib
@@ -363,16 +376,10 @@ if(NOT ASTRA_ENABLE_TESTS)
       "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/systems/ui-system.hpp")
   ]])
 
-  if(ASTRA_EDITOR)
-    install(DIRECTORY src/ DESTINATION include/astralix FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
-  else()
-    install(DIRECTORY src/ DESTINATION include/astralix
-            FILES_MATCHING
-            PATTERN "*.h"
-            PATTERN "*.hpp"
-            PATTERN "modules/editor" EXCLUDE
-            PATTERN "modules/editor/*" EXCLUDE)
-  endif()
+  install(DIRECTORY src/ DESTINATION include/astralix
+          FILES_MATCHING
+          PATTERN "*.h"
+          PATTERN "*.hpp")
 
   install(EXPORT astralixTargets
           FILE astralixTargets.cmake
