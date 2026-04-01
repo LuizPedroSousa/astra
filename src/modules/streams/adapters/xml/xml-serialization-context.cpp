@@ -22,17 +22,25 @@
 
 namespace astralix::xml_detail {
 
-struct Attribute {
-  std::string name;
-  std::string value;
-};
+Attribute *find_attribute(Node &node, std::string_view name) {
+  for (auto &attribute : node.attributes) {
+    if (attribute.name == name) {
+      return &attribute;
+    }
+  }
 
-struct Node {
-  std::string name;
-  std::string text;
-  std::vector<Attribute> attributes;
-  std::vector<std::unique_ptr<Node>> children;
-};
+  return nullptr;
+}
+
+const Attribute *find_attribute(const Node &node, std::string_view name) {
+  for (const auto &attribute : node.attributes) {
+    if (attribute.name == name) {
+      return &attribute;
+    }
+  }
+
+  return nullptr;
+}
 
 } // namespace astralix::xml_detail
 
@@ -59,26 +67,6 @@ Node clone_node(const Node &node) {
   }
 
   return clone;
-}
-
-Attribute *find_attribute(Node &node, std::string_view name) {
-  for (auto &attribute : node.attributes) {
-    if (attribute.name == name) {
-      return &attribute;
-    }
-  }
-
-  return nullptr;
-}
-
-const Attribute *find_attribute(const Node &node, std::string_view name) {
-  for (const auto &attribute : node.attributes) {
-    if (attribute.name == name) {
-      return &attribute;
-    }
-  }
-
-  return nullptr;
 }
 
 Attribute &ensure_attribute(Node &node, const std::string &name) {
@@ -642,6 +630,12 @@ private:
 };
 
 } // namespace
+
+namespace xml_detail {
+
+Node parse_document(std::string_view input) { return XmlParser(input).parse_document(); }
+
+} // namespace xml_detail
 
 XmlSerializationContext::XmlSerializationContext()
     : m_root(std::make_shared<Node>(make_node())), m_current(m_root.get()) {}

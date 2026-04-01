@@ -7,6 +7,8 @@ struct Material {
   sampler2D diffuse;
   sampler2D specular;
   float shininess;
+  vec3 emissive;
+  float bloom_intensity;
 };
 
 @in
@@ -34,6 +36,9 @@ in InstanceBuffer {
 interface Entity {
   bool use_instancing = false;
   mat4 g_model;
+  bool bloom_enabled = true;
+  int bloom_layer = 0;
+  int entity_id = 0;
 }
 
 @uniform
@@ -56,6 +61,7 @@ interface Light {
   sampler2D displacement_map;
   sampler2D shadow_map;
   float height_scale = 0.1;
+  int bloom_layer = 0;
 }
 
 interface VertexOutput {
@@ -118,10 +124,13 @@ interface FragmentOutput {
 
   @location(1)
   vec4 bright_color;
+
+  @location(2)
+  int entity_id;
 }
 
 @fragment
-fn main(VertexOutput vertex, Light light) -> FragmentOutput {
+fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
   vec3 view_direction = normalize(vertex.tangent_view_position - vertex.tangent_fragment);
   vec2 texture_coordinates = parallax_mapping(
       light.displacement_map,
@@ -172,15 +181,17 @@ fn main(VertexOutput vertex, Light light) -> FragmentOutput {
 
   FragmentOutput frag_output;
 
-  frag_output.color = vec4(result, 1);
+  frag_output.color = vec4(result + light.materials[0].emissive, 1);
 
-  float brightness = dot(frag_output.color.rgb, vec3(0.2126, 0.7152, 0.0722));
-
-  if (brightness > 1.0) {
-    frag_output.bright_color = vec4(frag_output.color.rgb, 1.0);
+  if (entity.bloom_enabled && entity.bloom_layer == light.bloom_layer &&
+      light.materials[0].bloom_intensity > 0.0) {
+    frag_output.bright_color =
+        vec4(light.materials[0].emissive * light.materials[0].bloom_intensity, 1.0);
   } else {
     frag_output.bright_color = vec4(0.0, 0.0, 0.0, 1.0);
   }
+
+  frag_output.entity_id = entity.entity_id;
 
   return frag_output;
 }

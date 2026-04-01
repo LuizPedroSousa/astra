@@ -68,6 +68,8 @@ TEST(SceneSnapshotTest, FlattensVectorAndBindingFields) {
       .bindings = {rendering::TextureBinding{.id = "textures::albedo",
                                              .name = "light.albedo",
                                              .cubemap = false}}});
+  entity.emplace<rendering::BloomSettings>(
+      rendering::BloomSettings{.enabled = false, .render_layer = 3});
 
   auto snapshots = collect_scene_snapshots(world);
   ASSERT_EQ(snapshots.size(), 1u);
@@ -86,6 +88,13 @@ TEST(SceneSnapshotTest, FlattensVectorAndBindingFields) {
 
   EXPECT_TRUE(found_mesh);
   EXPECT_TRUE(found_textures);
+  EXPECT_TRUE(std::any_of(
+      snapshots[0].components.begin(),
+      snapshots[0].components.end(),
+      [](const ComponentSnapshot &component) {
+        return component.name == "BloomSettings" &&
+               component.fields.size() == 2u;
+      }));
 }
 
 TEST(SceneSnapshotTest,
@@ -110,6 +119,8 @@ TEST(SceneSnapshotTest,
       .dirty = false,
   });
   entity.emplace<rendering::MeshSet>(rendering::MeshSet{.meshes = {make_test_quad_mesh()}});
+  entity.emplace<rendering::BloomSettings>(
+      rendering::BloomSettings{.enabled = false, .render_layer = 2});
   entity.emplace<rendering::SkyboxBinding>(rendering::SkyboxBinding{
       .cubemap = "cubemaps::skybox",
       .shader = "shaders::skybox",
@@ -181,6 +192,7 @@ TEST(SceneSnapshotTest,
   auto restored_entity = restored.entity(entity.id());
   ASSERT_TRUE(restored_entity.exists());
   EXPECT_TRUE(restored_entity.has<rendering::MeshSet>());
+  EXPECT_TRUE(restored_entity.has<rendering::BloomSettings>());
   EXPECT_TRUE(restored_entity.has<rendering::SkyboxBinding>());
   EXPECT_TRUE(restored_entity.has<rendering::TextSprite>());
   EXPECT_TRUE(restored_entity.has<physics::RigidBody>());
@@ -197,6 +209,11 @@ TEST(SceneSnapshotTest,
   ASSERT_NE(sprite, nullptr);
   EXPECT_EQ(sprite->text, "hello");
   EXPECT_EQ(sprite->font_id, "fonts::roboto");
+
+  auto *bloom_settings = restored_entity.get<rendering::BloomSettings>();
+  ASSERT_NE(bloom_settings, nullptr);
+  EXPECT_FALSE(bloom_settings->enabled);
+  EXPECT_EQ(bloom_settings->render_layer, 2);
 
   auto *rigid_body = restored_entity.get<physics::RigidBody>();
   ASSERT_NE(rigid_body, nullptr);

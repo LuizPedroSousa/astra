@@ -4,6 +4,7 @@
 #include "render-graph-builder.hpp"
 #include "render-graph-pass.hpp"
 #include "render-graph-resource.hpp"
+#include "systems/render-system/frame-stats.hpp"
 #include <string>
 #include <vector>
 
@@ -28,6 +29,12 @@ public:
   void export_graph(const RenderGraphExporter &exporter,
                     const std::string &filename) const;
 
+  const RenderGraphResource *resource_at(uint32_t index) const {
+    return index < m_resources.size() ? &m_resources[index] : nullptr;
+  }
+
+  const FrameStats &latest_frame_stats() const { return m_latest_frame_stats; }
+
 private:
   void compute_resource_lifetimes();
   void infer_dependencies();
@@ -49,6 +56,7 @@ private:
   std::vector<Ref<StorageBuffer>> m_transient_storage_buffers;
 
   Ref<RenderTarget> m_render_target = nullptr;
+  FrameStats m_latest_frame_stats;
 
   ElasticArena m_resource_allocator;
 

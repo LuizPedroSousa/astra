@@ -7,10 +7,12 @@
 #include "resources/descriptors/material-descriptor.hpp"
 #include "resources/descriptors/model-descriptor.hpp"
 #include "resources/descriptors/shader-descriptor.hpp"
+#include "resources/descriptors/svg-descriptor.hpp"
 #include "resources/descriptors/texture-descriptor.hpp"
 #include "resources/font.hpp"
 #include "resources/model.hpp"
 #include "resources/shader.hpp"
+#include "resources/svg.hpp"
 #include "unordered_map"
 #include <initializer_list>
 #include <unordered_map>
@@ -214,6 +216,7 @@ public:
   Ref<MaterialDescriptor> register_material(Ref<MaterialDescriptor> material);
   Ref<FontDescriptor> register_font(Ref<FontDescriptor> font);
   Ref<ModelDescriptor> register_model(Ref<ModelDescriptor> model);
+  Ref<SvgDescriptor> register_svg(Ref<SvgDescriptor> svg);
   std::vector<Ref<ShaderDescriptor>> shader_descriptors() const;
   void register_models(std::initializer_list<Ref<ModelDescriptor>> models);
 
@@ -228,6 +231,7 @@ public:
   void register_shaders(std::initializer_list<Ref<ShaderDescriptor>> shaders);
 
   void register_fonts(std::initializer_list<Ref<FontDescriptor>> fonts);
+  void register_svgs(std::initializer_list<Ref<SvgDescriptor>> svgs);
 
   template <class T> Ref<T> get_by_descriptor_id(ResourceDescriptorID id) {
     auto &pool = get_pool_for<T>();
@@ -301,6 +305,20 @@ public:
   };
   int texture_3d_slot() { return m_texture_3d_pool.slots.size(); };
 
+  size_t texture_count() const {
+    return (m_texture_2d_pool.slots.size() - m_texture_2d_pool.freelist.size()) +
+           (m_texture_3d_pool.slots.size() - m_texture_3d_pool.freelist.size());
+  }
+  size_t shader_count() const {
+    return m_shader_pool.slots.size() - m_shader_pool.freelist.size();
+  }
+  size_t material_count() const {
+    return m_material_pool.slots.size() - m_material_pool.freelist.size();
+  }
+  size_t model_count() const {
+    return m_model_pool.slots.size() - m_model_pool.freelist.size();
+  }
+
   ResourceManager() = default;
 
 private:
@@ -310,6 +328,7 @@ private:
   ResourceDescriptorPool<ModelDescriptor> m_model_descriptor_pool;
   ResourceDescriptorPool<MaterialDescriptor> m_material_descriptor_pool;
   ResourceDescriptorPool<FontDescriptor> m_font_descriptor_pool;
+  ResourceDescriptorPool<SvgDescriptor> m_svg_descriptor_pool;
 
   ResourcePool<Texture2D, Texture2DDescriptor> m_texture_2d_pool;
   ResourcePool<Texture3D, Texture3DDescriptor> m_texture_3d_pool;
@@ -317,6 +336,7 @@ private:
   ResourcePool<Model, ModelDescriptor> m_model_pool;
   ResourcePool<Material, MaterialDescriptor> m_material_pool;
   ResourcePool<Font, FontDescriptor> m_font_pool;
+  ResourcePool<Svg, SvgDescriptor> m_svg_pool;
 
   template <class T> auto &get_pool_for();
   template <class T> auto &get_resource_pool_of();
@@ -331,13 +351,15 @@ private:
   MAP(ShaderDescriptor, m_shader_descriptor_pool)                              \
   MAP(ModelDescriptor, m_model_descriptor_pool)                                \
   MAP(FontDescriptor, m_font_descriptor_pool)                                  \
+  MAP(SvgDescriptor, m_svg_descriptor_pool)                                    \
                                                                                \
   MAP(Material, m_material_pool)                                               \
   MAP(Texture2D, m_texture_2d_pool)                                            \
   MAP(Texture3D, m_texture_3d_pool)                                            \
   MAP(Shader, m_shader_pool)                                                   \
   MAP(Model, m_model_pool)                                                     \
-  MAP(Font, m_font_pool)
+  MAP(Font, m_font_pool)                                                       \
+  MAP(Svg, m_svg_pool)
 
 #define RESOURCE_TYPENAME_LIST(MAP)                                            \
   MAP(MaterialDescriptor)                                                      \
@@ -346,12 +368,14 @@ private:
   MAP(ShaderDescriptor)                                                        \
   MAP(ModelDescriptor)                                                         \
   MAP(FontDescriptor)                                                          \
+  MAP(SvgDescriptor)                                                           \
   MAP(Material)                                                                \
   MAP(Texture2D)                                                               \
   MAP(Texture3D)                                                               \
   MAP(Shader)                                                                  \
   MAP(Model)                                                                   \
-  MAP(Font)
+  MAP(Font)                                                                    \
+  MAP(Svg)
 
 #define DESCRIPTOR_TO_RESOURCE_POOL_LIST(MAP)                                  \
   MAP(MaterialDescriptor, m_material_pool)                                     \
@@ -359,7 +383,8 @@ private:
   MAP(Texture3DDescriptor, m_texture_3d_pool)                                  \
   MAP(ShaderDescriptor, m_shader_pool)                                         \
   MAP(ModelDescriptor, m_model_pool)                                           \
-  MAP(FontDescriptor, m_font_pool)
+  MAP(FontDescriptor, m_font_pool)                                             \
+  MAP(SvgDescriptor, m_svg_pool)
 
 #define MAP_TYPE_WITH_POOL(type, pool)                                         \
   template <> inline auto &ResourceManager::get_pool_for<type>() {             \

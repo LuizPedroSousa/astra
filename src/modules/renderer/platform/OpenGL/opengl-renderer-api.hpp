@@ -42,11 +42,25 @@ public:
   void draw_lines(const Ref<VertexArray> &vertex_array,
                   uint32_t vertex_count) override;
 
+  void draw_triangles(const Ref<VertexArray> &vertex_array,
+                      uint32_t vertex_count) override;
+
+  void begin_gpu_timer() override;
+  void end_gpu_timer() override;
+  float read_gpu_timer_ms() override;
+  void query_gpu_memory(float &used_mb, float &total_mb) override;
+
 private:
   uint32_t map_draw_primitive_type(DrawPrimitive primitive_type);
   uint32_t map_cull_face_mode(CullFaceMode mode);
   uint32_t map_depth_mode(DepthMode mode);
   uint32_t map_blend_factor(BlendFactor factor);
+
+  uint32_t m_timer_queries[2] = {0u, 0u};
+  uint32_t m_timer_front = 0u;
+  uint32_t m_timer_back = 1u;
+  bool m_timer_initialized = false;
+  bool m_timer_ready = false;
 };
 
 } // namespace astralix

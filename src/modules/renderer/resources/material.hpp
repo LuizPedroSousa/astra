@@ -3,6 +3,7 @@
 #include "guid.hpp"
 #include "resource.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
+#include <glm/glm.hpp>
 #include "vector"
 #include <optional>
 
@@ -14,6 +15,8 @@ public:
   std::vector<ResourceDescriptorID> speculars;
   std::optional<ResourceDescriptorID> normal_map;
   std::optional<ResourceDescriptorID> displacement_map;
+  glm::vec3 emissive = glm::vec3(0.0f);
+  float bloom_intensity = 0.0f;
 
   Material(RESOURCE_INIT_PARAMS, Ref<MaterialDescriptor> descriptor);
 
@@ -22,14 +25,18 @@ public:
          std::vector<ResourceDescriptorID> diffuse_ids = {},
          std::vector<ResourceDescriptorID> specular_ids = {},
          std::optional<ResourceDescriptorID> normal_map = std::nullopt,
-         std::optional<ResourceDescriptorID> displacement_map = std::nullopt);
+         std::optional<ResourceDescriptorID> displacement_map = std::nullopt,
+         glm::vec3 emissive = glm::vec3(0.0f),
+         float bloom_intensity = 0.0f);
 
   static Ref<MaterialDescriptor>
   define(const ResourceDescriptorID &id,
          std::vector<ResourceDescriptorID> diffuse_ids = {},
          std::vector<ResourceDescriptorID> specular_ids = {},
          std::optional<ResourceDescriptorID> normal_map = std::nullopt,
-         std::optional<ResourceDescriptorID> displacement_map = std::nullopt);
+         std::optional<ResourceDescriptorID> displacement_map = std::nullopt,
+         glm::vec3 emissive = glm::vec3(0.0f),
+         float bloom_intensity = 0.0f);
 
   static Ref<Material> from_descriptor(const ResourceHandle &id,
                                        Ref<MaterialDescriptor> descriptor);

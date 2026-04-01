@@ -428,6 +428,12 @@ void RenderGraph::setup_passes() {
 }
 
 void RenderGraph::execute(double dt) {
+  if (m_render_target != nullptr) {
+    auto *api = m_render_target->renderer_api();
+    api->reset_frame_stats();
+    api->begin_gpu_timer();
+  }
+
   for (uint32_t pass_idx : m_execution_order) {
     auto &pass = m_passes[pass_idx];
     if (!pass->is_culled() && pass->is_enabled()) {
@@ -435,6 +441,17 @@ void RenderGraph::execute(double dt) {
       pass->execute(dt);
       pass->end(dt);
     }
+  }
+
+  if (m_render_target != nullptr) {
+    auto *api = m_render_target->renderer_api();
+    api->end_gpu_timer();
+    float used_mb = 0.0f;
+    float total_mb = 0.0f;
+    api->query_gpu_memory(used_mb, total_mb);
+    m_latest_frame_stats = api->frame_stats();
+    m_latest_frame_stats.gpu_memory_used_mb = used_mb;
+    m_latest_frame_stats.gpu_memory_total_mb = total_mb;
   }
 }
 

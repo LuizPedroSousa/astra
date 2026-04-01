@@ -8,12 +8,6 @@
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 
-#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
-#include ASTRALIX_ENGINE_BINDINGS_HEADER
-#define ASTRALIX_HAS_ENGINE_BINDINGS
-using namespace astralix::shader_bindings;
-#endif
-
 namespace astralix {
 
 class PostProcessPass : public RenderPass {
@@ -24,6 +18,17 @@ public:
   void
   setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &resources) override {
     m_render_target = render_target;
+    m_bloom = nullptr;
+
+    for (auto resource : resources) {
+      if (resource->desc.type != RenderGraphResourceType::Framebuffer) {
+        continue;
+      }
+
+      if (resource->desc.name == "bloom") {
+        m_bloom = resource->get_framebuffer();
+      }
+    }
 
     const auto backend = m_render_target->renderer_api()->get_backend();
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
@@ -42,21 +47,19 @@ public:
       m_resolved_framebuffer = Framebuffer::create(backend, framebuffer_spec);
     }
 
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
     if (m_shader != nullptr) {
       m_shader->bind();
-      m_shader->set(
-          engine_shaders_post_process_axsl::QuadUniform::screen_texture, 0
-      );
+      m_shader->set_int("screen_texture", 0);
+      m_shader->set_int("bloom_texture", 1);
+      m_shader->set_float("bloom_strength", 0.12f);
       m_shader->unbind();
     }
-#endif
   }
 
   void begin(double dt) override { m_render_target->unbind(); }
 
   void execute(double dt) override {
-    if (m_shader == nullptr) {
+    if (m_shader == nullptr || m_bloom == nullptr) {
       return;
     }
 
@@ -67,6 +70,9 @@ public:
 
     m_shader->bind();
     bind_screen_texture();
+    m_render_target->renderer_api()->bind_texture_2d(
+        m_bloom->get_color_attachment_id(), 1
+    );
     m_render_target->renderer_api()->draw_indexed(
         m_fullscreen_quad.vertex_array, m_fullscreen_quad.draw_type
     );
@@ -107,6 +113,7 @@ private:
 
   Ref<Shader> m_shader;
   Ref<Framebuffer> m_resolved_framebuffer;
+  Framebuffer *m_bloom = nullptr;
   Mesh m_fullscreen_quad = Mesh::quad(1.0f);
 };
 

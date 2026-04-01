@@ -1,8 +1,10 @@
 #pragma once
 
 #include "events/key-event.hpp"
+#include "events/mouse.hpp"
 #include "glm/glm.hpp"
 #include "guid.hpp"
+#include "systems/render-system/render-image-export.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -19,15 +21,19 @@ enum class NodeType : uint8_t {
   View,
   Text,
   Image,
+  RenderImageView,
   Pressable,
   SegmentedControl,
   ChipGroup,
   TextInput,
+  Combobox,
   ScrollView,
+  Popover,
   Splitter,
   Checkbox,
   Slider,
   Select,
+  LineChart,
 };
 
 enum class FlexDirection : uint8_t {
@@ -82,6 +88,11 @@ enum class ScrollbarVisibility : uint8_t {
   Always,
 };
 
+enum class CursorStyle : uint8_t {
+  Default,
+  Pointer,
+};
+
 enum class ResizeMode : uint8_t {
   None,
   Horizontal,
@@ -101,6 +112,8 @@ constexpr uint8_t k_resize_edge_all = k_resize_edge_left | k_resize_edge_top |
 enum class UIHitPart : uint8_t {
   Body,
   TextInputText,
+  ComboboxField,
+  ComboboxOption,
   SegmentedControlItem,
   ChipItem,
   SliderTrack,
@@ -127,6 +140,7 @@ enum class UILengthUnit : uint8_t {
   Pixels,
   Percent,
   Rem,
+  MaxContent,
 };
 
 struct UILength {
@@ -143,6 +157,10 @@ struct UILength {
 
   static UILength rem(float value) {
     return UILength{.unit = UILengthUnit::Rem, .value = value};
+  }
+
+  static UILength max_content() {
+    return UILength{.unit = UILengthUnit::MaxContent, .value = 0.0f};
   }
 
   static UILength auto_value() { return UILength{}; }
@@ -303,6 +321,7 @@ struct UIStyle {
   float control_indicator_size = 16.0f;
   float slider_track_thickness = 6.0f;
   float slider_thumb_radius = 8.0f;
+  std::optional<CursorStyle> cursor;
 
   UIStateStyle hovered_style;
   UIStateStyle pressed_style;
@@ -328,8 +347,38 @@ struct UISelectState {
   bool open = false;
 };
 
+struct UIComboboxState {
+  std::vector<std::string> options;
+  size_t highlighted_index = 0u;
+  bool open = false;
+  bool open_on_arrow_keys = true;
+};
+
+enum class UIPopupAnchorKind : uint8_t {
+  Cursor,
+  Node,
+};
+
+enum class UIPopupPlacement : uint8_t {
+  BottomStart,
+  TopStart,
+  RightStart,
+};
+
+struct UIPopoverState {
+  bool open = false;
+  UIPopupAnchorKind anchor_kind = UIPopupAnchorKind::Cursor;
+  UIPopupPlacement placement = UIPopupPlacement::BottomStart;
+  UINodeId anchor_node_id = k_invalid_node_id;
+  glm::vec2 anchor_point = glm::vec2(0.0f);
+  size_t depth = 0u;
+  bool close_on_outside_click = true;
+  bool close_on_escape = true;
+};
+
 struct UISegmentedControlState {
   std::vector<std::string> options;
+  std::vector<glm::vec4> item_accent_colors;
   size_t selected_index = 0u;
 };
 
@@ -373,6 +422,16 @@ struct UILayoutMetrics {
     std::optional<size_t> hovered_option_index;
   };
 
+  struct ComboboxLayout {
+    UIRect popup_rect;
+    std::vector<UIRect> option_rects;
+    std::optional<size_t> hovered_option_index;
+  };
+
+  struct PopoverLayout {
+    UIRect popup_rect;
+  };
+
   struct SegmentedControlLayout {
     std::vector<UIRect> item_rects;
     std::optional<size_t> hovered_item_index;
@@ -394,6 +453,8 @@ struct UILayoutMetrics {
   CheckboxLayout checkbox;
   SliderLayout slider;
   SelectLayout select;
+  ComboboxLayout combobox;
+  PopoverLayout popover;
   SegmentedControlLayout segmented_control;
   ChipGroupLayout chip_group;
   UIScrollState scroll;
@@ -440,6 +501,12 @@ struct UIMouseWheelInputEvent {
   input::KeyModifiers modifiers;
 };
 
+struct UIPointerButtonEvent {
+  glm::vec2 position = glm::vec2(0.0f);
+  input::MouseButton button = input::MouseButton::Left;
+  input::KeyModifiers modifiers;
+};
+
 struct UIHitResult {
   UINodeId node_id = k_invalid_node_id;
   UIHitPart part = UIHitPart::Body;
@@ -462,7 +529,35 @@ struct UIResolvedStyle {
 enum class DrawCommandType : uint8_t {
   Rect,
   Image,
+  SvgImage,
+  RenderImageView,
   Text,
+  Polyline,
+};
+
+struct UIPolylineVertex {
+  glm::vec2 position;
+  glm::vec4 color;
+};
+
+struct UIPolylineSeries {
+  std::vector<UIPolylineVertex> vertices;
+  float thickness = 2.0f;
+};
+
+struct UILineChartSeries {
+  std::vector<float> values;
+  glm::vec4 color = glm::vec4(1.0f);
+  float thickness = 2.0f;
+};
+
+struct UILineChartState {
+  std::vector<UILineChartSeries> series;
+  float y_min = 0.0f;
+  float y_max = 1.0f;
+  bool auto_range = true;
+  size_t grid_line_count = 4u;
+  glm::vec4 grid_color = glm::vec4(1.0f, 1.0f, 1.0f, 0.1f);
 };
 
 struct UIDrawCommand {
@@ -480,7 +575,9 @@ struct UIDrawCommand {
   ResourceDescriptorID font_id;
   float font_size = 0.0f;
   ResourceDescriptorID texture_id;
+  std::optional<RenderImageExportKey> render_image_key;
   glm::vec4 tint = glm::vec4(1.0f);
+  std::vector<UIPolylineSeries> polyline_series;
 };
 
 struct UIDrawList {

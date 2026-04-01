@@ -27,8 +27,7 @@ public:
   ~LightingPass() override = default;
 
   void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override {
+  setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &resources) override {
     m_render_target = render_target;
 
     for (auto resource : resources) {
@@ -45,6 +44,10 @@ public:
           if (resource->desc.name == "g_buffer") {
             m_g_buffer = resource->get_framebuffer();
           }
+
+          if (resource->desc.name == "ssao_blur") {
+            m_ssao = resource->get_framebuffer();
+          }
           break;
         }
 
@@ -53,7 +56,7 @@ public:
       }
     }
 
-    if (m_scene_color == nullptr || m_g_buffer == nullptr) {
+    if (m_scene_color == nullptr || m_g_buffer == nullptr || m_ssao == nullptr) {
       set_enabled(false);
     }
   }
@@ -86,13 +89,15 @@ public:
     auto renderer_api = m_render_target->renderer_api();
     const auto backend = renderer_api->get_backend();
     resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::lighting"});
+        backend, {"shaders::lighting"}
+    );
 
     auto shader =
         resource_manager()->get_by_descriptor_id<Shader>("shaders::lighting");
     if (shader == nullptr) {
       LOG_WARN(
-          "[LightingPass] Skipping execute: failed to load shaders::lighting");
+          "[LightingPass] Skipping execute: failed to load shaders::lighting"
+      );
       return;
     }
 
@@ -107,8 +112,7 @@ public:
 
     if (m_shadow_map != nullptr) {
       shadow_map_slot = texture_unit;
-      renderer_api->bind_texture_2d(m_shadow_map->get_depth_attachment_id(),
-                                    texture_unit);
+      renderer_api->bind_texture_2d(m_shadow_map->get_depth_attachment_id(), texture_unit);
       texture_unit++;
     }
 
@@ -117,15 +121,25 @@ public:
       renderer_api->bind_texture_2d(color_attachments[i], texture_unit + i);
     }
 
+    const int32_t ssao_slot =
+        texture_unit + static_cast<int32_t>(color_attachments.size());
+    renderer_api->bind_texture_2d(m_ssao->get_color_attachment_id(), ssao_slot);
+
     shader->set_all(rendering::build_deferred_light_params(
-        light_frame, shadow_map_slot, texture_unit, texture_unit + 1,
-        texture_unit + 2));
+        light_frame,
+        shadow_map_slot,
+        texture_unit,
+        texture_unit + 1,
+        texture_unit + 2,
+        texture_unit + 3,
+        texture_unit + 4,
+        ssao_slot
+    ));
     shader->set(CameraUniform::position, camera->transform->position);
 
     m_scene_color->bind();
     renderer_api->disable_depth_test();
-    renderer_api->draw_indexed(m_fullscreen_quad.vertex_array,
-                               m_fullscreen_quad.draw_type);
+    renderer_api->draw_indexed(m_fullscreen_quad.vertex_array, m_fullscreen_quad.draw_type);
     renderer_api->enable_depth_test();
     shader->unbind();
     m_scene_color->unbind();
@@ -142,6 +156,7 @@ private:
   Framebuffer *m_shadow_map = nullptr;
   Framebuffer *m_scene_color = nullptr;
   Framebuffer *m_g_buffer = nullptr;
+  Framebuffer *m_ssao = nullptr;
   Mesh m_fullscreen_quad = Mesh::quad(1.0f);
 };
 

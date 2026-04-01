@@ -35,7 +35,9 @@ enum class TextureValue {
   LinearMipMap = 5
 };
 
-enum class TextureFormat { Red = 0, RGB = 1, RGBA = 2 };
+enum class TextureFormat { Red = 0,
+                           RGB = 1,
+                           RGBA = 2 };
 
 class Texture2DDescriptor;
 class Texture3DDescriptor;
@@ -80,22 +82,13 @@ struct TextureConfig {
 class Texture2D : public Texture {
 public:
   static Ref<Texture2DDescriptor>
-  create(const ResourceDescriptorID &id, Ref<Path> path,
-         const bool flip_image_on_loading = false,
-         std::unordered_map<TextureParameter, TextureValue> parameters = {
-             {TextureParameter::WrapS, TextureValue::Linear},
-             {TextureParameter::WrapT, TextureValue::Linear},
-             {TextureParameter::MagFilter, TextureValue::Nearest},
-             {TextureParameter::MinFilter, TextureValue::Nearest}});
+  create(const ResourceDescriptorID &id, Ref<Path> path, const bool flip_image_on_loading = false, std::unordered_map<TextureParameter, TextureValue> parameters = {{TextureParameter::WrapS, TextureValue::Linear}, {TextureParameter::WrapT, TextureValue::Linear}, {TextureParameter::MagFilter, TextureValue::Nearest}, {TextureParameter::MinFilter, TextureValue::Nearest}});
 
-  static Ref<Texture2DDescriptor> create(const ResourceDescriptorID &id,
-                                         TextureConfig config);
+  static Ref<Texture2DDescriptor> create(const ResourceDescriptorID &id, TextureConfig config);
 
-  static Ref<Texture2DDescriptor> define(const ResourceDescriptorID &id,
-                                         TextureConfig config);
+  static Ref<Texture2DDescriptor> define(const ResourceDescriptorID &id, TextureConfig config);
 
-  static Ref<Texture2D> from_descriptor(const ResourceHandle &id,
-                                        Ref<Texture2DDescriptor> descriptor);
+  static Ref<Texture2D> from_descriptor(const ResourceHandle &id, Ref<Texture2DDescriptor> descriptor);
 
   Texture2D(const ResourceHandle &id) : Texture(id) {};
 };
@@ -103,15 +96,12 @@ public:
 class Texture3D : public Texture {
 public:
   static Ref<Texture3DDescriptor>
-  create(const ResourceDescriptorID &id,
-         const std::vector<Ref<Path>> &faces_path);
+  create(const ResourceDescriptorID &id, const std::vector<Ref<Path>> &faces_path);
 
   static Ref<Texture3DDescriptor>
-  define(const ResourceDescriptorID &id,
-         const std::vector<Ref<Path>> &faces_path);
+  define(const ResourceDescriptorID &id, const std::vector<Ref<Path>> &faces_path);
 
-  static Ref<Texture3D> from_descriptor(const ResourceHandle &id,
-                                        Ref<Texture3DDescriptor> descriptor);
+  static Ref<Texture3D> from_descriptor(const ResourceHandle &id, Ref<Texture3DDescriptor> descriptor);
 
   Texture3D(const ResourceHandle &resource_id) : Texture(resource_id) {};
 };

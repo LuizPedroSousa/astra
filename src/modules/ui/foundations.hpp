@@ -1,11 +1,16 @@
 #pragma once
 
-#include "document.hpp"
+#include "document/document.hpp"
 #include <algorithm>
 #include <cmath>
 #include <string_view>
 
 namespace astralix::ui {
+
+struct UIFlowSpacing {
+  float leading = 0.0f;
+  float between = 0.0f;
+};
 
 inline bool scrolls_horizontally(ScrollMode mode) {
   return mode == ScrollMode::Horizontal || mode == ScrollMode::Both;
@@ -25,6 +30,51 @@ inline bool resize_allows_vertical(ResizeMode mode) {
 
 inline bool has_resize_edge(uint8_t mask, uint8_t edge) {
   return (mask & edge) != 0u;
+}
+
+inline UIFlowSpacing resolve_flow_spacing(
+    JustifyContent justify_content, float gap, float remaining_space,
+    size_t item_count
+) {
+  UIFlowSpacing spacing{
+      .leading = 0.0f,
+      .between = gap,
+  };
+
+  switch (justify_content) {
+    case JustifyContent::Center:
+      spacing.leading = remaining_space * 0.5f;
+      break;
+    case JustifyContent::End:
+      spacing.leading = remaining_space;
+      break;
+    case JustifyContent::SpaceBetween:
+      if (item_count > 1u) {
+        spacing.between += remaining_space / static_cast<float>(item_count - 1u);
+      }
+      break;
+    case JustifyContent::SpaceAround:
+      if (item_count > 0u) {
+        const float distributed_space =
+            remaining_space / static_cast<float>(item_count);
+        spacing.leading = distributed_space * 0.5f;
+        spacing.between += distributed_space;
+      }
+      break;
+    case JustifyContent::SpaceEvenly:
+      if (item_count > 0u) {
+        const float distributed_space =
+            remaining_space / static_cast<float>(item_count + 1u);
+        spacing.leading = distributed_space;
+        spacing.between += distributed_space;
+      }
+      break;
+    case JustifyContent::Start:
+    default:
+      break;
+  }
+
+  return spacing;
 }
 
 inline glm::vec2 clamp_scroll_offset(glm::vec2 offset, glm::vec2 max_offset, ScrollMode mode) {
@@ -189,6 +239,11 @@ inline bool is_select_part(UIHitPart part) {
   return part == UIHitPart::SelectField || part == UIHitPart::SelectOption;
 }
 
+inline bool is_combobox_part(UIHitPart part) {
+  return part == UIHitPart::ComboboxField ||
+         part == UIHitPart::ComboboxOption;
+}
+
 inline bool resize_part_moves_left_edge(UIHitPart part) {
   return part == UIHitPart::ResizeLeft ||
          part == UIHitPart::ResizeTopLeft ||
@@ -346,6 +401,11 @@ inline float scroll_x_to_keep_range_visible(float current_scroll_x, float range_
 }
 
 inline bool node_chain_allows_interaction(const UIDocument &document, UINodeId node_id) {
+  const UINodeId root_id = document.root();
+  if (node_id == k_invalid_node_id || root_id == k_invalid_node_id) {
+    return false;
+  }
+
   UINodeId current = node_id;
 
   while (current != k_invalid_node_id) {
@@ -354,10 +414,14 @@ inline bool node_chain_allows_interaction(const UIDocument &document, UINodeId n
       return false;
     }
 
+    if (current == root_id) {
+      return true;
+    }
+
     current = node->parent;
   }
 
-  return true;
+  return false;
 }
 
 inline std::optional<UINodeId>

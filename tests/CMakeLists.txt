@@ -39,7 +39,7 @@ set(SERIALIZATION_SRC
   "${MODULES_DIR}/streams/adapters/file/file-stream-reader.cpp"
   "${SHARED_DIR}/foundation/exceptions/base-exception.cpp")
 
-file(GLOB_RECURSE TEST_SRC
+file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/shader-lang/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/resources/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/shared/allocators/*.test.cpp"

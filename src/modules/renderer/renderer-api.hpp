@@ -4,6 +4,7 @@
 #include "base.hpp"
 #include "framebuffer.hpp"
 #include "glm/glm.hpp"
+#include "systems/render-system/frame-stats.hpp"
 #include "vertex-array.hpp"
 
 namespace astralix {
@@ -95,12 +96,27 @@ public:
   virtual void draw_lines(const Ref<VertexArray> &vertex_array,
                           uint32_t vertex_count) = 0;
 
+  virtual void draw_triangles(const Ref<VertexArray> &vertex_array,
+                              uint32_t vertex_count) = 0;
+
+  void reset_frame_stats() { m_frame_stats = {}; }
+  const FrameStats &frame_stats() const { return m_frame_stats; }
+
+  virtual void begin_gpu_timer() {}
+  virtual void end_gpu_timer() {}
+  virtual float read_gpu_timer_ms() { return 0.0f; }
+  virtual void query_gpu_memory(float &used_mb, float &total_mb) {
+    used_mb = 0.0f;
+    total_mb = 0.0f;
+  }
+
   RendererBackend get_backend() { return m_backend; };
 
   static Scope<RendererAPI> create(const RendererBackend &p_backend);
 
 protected:
   RendererBackend m_backend;
+  FrameStats m_frame_stats;
 };
 
 template <typename T, typename O, typename... Args>

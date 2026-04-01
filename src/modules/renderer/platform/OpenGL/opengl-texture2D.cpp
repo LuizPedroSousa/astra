@@ -4,8 +4,7 @@
 
 namespace astralix {
 
-OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id,
-                                 Ref<Texture2DDescriptor> descriptor)
+OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id, Ref<Texture2DDescriptor> descriptor)
     : Texture2D(resource_id), m_format(formatToGl(descriptor->format)),
       m_buffer(descriptor->buffer), m_width(descriptor->width),
       m_height(descriptor->height), m_parameters(descriptor->parameters) {
@@ -44,12 +43,10 @@ OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id,
   }
 
   for (const auto &[param, value] : m_parameters) {
-    glTexParameteri(GL_TEXTURE_2D, textureParameterToGL(param),
-                    textureParameterValueToGL(value));
+    glTexParameteri(GL_TEXTURE_2D, textureParameterToGL(param), textureParameterValueToGL(value));
   }
 
-  glTexImage2D(GL_TEXTURE_2D, 0, m_format, m_width, m_height, 0, m_format,
-               GL_UNSIGNED_BYTE, m_buffer);
+  glTexImage2D(GL_TEXTURE_2D, 0, m_format, m_width, m_height, 0, m_format, GL_UNSIGNED_BYTE, m_buffer);
 
   if (m_buffer != nullptr && descriptor->image_load.has_value()) {
     free_image(m_buffer);
@@ -58,46 +55,46 @@ OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id,
 
 GLenum OpenGLTexture2D::textureParameterToGL(TextureParameter param) {
   switch (param) {
-  case TextureParameter::WrapS:
-    return GL_TEXTURE_WRAP_S;
-  case TextureParameter::WrapT:
-    return GL_TEXTURE_WRAP_T;
-  case TextureParameter::MagFilter:
-    return GL_TEXTURE_MAG_FILTER;
-  case TextureParameter::MinFilter:
-    return GL_TEXTURE_MIN_FILTER;
+    case TextureParameter::WrapS:
+      return GL_TEXTURE_WRAP_S;
+    case TextureParameter::WrapT:
+      return GL_TEXTURE_WRAP_T;
+    case TextureParameter::MagFilter:
+      return GL_TEXTURE_MAG_FILTER;
+    case TextureParameter::MinFilter:
+      return GL_TEXTURE_MIN_FILTER;
   }
   return 0;
 }
 
 GLint OpenGLTexture2D::textureParameterValueToGL(TextureValue value) {
   switch (value) {
-  case TextureValue::Repeat:
-    return GL_REPEAT;
-  case TextureValue::ClampToEdge:
-    return GL_CLAMP_TO_EDGE;
-  case TextureValue::ClampToBorder:
-    return GL_CLAMP_TO_BORDER;
-  case TextureValue::LinearMipMap:
-    return GL_LINEAR_MIPMAP_LINEAR;
-  case TextureValue::Linear:
-    return GL_LINEAR;
-  case TextureValue::Nearest:
-    return GL_NEAREST;
+    case TextureValue::Repeat:
+      return GL_REPEAT;
+    case TextureValue::ClampToEdge:
+      return GL_CLAMP_TO_EDGE;
+    case TextureValue::ClampToBorder:
+      return GL_CLAMP_TO_BORDER;
+    case TextureValue::LinearMipMap:
+      return GL_LINEAR_MIPMAP_LINEAR;
+    case TextureValue::Linear:
+      return GL_LINEAR;
+    case TextureValue::Nearest:
+      return GL_NEAREST;
   }
   return 0;
 }
 
 int OpenGLTexture2D::formatToGl(TextureFormat format) {
   switch (format) {
-  case TextureFormat::Red:
-    return GL_RED;
+    case TextureFormat::Red:
+      return GL_RED;
 
-  case TextureFormat::RGB:
-    return GL_RGB;
+    case TextureFormat::RGB:
+      return GL_RGB;
 
-  case TextureFormat::RGBA:
-    return GL_RGBA;
+    case TextureFormat::RGBA:
+      return GL_RGBA;
   }
 
   return 0;

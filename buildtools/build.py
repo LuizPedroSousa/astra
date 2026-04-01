@@ -11,21 +11,17 @@ def run_step(description: str, command: list[str], cwd: Path | None = None) -> N
     print("   " + str(command))
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             command,
             check=True,
             cwd=cwd,
             text=True,
-            capture_output=True
         )
-        if result.stdout.strip():
-            print("   Output:", result.stdout.strip())
+    except KeyboardInterrupt:
+        print("\nInterrupted.")
+        sys.exit(130)
     except subprocess.CalledProcessError as e:
         print(f"\nERROR: Command failed with exit code {e.returncode}")
-        if e.stdout:
-            print("STDOUT:", e.stdout.strip())
-        if e.stderr:
-            print("STDERR:", e.stderr.strip())
         sys.exit(1)
 
 

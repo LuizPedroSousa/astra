@@ -36,6 +36,7 @@ enum class ComponentType {
   MaterialSlots,
   ShaderBinding,
   TextureBindings,
+  BloomSettings,
   SkyboxBinding,
   TextSprite,
   RigidBody,
@@ -63,6 +64,7 @@ inline ComponentType component_type_from_string(std::string_view name) {
       {"MaterialSlots", ComponentType::MaterialSlots},
       {"ShaderBinding", ComponentType::ShaderBinding},
       {"TextureBindings", ComponentType::TextureBindings},
+      {"BloomSettings", ComponentType::BloomSettings},
       {"SkyboxBinding", ComponentType::SkyboxBinding},
       {"TextSprite", ComponentType::TextSprite},
       {"RigidBody", ComponentType::RigidBody},
@@ -159,6 +161,10 @@ inline void apply_component_snapshot(ecs::EntityRef entity,
 
     case ComponentType::TextureBindings:
       apply_texture_bindings_snapshot(entity, fields);
+      break;
+
+    case ComponentType::BloomSettings:
+      apply_bloom_settings_snapshot(entity, fields);
       break;
 
     case ComponentType::SkyboxBinding:

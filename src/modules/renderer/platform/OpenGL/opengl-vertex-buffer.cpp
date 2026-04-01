@@ -13,6 +13,7 @@ OpenGLVertexBuffer::OpenGLVertexBuffer(const void *vertices, uint32_t size,
 };
 
 OpenGLVertexBuffer::OpenGLVertexBuffer(uint32_t size) {
+  glGenBuffers(1, &m_renderer_id);
   bind();
 
   glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);

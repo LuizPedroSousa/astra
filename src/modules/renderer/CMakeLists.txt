@@ -21,6 +21,7 @@ include_directories(${PROJECT_SOURCE_DIR}/external)
 target_include_directories(renderer
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/editor>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/ui>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/physics>
     ${ASSIMP_INCLUDE_DIRS}

@@ -7,9 +7,11 @@
 #include "resources/material.hpp"
 #include "resources/model.hpp"
 #include "resources/shader.hpp"
+#include "resources/svg.hpp"
 #include "resources/texture.hpp"
 #include "serialization-context.hpp"
 #include "serializer.hpp"
+#include <glm/glm.hpp>
 #include <string_view>
 
 namespace astralix {
@@ -25,6 +27,7 @@ enum class ResourceType {
   Shader,
   Font,
   Model,
+  Svg,
   Unknown
 };
 
@@ -102,6 +105,28 @@ TextureValue texture_value_from_string(const std::string &value) {
   ASTRA_EXCEPTION("Unknown texture value", value);
 }
 
+float read_number(ContextProxy ctx, float fallback = 0.0f) {
+  switch (ctx.kind()) {
+  case SerializationTypeKind::Float:
+    return ctx.as<float>();
+  case SerializationTypeKind::Int:
+    return static_cast<float>(ctx.as<int>());
+  default:
+    return fallback;
+  }
+}
+
+glm::vec3 read_vec3(ContextProxy ctx,
+                    const glm::vec3 &fallback = glm::vec3(0.0f)) {
+  if (ctx.kind() != SerializationTypeKind::Object) {
+    return fallback;
+  }
+
+  return glm::vec3(read_number(ctx["x"], fallback.x),
+                   read_number(ctx["y"], fallback.y),
+                   read_number(ctx["z"], fallback.z));
+}
+
 ResourceType asset_type_from_string(const std::string &type) {
   if (type == "Texture2D")
     return ResourceType::Texture2D;
@@ -115,6 +140,8 @@ ResourceType asset_type_from_string(const std::string &type) {
     return ResourceType::Font;
   if (type == "Model")
     return ResourceType::Model;
+  if (type == "Svg")
+    return ResourceType::Svg;
 
   return ResourceType::Unknown;
 }
@@ -256,7 +283,13 @@ void ProjectSerializer::deserialize() {
 
       std::string displacement = textures["displacement"].as<std::string>();
 
-      Material::create(id, diffuse, specular, normal, displacement);
+      const glm::vec3 emissive =
+          read_vec3(asset["emissive"], glm::vec3(0.0f));
+      const float bloom_intensity =
+          read_number(asset["bloom_intensity"], 0.0f);
+
+      Material::create(id, diffuse, specular, normal, displacement, emissive,
+                       bloom_intensity);
       break;
     }
     case ResourceType::Shader: {
@@ -274,6 +307,14 @@ void ProjectSerializer::deserialize() {
       ASTRA_ENSURE(path == nullptr, "Model path is required");
 
       Model::create(id, path);
+      break;
+    }
+    case ResourceType::Svg: {
+      auto path = parse_path(asset["path"]);
+
+      ASTRA_ENSURE(path == nullptr, "SVG path is required");
+
+      Svg::create(id, path);
       break;
     }
     default:

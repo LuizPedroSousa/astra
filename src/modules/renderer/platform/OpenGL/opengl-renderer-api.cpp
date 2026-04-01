@@ -10,24 +10,44 @@ namespace astralix {
   void OpenGLRendererAPI::enable_buffer_testing() {
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_STENCIL_TEST);
+    m_frame_stats.state_change_count += 2u;
   }
 
   void OpenGLRendererAPI::disable_buffer_testing() {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
+    m_frame_stats.state_change_count += 2u;
   }
 
-  void OpenGLRendererAPI::enable_depth_test() { glEnable(GL_DEPTH_TEST); }
+  void OpenGLRendererAPI::enable_depth_test() {
+    glEnable(GL_DEPTH_TEST);
+    m_frame_stats.state_change_count++;
+  }
 
-  void OpenGLRendererAPI::disable_depth_test() { glDisable(GL_DEPTH_TEST); }
+  void OpenGLRendererAPI::disable_depth_test() {
+    glDisable(GL_DEPTH_TEST);
+    m_frame_stats.state_change_count++;
+  }
 
-  void OpenGLRendererAPI::enable_depth_write() { glDepthMask(GL_TRUE); }
+  void OpenGLRendererAPI::enable_depth_write() {
+    glDepthMask(GL_TRUE);
+    m_frame_stats.state_change_count++;
+  }
 
-  void OpenGLRendererAPI::disable_depth_write() { glDepthMask(GL_FALSE); }
+  void OpenGLRendererAPI::disable_depth_write() {
+    glDepthMask(GL_FALSE);
+    m_frame_stats.state_change_count++;
+  }
 
-  void OpenGLRendererAPI::enable_blend() { glEnable(GL_BLEND); }
+  void OpenGLRendererAPI::enable_blend() {
+    glEnable(GL_BLEND);
+    m_frame_stats.state_change_count++;
+  }
 
-  void OpenGLRendererAPI::disable_blend() { glDisable(GL_BLEND); }
+  void OpenGLRendererAPI::disable_blend() {
+    glDisable(GL_BLEND);
+    m_frame_stats.state_change_count++;
+  }
 
   void OpenGLRendererAPI::clear_color(glm::vec4 color) {
     glClearColor(color.x, color.y, color.z, color.w);
@@ -146,23 +166,33 @@ namespace astralix {
       GL_UNSIGNED_INT, 0);
 
     vertex_array->unbind();
+    m_frame_stats.draw_call_count++;
   }
 
   void OpenGLRendererAPI::cull_face(CullFaceMode mode) {
     glCullFace(map_cull_face_mode(mode));
+    m_frame_stats.state_change_count++;
   }
 
   void OpenGLRendererAPI::depth(DepthMode mode) {
     glDepthFunc(map_depth_mode(mode));
+    m_frame_stats.state_change_count++;
   }
 
   void OpenGLRendererAPI::set_blend_func(BlendFactor src, BlendFactor dst) {
     glBlendFunc(map_blend_factor(src), map_blend_factor(dst));
+    m_frame_stats.state_change_count++;
   }
 
-  void OpenGLRendererAPI::enable_scissor() { glEnable(GL_SCISSOR_TEST); }
+  void OpenGLRendererAPI::enable_scissor() {
+    glEnable(GL_SCISSOR_TEST);
+    m_frame_stats.state_change_count++;
+  }
 
-  void OpenGLRendererAPI::disable_scissor() { glDisable(GL_SCISSOR_TEST); }
+  void OpenGLRendererAPI::disable_scissor() {
+    glDisable(GL_SCISSOR_TEST);
+    m_frame_stats.state_change_count++;
+  }
 
   void OpenGLRendererAPI::set_scissor_rect(uint32_t x, uint32_t y,
                                            uint32_t width, uint32_t height) {
@@ -173,12 +203,14 @@ namespace astralix {
   void OpenGLRendererAPI::bind_texture_2d(uint32_t texture_id, uint32_t slot) {
     glActiveTexture(GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_2D, texture_id);
+    m_frame_stats.state_change_count++;
   }
 
   void OpenGLRendererAPI::bind_texture_cube(uint32_t texture_id,
                                             uint32_t slot) {
     glActiveTexture(GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_CUBE_MAP, texture_id);
+    m_frame_stats.state_change_count++;
   }
 
   void OpenGLRendererAPI::draw_instanced_indexed(DrawPrimitive primitive_type,
@@ -186,6 +218,7 @@ namespace astralix {
     uint32_t instance_count) {
     glDrawElementsInstanced(map_draw_primitive_type(primitive_type), index_count,
       GL_UNSIGNED_INT, 0, instance_count);
+    m_frame_stats.draw_call_count++;
   }
 
   void OpenGLRendererAPI::draw_lines(const Ref<VertexArray>& vertex_array,
@@ -194,6 +227,79 @@ namespace astralix {
     vertex_array->bind();
     glDrawArrays(GL_LINES, 0, vertex_count);
     vertex_array->unbind();
+    m_frame_stats.draw_call_count++;
+  }
+
+  void OpenGLRendererAPI::draw_triangles(const Ref<VertexArray>& vertex_array,
+    uint32_t vertex_count) {
+
+    vertex_array->bind();
+    glDrawArrays(GL_TRIANGLES, 0, vertex_count);
+    vertex_array->unbind();
+    m_frame_stats.draw_call_count++;
+  }
+
+  void OpenGLRendererAPI::begin_gpu_timer() {
+    if (!m_timer_initialized) {
+      glGenQueries(2, m_timer_queries);
+      m_timer_initialized = true;
+      m_timer_ready = false;
+    }
+
+    glBeginQuery(GL_TIME_ELAPSED, m_timer_queries[m_timer_front]);
+  }
+
+  void OpenGLRendererAPI::end_gpu_timer() {
+    glEndQuery(GL_TIME_ELAPSED);
+
+    if (m_timer_ready) {
+      GLuint64 elapsed_ns = 0u;
+      glGetQueryObjectui64v(
+          m_timer_queries[m_timer_back], GL_QUERY_RESULT, &elapsed_ns
+      );
+      m_frame_stats.gpu_frame_time_ms =
+          static_cast<float>(elapsed_ns) / 1'000'000.0f;
+    }
+
+    std::swap(m_timer_front, m_timer_back);
+    m_timer_ready = true;
+  }
+
+  float OpenGLRendererAPI::read_gpu_timer_ms() {
+    return m_frame_stats.gpu_frame_time_ms;
+  }
+
+  void OpenGLRendererAPI::query_gpu_memory(float &used_mb, float &total_mb) {
+    used_mb = 0.0f;
+    total_mb = 0.0f;
+
+    constexpr GLenum GL_GPU_MEMORY_INFO_TOTAL_AVAILABLE_MEMORY_NVX = 0x9048;
+    constexpr GLenum GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX = 0x9049;
+
+    GLint total_kb = 0;
+    GLint available_kb = 0;
+
+    glGetIntegerv(GL_GPU_MEMORY_INFO_TOTAL_AVAILABLE_MEMORY_NVX, &total_kb);
+    GLenum error = glGetError();
+    if (error == GL_NO_ERROR && total_kb > 0) {
+      glGetIntegerv(
+          GL_GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX, &available_kb
+      );
+      glGetError();
+
+      total_mb = static_cast<float>(total_kb) / 1024.0f;
+      used_mb = total_mb - static_cast<float>(available_kb) / 1024.0f;
+      return;
+    }
+
+    constexpr GLenum GL_TEXTURE_FREE_MEMORY_ATI = 0x87FC;
+    GLint ati_info[4] = {};
+    glGetIntegerv(GL_TEXTURE_FREE_MEMORY_ATI, ati_info);
+    error = glGetError();
+    if (error == GL_NO_ERROR && ati_info[0] > 0) {
+      total_mb = static_cast<float>(ati_info[0]) / 1024.0f;
+      used_mb = 0.0f;
+    }
   }
 
 } // namespace astralix

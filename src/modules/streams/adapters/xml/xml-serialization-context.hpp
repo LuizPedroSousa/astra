@@ -9,10 +9,25 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace astralix::xml_detail {
-struct Node;
+struct Attribute {
+  std::string name;
+  std::string value;
+};
+
+struct Node {
+  std::string name;
+  std::string text;
+  std::vector<Attribute> attributes;
+  std::vector<std::unique_ptr<Node>> children;
+};
+
+Attribute *find_attribute(Node &node, std::string_view name);
+const Attribute *find_attribute(const Node &node, std::string_view name);
+Node parse_document(std::string_view input);
 }
 
 namespace astralix {

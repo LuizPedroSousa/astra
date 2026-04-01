@@ -23,30 +23,32 @@ inline void ensure_mesh_uploaded(Mesh &mesh, Ref<RenderTarget> render_target) {
   mesh.vertex_array = VertexArray::create(backend);
 
   Ref<VertexBuffer> vertex_buffer = VertexBuffer::create(
-      backend, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex),
-      VertexBuffer::DrawType::Static);
+      backend, mesh.vertices.data(), mesh.vertices.size() * sizeof(Vertex), VertexBuffer::DrawType::Static
+  );
 
   BufferLayout layout(
       {BufferElement(ShaderDataType::Float3, "position"),
        BufferElement(ShaderDataType::Float3, "normal"),
        BufferElement(ShaderDataType::Float2, "texture_coordinates"),
-       BufferElement(ShaderDataType::Float3, "tangent")});
+       BufferElement(ShaderDataType::Float3, "tangent")}
+  );
 
   vertex_buffer->set_layout(layout);
   mesh.vertex_array->add_vertex_buffer(vertex_buffer);
   mesh.vertex_array->set_index_buffer(
-      IndexBuffer::create(backend, mesh.indices.data(), mesh.indices.size()));
+      IndexBuffer::create(backend, mesh.indices.data(), mesh.indices.size())
+  );
   mesh.vertex_array->unbind();
 }
 
 template <typename Fn>
-inline void for_each_resolved_mesh(const ModelRef &model_ref,
-                                   Ref<RenderTarget> render_target, Fn &&fn) {
+inline void for_each_resolved_mesh(const ModelRef &model_ref, Ref<RenderTarget> render_target, Fn &&fn) {
   const auto backend = render_target->renderer_api()->get_backend();
 
   for (const auto &resource_id : model_ref.resource_ids) {
     resource_manager()->load_from_descriptors_by_ids<ModelDescriptor>(
-        backend, {resource_id});
+        backend, {resource_id}
+    );
 
     auto model = resource_manager()->get_by_descriptor_id<Model>(resource_id);
     if (model == nullptr) {
@@ -61,8 +63,7 @@ inline void for_each_resolved_mesh(const ModelRef &model_ref,
 }
 
 template <typename Fn>
-inline void for_each_render_mesh(ModelRef *model_ref, MeshSet *mesh_set,
-                                 Ref<RenderTarget> render_target, Fn &&fn) {
+inline void for_each_render_mesh(ModelRef *model_ref, MeshSet *mesh_set, Ref<RenderTarget> render_target, Fn &&fn) {
   if (model_ref != nullptr) {
     for_each_resolved_mesh(*model_ref, render_target, std::forward<Fn>(fn));
     return;
@@ -81,8 +82,7 @@ inline void for_each_render_mesh(ModelRef *model_ref, MeshSet *mesh_set,
 inline bool has_renderables(ecs::World &world) {
   bool found = false;
 
-  world.each<Renderable, scene::Transform>([&](EntityID entity_id, Renderable &,
-                                        scene::Transform &) {
+  world.each<Renderable, scene::Transform>([&](EntityID entity_id, Renderable &, scene::Transform &) {
     if (found || !world.active(entity_id)) {
       return;
     }

@@ -30,7 +30,8 @@ fn main(VertexOutput vertex, Solid solid, SolidBorder solid_border) -> FragmentO
   float radius = clamp(solid_border.radius, 0.0, min(size.x, size.y) * 0.5);
 
   float outer = rounded_rect_sdf(pixel, size, radius);
-  if (outer > 0.0) {
+  float outer_coverage = sdf_coverage(outer);
+  if (outer_coverage <= 0.0) {
     discard;
   }
 
@@ -40,12 +41,15 @@ fn main(VertexOutput vertex, Solid solid, SolidBorder solid_border) -> FragmentO
     vec2 inner_size = max(size - vec2(solid_border.width * 2.0), vec2(0.0));
     vec2 inner_pixel = pixel - vec2(solid_border.width);
     float inner_radius = max(radius - solid_border.width, 0.0);
-    float inner = rounded_rect_sdf(inner_pixel, inner_size, inner_radius);
-
-    if (inner > 0.0) {
-      color = solid_border.color;
+    float inner_coverage = 0.0;
+    if (inner_size.x > 0.0 && inner_size.y > 0.0) {
+      float inner = rounded_rect_sdf(inner_pixel, inner_size, inner_radius);
+      inner_coverage = sdf_coverage(inner);
     }
+
+    color = mix(solid_border.color, solid.fill_color, inner_coverage);
   }
 
+  color.a *= outer_coverage;
   return FragmentOutput(color);
 }

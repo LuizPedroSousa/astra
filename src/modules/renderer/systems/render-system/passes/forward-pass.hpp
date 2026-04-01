@@ -19,7 +19,8 @@ namespace astralix {
 
 class ForwardPass : public RenderPass {
 public:
-  ForwardPass() = default;
+  explicit ForwardPass(std::vector<EntityID> *pick_id_lut = nullptr)
+      : m_pick_id_lut(pick_id_lut) {}
   ~ForwardPass() override = default;
 
   void
@@ -103,6 +104,9 @@ public:
     renderer_api->depth(RendererAPI::DepthMode::Less);
 
     using namespace shader_bindings::engine_shaders_lighting_forward_axsl;
+    if (m_pick_id_lut != nullptr) {
+      m_pick_id_lut->clear();
+    }
 
     for (const auto &packet : frame.packets) {
       if (packet.transform == nullptr ||
@@ -125,7 +129,18 @@ public:
         continue;
       }
 
+      int pick_id = 0;
+      if (m_pick_id_lut != nullptr) {
+        m_pick_id_lut->push_back(packet.entity_id);
+        pick_id = static_cast<int>(m_pick_id_lut->size());
+      }
+
       shader->bind();
+
+      auto entity = world.entity(packet.entity_id);
+      const auto bloom_settings =
+          rendering::resolve_bloom_settings(
+              entity.get<rendering::BloomSettings>());
 
       const auto material_binding = rendering::bind_material_slots(
           renderer_api, shader, packet.model_ref, packet.materials,
@@ -148,6 +163,9 @@ public:
       shader->set_all(EntityParams{
           .use_instancing = false,
           .g_model = packet.transform->matrix,
+          .bloom_enabled = bloom_settings.enabled,
+          .bloom_layer = bloom_settings.render_layer,
+          .entity_id = pick_id,
       });
       shader->set_all(rendering::build_forward_light_params(
           light_frame, material_binding, shadow_map_slot));
@@ -174,6 +192,7 @@ private:
   Framebuffer *m_shadow_map = nullptr;
   Framebuffer *m_scene_color = nullptr;
   rendering::RenderRuntimeStore m_runtime_store;
+  std::vector<EntityID> *m_pick_id_lut = nullptr;
 };
 
 } // namespace astralix

@@ -25,18 +25,21 @@ inline ComponentTypeID next_component_type_id() {
   return counter++;
 }
 
-template <typename T> inline ComponentTypeID component_type_id() {
+template <typename T>
+inline ComponentTypeID component_type_id() {
   static const ComponentTypeID id = next_component_type_id();
   return id;
 }
 
-template <typename T, typename... Args> T make_component(Args &&...args) {
+template <typename T, typename... Args>
+T make_component(Args &&...args) {
   return T{std::forward<Args>(args)...};
 }
 
 } // namespace detail
 
-template <typename T> inline ComponentTypeID component_type_id() {
+template <typename T>
+inline ComponentTypeID component_type_id() {
   return detail::component_type_id<std::remove_cvref_t<T>>();
 }
 
@@ -89,8 +92,7 @@ struct Signature {
   }
 
   bool empty() const {
-    return std::all_of(words.begin(), words.end(),
-                       [](uint64_t word) { return word == 0u; });
+    return std::all_of(words.begin(), words.end(), [](uint64_t word) { return word == 0u; });
   }
 
   friend bool operator==(const Signature &lhs, const Signature &rhs) {
@@ -129,10 +131,14 @@ public:
   void set_active(bool active);
   bool exists() const;
 
-  template <typename T> bool has() const;
-  template <typename T> T *get();
-  template <typename T, typename... Args> T &emplace(Args &&...args);
-  template <typename T> void erase();
+  template <typename T>
+  bool has() const;
+  template <typename T>
+  T *get();
+  template <typename T, typename... Args>
+  T &emplace(Args &&...args);
+  template <typename T>
+  void erase();
 
 private:
   EntityRef(World *world, EntityID entity_id)
@@ -155,7 +161,8 @@ public:
   template <typename T, typename... Args>
   void emplace(EntityID entity_id, Args &&...args);
 
-  template <typename T> void erase(EntityID entity_id);
+  template <typename T>
+  void erase(EntityID entity_id);
   void set_name(EntityID entity_id, std::string name);
   void set_active(EntityID entity_id, bool active);
 
@@ -179,7 +186,8 @@ struct ColumnBase {
   virtual const void *raw_at(size_t row) const = 0;
 };
 
-template <typename T> struct Column final : ColumnBase {
+template <typename T>
+struct Column final : ColumnBase {
   std::vector<T> data;
 
   Scope<ColumnBase> clone_empty() const override {
@@ -241,13 +249,15 @@ public:
     return m_entity_records.find(entity_id) != m_entity_records.end();
   }
 
-  template <typename T> bool has(EntityID entity_id) const {
+  template <typename T>
+  bool has(EntityID entity_id) const {
     auto it = m_entity_records.find(entity_id);
     return it != m_entity_records.end() &&
            it->second.signature.test(component_type_id<T>());
   }
 
-  template <typename T> T *get(EntityID entity_id) {
+  template <typename T>
+  T *get(EntityID entity_id) {
     auto *record = find_record(entity_id);
     if (record == nullptr || !record->signature.test(component_type_id<T>())) {
       return nullptr;
@@ -262,7 +272,8 @@ public:
     return static_cast<T *>(column_it->second->raw_at(record->row));
   }
 
-  template <typename T> const T *get(EntityID entity_id) const {
+  template <typename T>
+  const T *get(EntityID entity_id) const {
     const auto *record = find_record(entity_id);
     if (record == nullptr || !record->signature.test(component_type_id<T>())) {
       return nullptr;
@@ -290,16 +301,16 @@ public:
     Signature new_signature = record.signature;
     new_signature.set(component_type_id<T>());
 
-    migrate_entity(entity_id, new_signature,
-                   [&](detail::ArchetypeStorage &arch) {
-                     auto &column = ensure_column<T>(arch);
-                     column.data.push_back(std::move(component));
-                   });
+    migrate_entity(entity_id, new_signature, [&](detail::ArchetypeStorage &arch) {
+      auto &column = ensure_column<T>(arch);
+      column.data.push_back(std::move(component));
+    });
 
     return *get<T>(entity_id);
   }
 
-  template <typename T> void erase(EntityID entity_id) {
+  template <typename T>
+  void erase(EntityID entity_id) {
     auto *record = find_record(entity_id);
     if (record == nullptr || !record->signature.test(component_type_id<T>())) {
       return;
@@ -310,7 +321,8 @@ public:
     migrate_entity(entity_id, new_signature, [](detail::ArchetypeStorage &) {});
   }
 
-  template <typename... Ts, typename Fn> void each(Fn &&fn) {
+  template <typename... Ts, typename Fn>
+  void each(Fn &&fn) {
     Signature required;
     (required.set(component_type_id<Ts>()), ...);
 
@@ -332,7 +344,8 @@ public:
     }
   }
 
-  template <typename... Ts, typename Fn> void each(Fn &&fn) const {
+  template <typename... Ts, typename Fn>
+  void each(Fn &&fn) const {
     Signature required;
     (required.set(component_type_id<Ts>()), ...);
 
@@ -349,13 +362,15 @@ public:
           fn(archetype.entity_ids[row],
              *static_cast<const Ts *>(
                  archetype.columns.at(component_type_id<Ts>())
-                     ->raw_at(row))...);
+                     ->raw_at(row)
+             )...);
         }
       }
     }
   }
 
-  template <typename... Ts> size_t count() const {
+  template <typename... Ts>
+  size_t count() const {
     size_t total = 0u;
     each<Ts...>([&](auto &&...) { total++; });
     return total;
@@ -424,9 +439,7 @@ private:
   }
 
   detail::ColumnBase &
-  ensure_compatible_column(detail::ArchetypeStorage &archetype,
-                           ComponentTypeID type_id,
-                           const detail::ColumnBase &source_column) {
+  ensure_compatible_column(detail::ArchetypeStorage &archetype, ComponentTypeID type_id, const detail::ColumnBase &source_column) {
     auto [it, inserted] = archetype.columns.emplace(type_id, nullptr);
     if (inserted) {
       it->second = source_column.clone_empty();
@@ -435,12 +448,9 @@ private:
     return *it->second;
   }
 
-  void migrate_entity(EntityID entity_id, const Signature &new_signature,
-                      const std::function<void(detail::ArchetypeStorage &)>
-                          &append_new_components) {
+  void migrate_entity(EntityID entity_id, const Signature &new_signature, const std::function<void(detail::ArchetypeStorage &)> &append_new_components) {
     EntityRecord previous = require_record(entity_id);
-    ASTRA_ENSURE(previous.signature == new_signature,
-                 "migrate_entity called without a signature change");
+    ASTRA_ENSURE(previous.signature == new_signature, "migrate_entity called without a signature change");
 
     const size_t new_archetype_index = ensure_archetype(new_signature);
     detail::ArchetypeStorage &new_archetype = m_archetypes[new_archetype_index];
@@ -510,8 +520,7 @@ private:
 
   void swap_remove(size_t archetype_index, size_t row, EntityID) {
     auto &archetype = m_archetypes[archetype_index];
-    ASTRA_ENSURE(row >= archetype.entity_ids.size(),
-                 "archetype row is out of bounds");
+    ASTRA_ENSURE(row >= archetype.entity_ids.size(), "archetype row is out of bounds");
 
     const size_t last_row = archetype.entity_ids.size() - 1u;
     const EntityID moved_entity = archetype.entity_ids[last_row];
@@ -546,8 +555,7 @@ inline EntityRef World::spawn(std::string name, bool active) {
   return spawn_with_id(allocate_entity_id(), std::move(name), active);
 }
 
-inline EntityRef World::ensure(EntityID entity_id, std::string name,
-                               bool active) {
+inline EntityRef World::ensure(EntityID entity_id, std::string name, bool active) {
   if (contains(entity_id)) {
     set_name(entity_id, std::move(name));
     set_active(entity_id, active);
@@ -600,11 +608,13 @@ inline bool EntityRef::exists() const {
          m_world->contains(*m_entity_id);
 }
 
-template <typename T> inline bool EntityRef::has() const {
+template <typename T>
+inline bool EntityRef::has() const {
   return exists() && m_world->has<T>(id());
 }
 
-template <typename T> inline T *EntityRef::get() {
+template <typename T>
+inline T *EntityRef::get() {
   return exists() ? m_world->get<T>(id()) : nullptr;
 }
 
@@ -614,7 +624,8 @@ inline T &EntityRef::emplace(Args &&...args) {
   return m_world->emplace<T>(id(), std::forward<Args>(args)...);
 }
 
-template <typename T> inline void EntityRef::erase() {
+template <typename T>
+inline void EntityRef::erase() {
   if (!exists()) {
     return;
   }
@@ -635,7 +646,8 @@ inline EntityRef CommandBuffer::spawn(std::string name, bool active) {
   m_commands.push_back(
       [entity_id, name = std::move(name), active](World &world) mutable {
         world.spawn_with_id(entity_id, std::move(name), active);
-      });
+      }
+  );
 
   return EntityRef(m_world, entity_id);
 }
@@ -650,19 +662,23 @@ inline void CommandBuffer::emplace(EntityID entity_id, Args &&...args) {
   m_commands.push_back(
       [entity_id, component = std::move(component)](World &world) mutable {
         world.emplace<T>(entity_id, std::move(component));
-      });
+      }
+  );
 }
 
-template <typename T> inline void CommandBuffer::erase(EntityID entity_id) {
+template <typename T>
+inline void CommandBuffer::erase(EntityID entity_id) {
   m_commands.push_back(
-      [entity_id](World &world) { world.erase<T>(entity_id); });
+      [entity_id](World &world) { world.erase<T>(entity_id); }
+  );
 }
 
 inline void CommandBuffer::set_name(EntityID entity_id, std::string name) {
   m_commands.push_back(
       [entity_id, name = std::move(name)](World &world) mutable {
         world.set_name(entity_id, std::move(name));
-      });
+      }
+  );
 }
 
 inline void CommandBuffer::set_active(EntityID entity_id, bool active) {
@@ -672,8 +688,7 @@ inline void CommandBuffer::set_active(EntityID entity_id, bool active) {
 }
 
 inline void CommandBuffer::apply(World &world) {
-  ASTRA_ENSURE(m_world != nullptr && m_world != &world,
-               "command buffer cannot be applied to a different world");
+  ASTRA_ENSURE(m_world != nullptr && m_world != &world, "command buffer cannot be applied to a different world");
 
   for (auto &command : m_commands) {
     command(world);

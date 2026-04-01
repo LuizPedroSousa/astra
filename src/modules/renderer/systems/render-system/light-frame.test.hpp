@@ -15,9 +15,7 @@ TEST(LightFrameTest, CollectsDirectionalPointAndSpotLightData) {
 
   auto sun = world.spawn("sun");
   sun.emplace<scene::Transform>(scene::Transform{.position = glm::vec3(-4.0f, 8.0f, -3.0f)});
-  sun.emplace<Light>(Light{.type = LightType::Directional,
-                           .color = glm::vec3(1.0f, 0.5f, 0.25f),
-                           .intensity = 2.0f});
+  sun.emplace<Light>(Light{.type = LightType::Directional, .color = glm::vec3(1.0f, 0.5f, 0.25f), .intensity = 2.0f});
   sun.emplace<DirectionalShadowSettings>(DirectionalShadowSettings{
       .ortho_extent = 15.0f,
       .near_plane = 0.5f,
@@ -26,9 +24,7 @@ TEST(LightFrameTest, CollectsDirectionalPointAndSpotLightData) {
 
   auto point = world.spawn("lamp");
   point.emplace<scene::Transform>(scene::Transform{.position = glm::vec3(5.0f, 1.0f, -2.0f)});
-  point.emplace<Light>(Light{.type = LightType::Point,
-                             .color = glm::vec3(0.5f, 1.0f, 0.25f),
-                             .intensity = 3.0f});
+  point.emplace<Light>(Light{.type = LightType::Point, .color = glm::vec3(0.5f, 1.0f, 0.25f), .intensity = 3.0f});
   point.emplace<PointLightAttenuation>(PointLightAttenuation{
       .constant = 2.0f,
       .linear = 0.1f,
@@ -37,9 +33,7 @@ TEST(LightFrameTest, CollectsDirectionalPointAndSpotLightData) {
 
   auto spot = world.spawn("flashlight");
   spot.emplace<scene::Transform>();
-  spot.emplace<Light>(Light{.type = LightType::Spot,
-                            .color = glm::vec3(0.25f, 0.5f, 1.0f),
-                            .intensity = 1.5f});
+  spot.emplace<Light>(Light{.type = LightType::Spot, .color = glm::vec3(0.25f, 0.5f, 1.0f), .intensity = 1.5f});
   spot.emplace<SpotLightTarget>(SpotLightTarget{.camera = camera.id()});
   spot.emplace<SpotLightCone>(SpotLightCone{
       .inner_cutoff_cos = 0.8f,
@@ -87,8 +81,7 @@ TEST(LightFrameTest, FallsBackToMainCameraForSpotLightWhenTargetIsMissing) {
 }
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-TEST(LightFrameTest,
-     BuildsForwardLightParamsFromMaterialBindingsAndPreparedLightFrame) {
+TEST(LightFrameTest, BuildsForwardLightParamsFromMaterialBindingsAndPreparedLightFrame) {
   ecs::World world;
 
   auto camera = world.spawn("camera");
@@ -98,15 +91,11 @@ TEST(LightFrameTest,
 
   auto sun = world.spawn("sun");
   sun.emplace<scene::Transform>(scene::Transform{.position = glm::vec3(-4.0f, 8.0f, -3.0f)});
-  sun.emplace<Light>(Light{.type = LightType::Directional,
-                           .color = glm::vec3(1.0f, 0.5f, 0.25f),
-                           .intensity = 2.0f});
+  sun.emplace<Light>(Light{.type = LightType::Directional, .color = glm::vec3(1.0f, 0.5f, 0.25f), .intensity = 2.0f});
 
   auto point = world.spawn("lamp");
   point.emplace<scene::Transform>(scene::Transform{.position = glm::vec3(5.0f, 1.0f, -2.0f)});
-  point.emplace<Light>(Light{.type = LightType::Point,
-                             .color = glm::vec3(0.5f, 1.0f, 0.25f),
-                             .intensity = 3.0f});
+  point.emplace<Light>(Light{.type = LightType::Point, .color = glm::vec3(0.5f, 1.0f, 0.25f), .intensity = 3.0f});
 
   auto spot = world.spawn("flashlight");
   spot.emplace<scene::Transform>();
@@ -119,6 +108,8 @@ TEST(LightFrameTest,
   binding.normal_map_slot = -1;
   binding.displacement_map_slot = -1;
   binding.shininess = 64.0f;
+  binding.emissive = glm::vec3(3.0f, 2.0f, 1.0f);
+  binding.bloom_intensity = 1.5f;
 
   const auto frame = collect_light_frame(world);
   auto params = build_forward_light_params(frame, binding, 7);
@@ -126,9 +117,12 @@ TEST(LightFrameTest,
   EXPECT_EQ(params.materials[0].diffuse, 2);
   EXPECT_EQ(params.materials[0].specular, 4);
   EXPECT_FLOAT_EQ(params.materials[0].shininess, 64.0f);
+  EXPECT_EQ(params.materials[0].emissive, glm::vec3(3.0f, 2.0f, 1.0f));
+  EXPECT_FLOAT_EQ(params.materials[0].bloom_intensity, 1.5f);
   EXPECT_EQ(params.normal_map, 2);
   EXPECT_EQ(params.displacement_map, 4);
   EXPECT_EQ(params.shadow_map, 7);
+  EXPECT_EQ(params.bloom_layer, k_default_bloom_render_layer);
   EXPECT_EQ(params.directional.position, glm::vec3(-4.0f, 8.0f, -3.0f));
   EXPECT_EQ(params.point_lights[0].position, glm::vec3(5.0f, 1.0f, -2.0f));
   EXPECT_EQ(params.spot_light.position, glm::vec3(1.0f, 2.0f, 3.0f));

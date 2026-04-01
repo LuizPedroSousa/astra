@@ -1,7 +1,7 @@
 #pragma once
 
 #include "base.hpp"
-#include "document.hpp"
+#include "document/document.hpp"
 
 namespace astralix::rendering {
 

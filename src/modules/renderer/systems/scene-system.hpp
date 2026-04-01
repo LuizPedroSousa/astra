@@ -4,6 +4,13 @@
 
 namespace astralix {
 
+  inline bool scene_camera_input_enabled(
+      bool console_captures_input,
+      bool cursor_captured
+  ) {
+    return !console_captures_input && cursor_captured;
+  }
+
   class SceneSystem : public System<SceneSystem> {
 
   public:

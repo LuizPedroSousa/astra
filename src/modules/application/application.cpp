@@ -1,4 +1,5 @@
 #include "application.hpp"
+#include "application-plugin-registry.hpp"
 #include "console.hpp"
 #include "engine.hpp"
 #include "event-dispatcher.hpp"
@@ -22,6 +23,9 @@ Application *Application::init() {
   Engine::init();
   SystemManager::init();
   WindowManager::init();
+  if (ApplicationPluginRegistry::get() == nullptr) {
+    ApplicationPluginRegistry::init();
+  }
 
   return m_instance;
 }
@@ -29,6 +33,13 @@ Application *Application::init() {
 void Application::start() {
   WindowManager::get()->start();
   Engine::get()->start();
+
+  ApplicationPluginContext plugin_context{
+      .project = active_project(),
+      .systems = SystemManager::get(),
+  };
+  application_plugin_registry()->apply_plugins(plugin_context);
+
   SystemManager::get()->start();
 }
 
