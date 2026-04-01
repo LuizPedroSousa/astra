@@ -1,0 +1,34 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec4 color;
+}
+
+@uniform
+interface Camera {
+  mat4 projection;
+}
+
+interface VertexOutput {
+  vec4 color;
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@vertex
+fn main(Mesh mesh, Camera camera) -> VertexOutput {
+  gl_Position = camera.projection * vec4(mesh.position, 0.0, 1.0);
+  return VertexOutput(mesh.color);
+}
+
+@fragment
+fn main(VertexOutput vertex) -> FragmentOutput {
+  return FragmentOutput(vertex.color);
+}
