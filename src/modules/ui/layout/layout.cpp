@@ -1,5 +1,6 @@
 #include "layout/common.hpp"
 #include "layout/internal.hpp"
+#include "layout/widgets/data-viz/line-chart.hpp"
 
 #include <algorithm>
 #include <optional>
@@ -119,6 +120,7 @@ glm::vec2 measure_intrinsic_size(
     case NodeType::Pressable:
     case NodeType::ScrollView:
     case NodeType::Popover:
+    case NodeType::LineChart:
       if (!node->children.empty()) {
         const glm::vec2 container_size =
             measure_container_size(document, node_id, available_size, context);
@@ -221,6 +223,7 @@ struct FlowItem {
   glm::vec2 preferred_size = glm::vec2(0.0f);
   float main_size = 0.0f;
   float cross_size = 0.0f;
+  float min_main_size = 0.0f;
   float main_margin_leading = 0.0f;
   float main_margin_trailing = 0.0f;
   float cross_margin_leading = 0.0f;
@@ -389,6 +392,15 @@ void layout_children(
     item.align = resolve_align(*child, node->style.align_items);
 
     if (node->style.flex_direction == FlexDirection::Row) {
+      item.min_main_size =
+          child->style.min_width.unit != UILengthUnit::Auto
+              ? resolve_length(
+                    child->style.min_width,
+                    inner_bounds.width,
+                    context.default_font_size,
+                    preferred.x
+                )
+              : 0.0f;
       item.main_size = resolve_length(
           child->style.flex_basis,
           inner_bounds.width,
@@ -428,6 +440,15 @@ void layout_children(
           preferred.y
       );
     } else {
+      item.min_main_size =
+          child->style.min_height.unit != UILengthUnit::Auto
+              ? resolve_length(
+                    child->style.min_height,
+                    inner_bounds.height,
+                    context.default_font_size,
+                    preferred.y
+                )
+              : 0.0f;
       item.main_size = resolve_length(
           child->style.flex_basis,
           inner_bounds.height,
@@ -508,11 +529,65 @@ void layout_children(
         item.main_size += free_space * (item.flex_grow / total_flex_grow);
       }
     } else if (free_space < 0.0f && total_flex_shrink > 0.0f) {
-      for (FlowItem &item : flow_items) {
-        const float shrink_basis =
-            (item.flex_shrink * item.main_size) / total_flex_shrink;
-        item.main_size =
-            std::max(0.0f, item.main_size + free_space * shrink_basis);
+      float remaining_shrink = -free_space;
+      std::vector<size_t> active_indices;
+      active_indices.reserve(flow_items.size());
+      for (size_t index = 0u; index < flow_items.size(); ++index) {
+        if (flow_items[index].flex_shrink > 0.0f &&
+            flow_items[index].main_size > flow_items[index].min_main_size) {
+          active_indices.push_back(index);
+        }
+      }
+
+      while (remaining_shrink > 0.001f && !active_indices.empty()) {
+        float weighted_shrink = 0.0f;
+        for (const size_t index : active_indices) {
+          weighted_shrink +=
+              flow_items[index].flex_shrink * flow_items[index].main_size;
+        }
+
+        if (weighted_shrink <= 0.0f) {
+          break;
+        }
+
+        bool clamped_any = false;
+        std::vector<std::optional<float>> next_sizes(
+            flow_items.size(), std::nullopt
+        );
+        std::vector<size_t> next_active_indices;
+        next_active_indices.reserve(active_indices.size());
+
+        for (const size_t index : active_indices) {
+          FlowItem &item = flow_items[index];
+          const float shrink_weight =
+              (item.flex_shrink * item.main_size) / weighted_shrink;
+          const float requested_shrink = remaining_shrink * shrink_weight;
+          const float target_size = item.main_size - requested_shrink;
+
+          if (target_size <= item.min_main_size + 0.001f) {
+            remaining_shrink -= std::max(
+                0.0f, item.main_size - item.min_main_size
+            );
+            item.main_size = item.min_main_size;
+            clamped_any = true;
+            continue;
+          }
+
+          next_sizes[index] = target_size;
+          next_active_indices.push_back(index);
+        }
+
+        if (!clamped_any) {
+          for (const size_t index : active_indices) {
+            if (next_sizes[index].has_value()) {
+              flow_items[index].main_size = *next_sizes[index];
+            }
+          }
+          remaining_shrink = 0.0f;
+          break;
+        }
+
+        active_indices = std::move(next_active_indices);
       }
     }
   }
@@ -836,6 +911,11 @@ void append_draw_commands(
     return;
   }
 
+  if (node->layout.has_clip &&
+      !intersects(node->layout.bounds, node->layout.clip_bounds)) {
+    return;
+  }
+
   const bool effective_enabled = parent_enabled && node->enabled;
   const UIResolvedStyle resolved =
       resolve_style(node->style, node->paint_state, effective_enabled);
@@ -918,10 +998,21 @@ void append_draw_commands(
     append_chip_group_commands(document, node_id, *node, context, resolved);
   }
 
+  if (node->type == NodeType::LineChart) {
+    append_line_chart_commands(document, node_id, *node, resolved);
+  }
+
   for (UINodeId child_id : node->children) {
-    if (const auto *child = document.node(child_id);
-        child != nullptr && child->type == NodeType::Popover) {
+    const auto *child = document.node(child_id);
+    if (child != nullptr && child->type == NodeType::Popover) {
       continue;
+    }
+
+    if (node->type == NodeType::ScrollView && child != nullptr) {
+      const auto clip = child_clip_rect(*node);
+      if (clip.has_value() && !intersects(child->layout.bounds, *clip)) {
+        continue;
+      }
     }
 
     append_draw_commands(document, child_id, context, effective_enabled);

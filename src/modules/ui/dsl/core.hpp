@@ -73,7 +73,7 @@ private:
 
 class StyleBuilder {
 public:
-  StyleBuilder &row() {
+  StyleBuilder &flex_row() {
     return add(
         [](UIStyle &style) { style.flex_direction = FlexDirection::Row; }
     );
@@ -408,7 +408,7 @@ inline StyleBuilder resizable_all() { return StyleBuilder{}.resizable_all(); }
 inline StyleBuilder draggable() { return StyleBuilder{}.draggable(); }
 inline StyleBuilder drag_handle() { return StyleBuilder{}.drag_handle(); }
 inline StyleBuilder cursor_pointer() { return StyleBuilder{}.cursor_pointer(); }
-inline StyleBuilder row() { return StyleBuilder{}.row(); }
+inline StyleBuilder row() { return StyleBuilder{}.flex_row(); }
 inline StyleBuilder column() { return StyleBuilder{}.column(); }
 inline StyleBuilder items_start() { return StyleBuilder{}.items_start(); }
 inline StyleBuilder items_end() { return StyleBuilder{}.items_end(); }
@@ -537,16 +537,17 @@ enum class NodeKind : uint8_t {
   Checkbox,
   Slider,
   Select,
+  LineChart,
 };
 
 struct NodeSpec {
   NodeKind kind = NodeKind::View;
-  std::string name;
   std::string text;
   std::string placeholder;
   ResourceDescriptorID texture_id;
   std::optional<RenderImageExportKey> render_image_key;
   std::vector<std::string> option_values;
+  std::vector<glm::vec4> item_accent_colors;
   std::vector<bool> chip_selected_values;
 
   std::vector<StyleRule> style_rules;
@@ -563,6 +564,9 @@ struct NodeSpec {
   std::optional<float> slider_max_value;
   std::optional<float> slider_step_value;
   std::optional<size_t> selected_index_value;
+
+  std::optional<size_t> line_chart_grid_line_count;
+  std::optional<glm::vec4> line_chart_grid_color;
 
   UINodeId *bound_id = nullptr;
 
@@ -668,6 +672,11 @@ struct NodeSpec {
 
   NodeSpec &options(std::vector<std::string> values) {
     option_values = std::move(values);
+    return *this;
+  }
+
+  NodeSpec &accent_colors(std::vector<glm::vec4> colors) {
+    item_accent_colors = std::move(colors);
     return *this;
   }
 
@@ -861,6 +870,12 @@ inline void apply_properties(
     );
   }
 
+  if (!spec.item_accent_colors.empty()) {
+    document.set_segmented_item_accent_colors(
+        node_id, spec.item_accent_colors
+    );
+  }
+
   if (spec.selected_index_value.has_value()) {
     document.set_selected_index(node_id, *spec.selected_index_value);
     document.set_segmented_selected_index(node_id, *spec.selected_index_value);
@@ -934,6 +949,19 @@ inline void apply_properties(
 
   if (spec.on_chip_toggle_callback) {
     document.set_on_chip_toggle(node_id, spec.on_chip_toggle_callback);
+  }
+
+  if (spec.line_chart_grid_line_count.has_value() ||
+      spec.line_chart_grid_color.has_value()) {
+    auto *target = document.node(node_id);
+    if (target != nullptr) {
+      if (spec.line_chart_grid_line_count.has_value()) {
+        target->line_chart.grid_line_count = *spec.line_chart_grid_line_count;
+      }
+      if (spec.line_chart_grid_color.has_value()) {
+        target->line_chart.grid_color = *spec.line_chart_grid_color;
+      }
+    }
   }
 
   for (const auto &rule : spec.style_rules) {

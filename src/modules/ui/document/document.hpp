@@ -19,7 +19,6 @@ public:
     UIStyle style;
     UILayoutMetrics layout;
     UIPaintState paint_state;
-    std::string name;
     std::string text;
     std::string placeholder;
     std::string autocomplete_text;
@@ -40,6 +39,7 @@ public:
     UIPopoverState popover;
     UISegmentedControlState segmented_control;
     UIChipGroupState chip_group;
+    UILineChartState line_chart;
 
     std::function<void()> on_hover;
     std::function<void()> on_press;
@@ -61,25 +61,54 @@ public:
 
   static Ref<UIDocument> create();
 
-  UINodeId create_view(std::string name = {});
-  UINodeId create_text(std::string text = {}, std::string name = {});
-  UINodeId create_image(ResourceDescriptorID texture_id = {}, std::string name = {});
-  UINodeId create_render_image_view(
-      RenderImageExportKey render_image_key, std::string name = {}
+  UINodeId create_view();
+  UINodeId create_text(std::string text = {});
+  UINodeId create_image(ResourceDescriptorID texture_id = {});
+  UINodeId create_render_image_view(RenderImageExportKey render_image_key);
+  UINodeId create_pressable();
+  UINodeId create_icon_button(
+      ResourceDescriptorID texture_id = {},
+      const std::function<void()> &on_click = {}
   );
-  UINodeId create_pressable(std::string name = {});
-  UINodeId create_icon_button(ResourceDescriptorID texture_id = {}, const std::function<void()> &on_click = {}, std::string name = {});
-  UINodeId create_segmented_control(std::vector<std::string> options = {}, size_t selected_index = 0u, std::string name = {});
-  UINodeId create_chip_group(std::vector<std::string> options = {}, std::vector<bool> selected = {}, std::string name = {});
-  UINodeId create_text_input(std::string value = {}, std::string placeholder = {}, std::string name = {});
-  UINodeId create_combobox(std::string value = {}, std::string placeholder = {}, std::string name = {});
-  UINodeId create_scroll_view(std::string name = {});
-  UINodeId create_popover(std::string name = {});
-  UINodeId create_splitter(std::string name = {});
-  UINodeId create_checkbox(std::string label = {}, bool checked = false, std::string name = {});
-  UINodeId create_slider(float value = 0.0f, float min_value = 0.0f, float max_value = 1.0f, float step = 0.1f, std::string name = {});
-  UINodeId create_select(std::vector<std::string> options = {}, size_t selected_index = 0u, std::string placeholder = {}, std::string name = {});
-  UINodeId create_button(const std::string &label, const std::function<void()> &on_click, std::string name = {});
+  UINodeId create_segmented_control(
+      std::vector<std::string> options = {},
+      size_t selected_index = 0u
+  );
+  UINodeId create_chip_group(
+      std::vector<std::string> options = {},
+      std::vector<bool> selected = {}
+  );
+  UINodeId create_text_input(
+      std::string value = {},
+      std::string placeholder = {}
+  );
+  UINodeId create_combobox(
+      std::string value = {},
+      std::string placeholder = {}
+  );
+  UINodeId create_scroll_view();
+  UINodeId create_popover();
+  UINodeId create_splitter();
+  UINodeId create_checkbox(
+      std::string label = {},
+      bool checked = false
+  );
+  UINodeId create_slider(
+      float value = 0.0f,
+      float min_value = 0.0f,
+      float max_value = 1.0f,
+      float step = 0.1f
+  );
+  UINodeId create_select(
+      std::vector<std::string> options = {},
+      size_t selected_index = 0u,
+      std::string placeholder = {}
+  );
+  UINodeId create_button(
+      const std::string &label,
+      const std::function<void()> &on_click
+  );
+  UINodeId create_line_chart();
 
   void set_root(UINodeId root_id);
   UINodeId root() const { return m_root_id; }
@@ -126,6 +155,7 @@ public:
   const std::vector<std::string> *segmented_options(UINodeId node_id) const;
   void set_segmented_selected_index(UINodeId node_id, size_t selected_index);
   size_t segmented_selected_index(UINodeId node_id) const;
+  void set_segmented_item_accent_colors(UINodeId node_id, std::vector<glm::vec4> colors);
   void set_chip_options(UINodeId node_id, std::vector<std::string> options, std::vector<bool> selected = {});
   const std::vector<std::string> *chip_options(UINodeId node_id) const;
   void set_chip_selected(UINodeId node_id, size_t index, bool selected);
@@ -167,6 +197,12 @@ public:
   void clear_caret(UINodeId node_id);
   void reset_caret_blink(UINodeId node_id);
   void set_scroll_offset(UINodeId node_id, glm::vec2 offset);
+  void set_line_chart_series(
+      UINodeId node_id,
+      std::vector<UILineChartSeries> series
+  );
+  void set_line_chart_range(UINodeId node_id, float y_min, float y_max);
+  void set_line_chart_auto_range(UINodeId node_id, bool auto_range);
 
   void set_canvas_size(glm::vec2 canvas_size);
   glm::vec2 canvas_size() const { return m_canvas_size; }
@@ -238,7 +274,7 @@ private:
     bool alive = false;
   };
 
-  UINodeId allocate_node(NodeType type, std::string name);
+  UINodeId allocate_node(NodeType type);
   void detach_from_parent(UINodeId child_id);
   bool is_valid_node(UINodeId node_id) const;
 

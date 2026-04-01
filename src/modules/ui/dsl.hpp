@@ -25,4 +25,7 @@
 #include "dsl/widgets/popup/popover.hpp"
 #include "dsl/widgets/multi-option/chip-group.hpp"
 #include "dsl/widgets/multi-option/segmented-control.hpp"
+#include "dsl/widgets/data-viz/bar-chart.hpp"
+#include "dsl/widgets/data-viz/line-chart.hpp"
+#include "dsl/widgets/data-viz/linear-gauge.hpp"
 #include "dsl/materialize.hpp"

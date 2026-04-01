@@ -28,6 +28,7 @@ UINodeId create_segmented_control_node(
     const NodeSpec &spec
 );
 UINodeId create_chip_group_node(UIDocument &document, const NodeSpec &spec);
+UINodeId create_line_chart_node(UIDocument &document, const NodeSpec &spec);
 
 inline UINodeId create_node(UIDocument &document, const NodeSpec &spec) {
   switch (spec.kind) {
@@ -65,6 +66,8 @@ inline UINodeId create_node(UIDocument &document, const NodeSpec &spec) {
       return create_slider_node(document, spec);
     case NodeKind::Select:
       return create_select_node(document, spec);
+    case NodeKind::LineChart:
+      return create_line_chart_node(document, spec);
   }
 
   return k_invalid_node_id;

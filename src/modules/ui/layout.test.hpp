@@ -11,9 +11,9 @@ namespace {
 
 TEST(UIFoundationsTest, ResizableViewsAndSplittersExposeExpectedHelpers) {
   auto document = UIDocument::create();
-  const UINodeId panel = document->create_view("panel");
-  const UINodeId header = document->create_view("header");
-  const UINodeId splitter = document->create_splitter("splitter");
+  const UINodeId panel = document->create_view();
+  const UINodeId header = document->create_view();
+  const UINodeId splitter = document->create_splitter();
   document->mutate_style(panel, [](UIStyle &style) {
     style.position_type = PositionType::Absolute;
     style.draggable = true;
@@ -178,17 +178,17 @@ TEST(UIFoundationsTest, MaxContentWidthClampsViewToIntrinsicChildWidth) {
 
   mount(
       *document,
-      column("root")
+      ui::dsl::column()
           .style(fill(), items_start())
           .children(
-              view("card")
+              view()
                   .bind(card)
                   .style(
                       width(px(280.0f)),
                       max_width(max_content()),
                       padding(12.0f)
                   )
-                  .children(slider(0.5f, 0.0f, 1.0f, "density"))
+                  .children(slider(0.5f, 0.0f, 1.0f))
           )
   );
 
@@ -203,6 +203,54 @@ TEST(UIFoundationsTest, MaxContentWidthClampsViewToIntrinsicChildWidth) {
   const auto *card_node = document->node(card);
   ASSERT_NE(card_node, nullptr);
   EXPECT_FLOAT_EQ(card_node->layout.measured_size.x, 204.0f);
+}
+
+TEST(UIFoundationsTest, FlexShrinkPreservesResolvedMinimumWidths) {
+  using namespace dsl;
+  using namespace dsl::styles;
+
+  auto document = UIDocument::create();
+  UINodeId first = k_invalid_node_id;
+  UINodeId second = k_invalid_node_id;
+
+  mount(
+      *document,
+      ui::dsl::row()
+          .style(fill())
+          .children(
+              view()
+                  .bind(first)
+                  .style(
+                      width(percent(0.6f)),
+                      min_width(px(260.0f)),
+                      fill_y(),
+                      shrink(1.0f)
+                  ),
+              view()
+                  .bind(second)
+                  .style(
+                      width(percent(0.6f)),
+                      min_width(px(200.0f)),
+                      fill_y(),
+                      shrink(1.0f)
+                  )
+          )
+  );
+
+  layout_document(
+      *document,
+      UILayoutContext{
+          .viewport_size = glm::vec2(500.0f, 200.0f),
+          .default_font_size = 16.0f,
+      }
+  );
+
+  const auto *first_node = document->node(first);
+  const auto *second_node = document->node(second);
+  ASSERT_NE(first_node, nullptr);
+  ASSERT_NE(second_node, nullptr);
+  EXPECT_FLOAT_EQ(first_node->layout.bounds.width, 260.0f);
+  EXPECT_FLOAT_EQ(second_node->layout.bounds.width, 240.0f);
 }
 
 } // namespace

@@ -1,5 +1,7 @@
 #include "document.hpp"
 
+#include <algorithm>
+#include <limits>
 #include <utility>
 
 namespace astralix::ui {
@@ -148,6 +150,61 @@ void UIDocument::set_scroll_offset(UINodeId node_id, glm::vec2 offset) {
 
   target->layout.scroll.offset = offset;
   m_layout_dirty = true;
+  m_paint_dirty = true;
+}
+
+void UIDocument::set_line_chart_series(
+    UINodeId node_id,
+    std::vector<UILineChartSeries> series
+) {
+  UINode *target = node(node_id);
+  if (target == nullptr) {
+    return;
+  }
+
+  target->line_chart.series = std::move(series);
+
+  if (target->line_chart.auto_range && !target->line_chart.series.empty()) {
+    float computed_min = std::numeric_limits<float>::max();
+    float computed_max = std::numeric_limits<float>::lowest();
+
+    for (const auto &chart_series : target->line_chart.series) {
+      for (float value : chart_series.values) {
+        computed_min = std::min(computed_min, value);
+        computed_max = std::max(computed_max, value);
+      }
+    }
+
+    if (computed_min < computed_max) {
+      target->line_chart.y_min = computed_min;
+      target->line_chart.y_max = computed_max;
+    }
+  }
+
+  m_paint_dirty = true;
+}
+
+void UIDocument::set_line_chart_range(
+    UINodeId node_id, float y_min, float y_max
+) {
+  UINode *target = node(node_id);
+  if (target == nullptr) {
+    return;
+  }
+
+  target->line_chart.y_min = y_min;
+  target->line_chart.y_max = y_max;
+  target->line_chart.auto_range = false;
+  m_paint_dirty = true;
+}
+
+void UIDocument::set_line_chart_auto_range(UINodeId node_id, bool auto_range) {
+  UINode *target = node(node_id);
+  if (target == nullptr) {
+    return;
+  }
+
+  target->line_chart.auto_range = auto_range;
   m_paint_dirty = true;
 }
 

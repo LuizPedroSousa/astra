@@ -33,6 +33,7 @@ enum class NodeType : uint8_t {
   Checkbox,
   Slider,
   Select,
+  LineChart,
 };
 
 enum class FlexDirection : uint8_t {
@@ -377,6 +378,7 @@ struct UIPopoverState {
 
 struct UISegmentedControlState {
   std::vector<std::string> options;
+  std::vector<glm::vec4> item_accent_colors;
   size_t selected_index = 0u;
 };
 
@@ -527,8 +529,35 @@ struct UIResolvedStyle {
 enum class DrawCommandType : uint8_t {
   Rect,
   Image,
+  SvgImage,
   RenderImageView,
   Text,
+  Polyline,
+};
+
+struct UIPolylineVertex {
+  glm::vec2 position;
+  glm::vec4 color;
+};
+
+struct UIPolylineSeries {
+  std::vector<UIPolylineVertex> vertices;
+  float thickness = 2.0f;
+};
+
+struct UILineChartSeries {
+  std::vector<float> values;
+  glm::vec4 color = glm::vec4(1.0f);
+  float thickness = 2.0f;
+};
+
+struct UILineChartState {
+  std::vector<UILineChartSeries> series;
+  float y_min = 0.0f;
+  float y_max = 1.0f;
+  bool auto_range = true;
+  size_t grid_line_count = 4u;
+  glm::vec4 grid_color = glm::vec4(1.0f, 1.0f, 1.0f, 0.1f);
 };
 
 struct UIDrawCommand {
@@ -548,6 +577,7 @@ struct UIDrawCommand {
   ResourceDescriptorID texture_id;
   std::optional<RenderImageExportKey> render_image_key;
   glm::vec4 tint = glm::vec4(1.0f);
+  std::vector<UIPolylineSeries> polyline_series;
 };
 
 struct UIDrawList {
