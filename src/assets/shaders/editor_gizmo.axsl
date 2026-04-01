@@ -1,0 +1,42 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec3 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec4 color;
+}
+
+@uniform
+interface Camera {
+  mat4 view;
+  mat4 projection;
+}
+
+interface VertexOutput {
+  vec3 normal;
+  vec4 color;
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@vertex
+fn main(Mesh mesh, Camera camera) -> VertexOutput {
+  gl_Position = camera.projection * camera.view * vec4(mesh.position, 1.0);
+  return VertexOutput(mesh.normal, mesh.color);
+}
+
+@fragment
+fn main(VertexOutput vertex) -> FragmentOutput {
+  vec3 light_direction = normalize(vec3(0.3, 0.8, 0.5));
+  float diffuse = max(dot(normalize(vertex.normal), light_direction), 0.0);
+  float shading = 0.55 + 0.45 * diffuse;
+  return FragmentOutput(vec4(vertex.color.rgb * shading, vertex.color.a));
+}

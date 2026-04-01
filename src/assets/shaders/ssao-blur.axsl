@@ -1,0 +1,89 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Blur {
+  sampler2D ssao_input;
+  sampler2D g_position;
+  sampler2D g_normal;
+  vec2 texel_size;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+fn spatial_weight(vec2 offset) -> float {
+  return exp(-dot(offset, offset) / 8.0);
+}
+
+@fragment
+fn main(VertexOutput vertex, Blur blur) -> FragmentOutput {
+  vec4 center_normal_sample = texture(blur.g_normal, vertex.texture_coordinates);
+  if (center_normal_sample.a <= 0.0) {
+    return FragmentOutput(vec4(1.0));
+  }
+
+  vec3 center_normal = normalize(center_normal_sample.rgb);
+  vec3 center_position = texture(blur.g_position, vertex.texture_coordinates).rgb;
+
+  float ao_accum = 0.0;
+  float weight_accum = 0.0;
+
+  for (int x = -2; x <= 2; ++x) {
+    for (int y = -2; y <= 2; ++y) {
+      vec2 offset = vec2(float(x), float(y));
+      vec2 sample_uv = vertex.texture_coordinates + offset * blur.texel_size;
+      vec4 sample_normal_sample = texture(blur.g_normal, sample_uv);
+
+      if (sample_normal_sample.a <= 0.0) {
+        continue;
+      }
+
+      vec3 sample_normal = normalize(sample_normal_sample.rgb);
+      vec3 sample_position = texture(blur.g_position, sample_uv).rgb;
+      float sample_ao = texture(blur.ssao_input, sample_uv).r;
+
+      float normal_weight = pow(max(dot(center_normal, sample_normal), 0.0), 8.0);
+      float depth_weight = exp(-length(sample_position - center_position) * 12.0);
+      float weight = spatial_weight(offset) * normal_weight * depth_weight;
+
+      ao_accum += sample_ao * weight;
+      weight_accum += weight;
+    }
+  }
+
+  if (weight_accum <= 0.0) {
+    float fallback_ao = texture(blur.ssao_input, vertex.texture_coordinates).r;
+    return FragmentOutput(vec4(vec3(fallback_ao), 1.0));
+  }
+
+  float blurred_ao = ao_accum / weight_accum;
+  return FragmentOutput(vec4(vec3(blurred_ao), 1.0));
+}

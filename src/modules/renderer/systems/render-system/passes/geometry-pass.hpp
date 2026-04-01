@@ -21,7 +21,8 @@ namespace astralix {
 
 class GeometryPass : public RenderPass {
 public:
-  GeometryPass() = default;
+  explicit GeometryPass(std::vector<EntityID> *pick_id_lut = nullptr)
+      : m_pick_id_lut(pick_id_lut) {}
   ~GeometryPass() override = default;
 
   void
@@ -94,6 +95,9 @@ public:
     m_g_buffer->bind();
     m_render_target->renderer_api()->clear_buffers(ClearBufferType::Color |
                                                    ClearBufferType::Depth);
+    if (m_pick_id_lut != nullptr) {
+      m_pick_id_lut->clear();
+    }
 
     world.each<rendering::Renderable, scene::Transform>(
         [&](EntityID entity_id, rendering::Renderable &,
@@ -111,6 +115,14 @@ public:
 
           auto *materials = entity.get<rendering::MaterialSlots>();
           auto *textures = entity.get<rendering::TextureBindings>();
+          const auto bloom_settings =
+              rendering::resolve_bloom_settings(
+                  entity.get<rendering::BloomSettings>());
+          int pick_id = 0;
+          if (m_pick_id_lut != nullptr) {
+            m_pick_id_lut->push_back(entity_id);
+            pick_id = static_cast<int>(m_pick_id_lut->size());
+          }
 
           shader->bind();
 
@@ -131,6 +143,9 @@ public:
           shader->set_all(EntityParams{
               .use_instancing = false,
               .g_model = transform.matrix,
+              .bloom_enabled = bloom_settings.enabled,
+              .bloom_layer = bloom_settings.render_layer,
+              .entity_id = pick_id,
           });
 
           shader->set_all(rendering::build_gbuffer_light_params(
@@ -165,6 +180,7 @@ public:
 private:
   Framebuffer *m_scene_color = nullptr;
   Framebuffer *m_g_buffer = nullptr;
+  std::vector<EntityID> *m_pick_id_lut = nullptr;
 };
 
 } // namespace astralix

@@ -8,6 +8,9 @@ enum class RenderImageResource : uint8_t {
   SceneColor,
   GBuffer,
   ShadowMap,
+  SSAO,
+  SSAOBlur,
+  Bloom,
   FinalOutput,
 };
 
@@ -15,6 +18,7 @@ enum class RenderImageAspect : uint8_t {
   Color0,
   Color1,
   Color2,
+  Color3,
   Depth,
 };
 

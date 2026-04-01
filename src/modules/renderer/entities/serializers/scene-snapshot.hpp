@@ -29,6 +29,7 @@ collect_entity_component_snapshots(ecs::EntityRef entity) {
   append_snapshot_if_present<rendering::MaterialSlots>(entity, components);
   append_snapshot_if_present<rendering::ShaderBinding>(entity, components);
   append_snapshot_if_present<rendering::TextureBindings>(entity, components);
+  append_snapshot_if_present<rendering::BloomSettings>(entity, components);
   append_snapshot_if_present<rendering::SkyboxBinding>(entity, components);
   append_snapshot_if_present<rendering::TextSprite>(entity, components);
   append_snapshot_if_present<physics::RigidBody>(entity, components);

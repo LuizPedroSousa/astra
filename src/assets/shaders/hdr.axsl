@@ -5,6 +5,8 @@ interface VertexOutput {
 }
 
 uniform sampler2D screen_texture;
+uniform sampler2D bloom_texture;
+uniform float bloom_strength = 0.12;
 uniform float gamma = 1.1;
 uniform float exposure = 1.1;
 
@@ -15,6 +17,9 @@ interface FragmentOutput {
 @fragment
 fn main(VertexOutput vertex) -> FragmentOutput {
     vec3 color = texture(screen_texture, vertex.texture_coordinates).rgb;
+    vec3 bloom = texture(bloom_texture, vertex.texture_coordinates).rgb;
+
+    color += bloom * bloom_strength;
 
     vec3 mapped = vec3(1.) - exp(-color * exposure);
 

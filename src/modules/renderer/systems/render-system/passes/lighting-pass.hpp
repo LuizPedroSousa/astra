@@ -44,6 +44,10 @@ public:
           if (resource->desc.name == "g_buffer") {
             m_g_buffer = resource->get_framebuffer();
           }
+
+          if (resource->desc.name == "ssao_blur") {
+            m_ssao = resource->get_framebuffer();
+          }
           break;
         }
 
@@ -52,7 +56,7 @@ public:
       }
     }
 
-    if (m_scene_color == nullptr || m_g_buffer == nullptr) {
+    if (m_scene_color == nullptr || m_g_buffer == nullptr || m_ssao == nullptr) {
       set_enabled(false);
     }
   }
@@ -117,7 +121,20 @@ public:
       renderer_api->bind_texture_2d(color_attachments[i], texture_unit + i);
     }
 
-    shader->set_all(rendering::build_deferred_light_params(light_frame, shadow_map_slot, texture_unit, texture_unit + 1, texture_unit + 2));
+    const int32_t ssao_slot =
+        texture_unit + static_cast<int32_t>(color_attachments.size());
+    renderer_api->bind_texture_2d(m_ssao->get_color_attachment_id(), ssao_slot);
+
+    shader->set_all(rendering::build_deferred_light_params(
+        light_frame,
+        shadow_map_slot,
+        texture_unit,
+        texture_unit + 1,
+        texture_unit + 2,
+        texture_unit + 3,
+        texture_unit + 4,
+        ssao_slot
+    ));
     shader->set(CameraUniform::position, camera->transform->position);
 
     m_scene_color->bind();
@@ -139,6 +156,7 @@ private:
   Framebuffer *m_shadow_map = nullptr;
   Framebuffer *m_scene_color = nullptr;
   Framebuffer *m_g_buffer = nullptr;
+  Framebuffer *m_ssao = nullptr;
   Mesh m_fullscreen_quad = Mesh::quad(1.0f);
 };
 

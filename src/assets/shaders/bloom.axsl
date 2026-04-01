@@ -1,0 +1,65 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Bloom {
+  sampler2D bright_texture;
+  vec2 texel_size;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+fn gaussian_weight(vec2 offset) -> float {
+  return exp(-dot(offset, offset) / 6.0);
+}
+
+@fragment
+fn main(VertexOutput vertex, Bloom bloom) -> FragmentOutput {
+  vec3 accumulated = vec3(0.0);
+  float total_weight = 0.0;
+
+  for (int x = -2; x <= 2; ++x) {
+    for (int y = -2; y <= 2; ++y) {
+      vec2 offset = vec2(float(x), float(y));
+      float weight = gaussian_weight(offset);
+      vec2 sample_uv = vertex.texture_coordinates + offset * bloom.texel_size;
+
+      accumulated += texture(bloom.bright_texture, sample_uv).rgb * weight;
+      total_weight += weight;
+    }
+  }
+
+  if (total_weight <= 0.0) {
+    return FragmentOutput(vec4(0.0, 0.0, 0.0, 1.0));
+  }
+
+  return FragmentOutput(vec4(accumulated / total_weight, 1.0));
+}

@@ -24,4 +24,11 @@ struct TextureBindings {
   std::vector<TextureBinding> bindings;
 };
 
+inline constexpr int k_default_bloom_render_layer = 0;
+
+struct BloomSettings {
+  bool enabled = true;
+  int render_layer = k_default_bloom_render_layer;
+};
+
 } // namespace astralix::rendering

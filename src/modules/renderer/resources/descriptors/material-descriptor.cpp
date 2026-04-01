@@ -9,9 +9,12 @@ Ref<MaterialDescriptor> MaterialDescriptor::create(
     std::vector<ResourceDescriptorID> diffuse_ids,
     std::vector<ResourceDescriptorID> specular_ids,
     std::optional<ResourceDescriptorID> normal_map_ids,
-    std::optional<ResourceDescriptorID> displacement_map_ids) {
+    std::optional<ResourceDescriptorID> displacement_map_ids,
+    glm::vec3 emissive,
+    float bloom_intensity) {
   return create_ref<MaterialDescriptor>(id, diffuse_ids, specular_ids,
-                                        normal_map_ids, displacement_map_ids);
+                                        normal_map_ids, displacement_map_ids,
+                                        emissive, bloom_intensity);
 }
 
 } // namespace astralix

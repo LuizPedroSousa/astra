@@ -28,6 +28,10 @@ interface Light {
   sampler2D g_position;
   sampler2D g_normal;
   sampler2D g_albedo;
+  sampler2D g_emissive;
+  isampler2D g_entity_id;
+  sampler2D g_ssao;
+  int bloom_layer = 0;
 }
 
 interface VertexOutput {
@@ -50,6 +54,9 @@ interface FragmentOutput {
 
   @location(1)
   vec4 bright_color;
+
+  @location(2)
+  int entity_id;
 }
 
 @fragment
@@ -62,6 +69,10 @@ fn main(VertexOutput vertex, Camera camera, Light light) -> FragmentOutput {
   vec4 albedo_spec = texture(light.g_albedo, vertex.texture);
   vec3 albedo = albedo_spec.rgb;
   float specular_strength = albedo_spec.a;
+  vec4 emissive_bloom = texture(light.g_emissive, vertex.texture);
+  vec3 emissive = emissive_bloom.rgb;
+  float bloom_intensity = emissive_bloom.a;
+  int entity_id = texture(light.g_entity_id, vertex.texture).r;
 
   vec3 result = calc_directional_light_deferred(
       light.shadow_map,
@@ -87,17 +98,20 @@ fn main(VertexOutput vertex, Camera camera, Light light) -> FragmentOutput {
     );
   }
 
+  result *= texture(light.g_ssao, vertex.texture).r;
+  result += emissive;
+
   FragmentOutput frag_output;
 
   frag_output.color = vec4(result, 1.0);
 
-  float brightness = dot(frag_output.color.rgb, vec3(0.2126, 0.7152, 0.0722));
-
-  if (brightness > 1.0) {
-    frag_output.bright_color = vec4(frag_output.color.rgb, 1.0);
+  if (bloom_intensity > 0.0) {
+    frag_output.bright_color = vec4(emissive * bloom_intensity, 1.0);
   } else {
     frag_output.bright_color = vec4(0.0, 0.0, 0.0, 1.0);
   }
+
+  frag_output.entity_id = entity_id;
 
   return frag_output;
 }

@@ -2,6 +2,7 @@
 
 #include "components/material.hpp"
 #include "components/model.hpp"
+#include "glm/glm.hpp"
 #include "managers/resource-manager.hpp"
 #include "renderer-api.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
@@ -25,8 +26,14 @@ struct MaterialBindingState {
   int normal_map_slot = -1;
   int displacement_map_slot = -1;
   float shininess = 32.0f;
+  glm::vec3 emissive = glm::vec3(0.0f);
+  float bloom_intensity = 0.0f;
   int next_texture_slot = 0;
 };
+
+inline BloomSettings resolve_bloom_settings(const BloomSettings *settings) {
+  return settings != nullptr ? *settings : BloomSettings{};
+}
 
 inline void finalize_material_binding_state(MaterialBindingState &state) {
   if (state.diffuse_slot < 0 && state.specular_slot >= 0) {
@@ -126,6 +133,9 @@ inline MaterialBindingState bind_material_slots(
         );
 
     if (material != nullptr) {
+      state.emissive = material->emissive;
+      state.bloom_intensity = material->bloom_intensity;
+
       if (!material->diffuse_ids.empty()) {
         state.diffuse_slot = bind_texture_2d(
             renderer_api, material->diffuse_ids[0], state.next_texture_slot++

@@ -6,7 +6,6 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "material-binding.hpp"
 #include "scene-selection.hpp"
-#include "shaders/engine_shaders_ssao_axsl.hpp"
 #include "world.hpp"
 #include <array>
 
@@ -242,19 +241,31 @@ build_gbuffer_light_params(const LightFrameData &frame, const MaterialBindingSta
   params.materials[0].diffuse = material_binding.diffuse_slot;
   params.materials[0].specular = material_binding.specular_slot;
   params.materials[0].shininess = material_binding.shininess;
+  params.materials[0].emissive = material_binding.emissive;
+  params.materials[0].bloom_intensity = material_binding.bloom_intensity;
   params.normal_map = material_binding.normal_map_slot >= 0
                           ? material_binding.normal_map_slot
                           : material_binding.diffuse_slot;
   params.displacement_map = material_binding.displacement_map_slot >= 0
                                 ? material_binding.displacement_map_slot
                                 : material_binding.specular_slot;
+  params.bloom_layer = k_default_bloom_render_layer;
   populate_directional_light_params(frame, params);
 
   return params;
 }
 
 inline shader_bindings::engine_shaders_light_axsl::LightParams
-build_deferred_light_params(const LightFrameData &frame, int shadow_map_slot, int g_position_slot, int g_normal_slot, int g_albedo_slot) {
+build_deferred_light_params(
+    const LightFrameData &frame,
+    int shadow_map_slot,
+    int g_position_slot,
+    int g_normal_slot,
+    int g_albedo_slot,
+    int g_emissive_slot,
+    int g_entity_id_slot,
+    int g_ssao_slot
+) {
   using namespace shader_bindings::engine_shaders_light_axsl;
 
   LightParams params{};
@@ -262,32 +273,12 @@ build_deferred_light_params(const LightFrameData &frame, int shadow_map_slot, in
   params.g_position = g_position_slot;
   params.g_normal = g_normal_slot;
   params.g_albedo = g_albedo_slot;
+  params.g_emissive = g_emissive_slot;
+  params.g_entity_id = g_entity_id_slot;
+  params.g_ssao = g_ssao_slot;
+  params.bloom_layer = k_default_bloom_render_layer;
   populate_directional_light_params(frame, params);
   populate_point_light_params(frame, params);
-
-  return params;
-}
-
-inline shader_bindings::engine_shaders_ssao_axsl::LightParams
-build_ssao_light_params(const LightFrameData &frame, int shadow_map_slot) {
-  using namespace shader_bindings::engine_shaders_ssao_axsl;
-
-  LightParams params{};
-  params.shadow_map = shadow_map_slot;
-  populate_directional_light_params(frame, params);
-  populate_point_light_params(frame, params);
-
-  return params;
-}
-
-inline shader_bindings::engine_shaders_ssao_axsl::GBufferParams
-build_ssao_g_buffer_params(int g_position_slot, int g_normal_slot, int g_albedo_slot) {
-  using namespace shader_bindings::engine_shaders_ssao_axsl;
-
-  GBufferParams params{};
-  params.g_position = g_position_slot;
-  params.g_normal = g_normal_slot;
-  params.g_albedo = g_albedo_slot;
 
   return params;
 }
@@ -300,6 +291,8 @@ build_forward_light_params(const LightFrameData &frame, const MaterialBindingSta
   params.materials[0].diffuse = material_binding.diffuse_slot;
   params.materials[0].specular = material_binding.specular_slot;
   params.materials[0].shininess = material_binding.shininess;
+  params.materials[0].emissive = material_binding.emissive;
+  params.materials[0].bloom_intensity = material_binding.bloom_intensity;
   params.normal_map = material_binding.normal_map_slot >= 0
                           ? material_binding.normal_map_slot
                           : material_binding.diffuse_slot;
@@ -309,6 +302,7 @@ build_forward_light_params(const LightFrameData &frame, const MaterialBindingSta
   params.shadow_map = shadow_map_slot;
   params.near_plane = frame.directional.near_plane;
   params.far_plane = frame.directional.far_plane;
+  params.bloom_layer = k_default_bloom_render_layer;
 
   populate_directional_light_params(frame, params);
   populate_spot_light_params(frame, params);

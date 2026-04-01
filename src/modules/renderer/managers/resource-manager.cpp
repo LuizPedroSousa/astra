@@ -67,6 +67,12 @@ ResourceManager::register_model(Ref<ModelDescriptor> descriptor) {
       m_model_descriptor_pool.register_or_get(descriptor));
 }
 
+Ref<SvgDescriptor> ResourceManager::register_svg(Ref<SvgDescriptor> descriptor) {
+  return m_svg_descriptor_pool.get(
+      m_svg_descriptor_pool.register_or_get(descriptor)
+  );
+}
+
 void ResourceManager::register_models(
     std::initializer_list<Ref<ModelDescriptor>> models) {
   for (auto &model : models) {
@@ -78,6 +84,14 @@ void ResourceManager::register_fonts(
     std::initializer_list<Ref<FontDescriptor>> fonts) {
   for (auto font : fonts) {
     register_font(font);
+  }
+}
+
+void ResourceManager::register_svgs(
+    std::initializer_list<Ref<SvgDescriptor>> svgs
+) {
+  for (auto svg : svgs) {
+    register_svg(svg);
   }
 }
 

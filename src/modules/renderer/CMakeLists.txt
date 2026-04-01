@@ -1,6 +1,8 @@
 file(GLOB_RECURSE RENDERER_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 file(GLOB_RECURSE RENDERER_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
 
+find_library(PUGIXML_LIBRARY pugixml REQUIRED)
+
 list(FILTER RENDERER_SRC EXCLUDE REGEX ".*/shader-lang/.*")
 list(FILTER RENDERER_HEADER EXCLUDE REGEX ".*/shader-lang/.*")
 list(FILTER RENDERER_SRC EXCLUDE REGEX ".*\\.test\\.cpp$")
@@ -21,6 +23,7 @@ include_directories(${PROJECT_SOURCE_DIR}/external)
 target_include_directories(renderer
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/editor>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/ui>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/physics>
     ${ASSIMP_INCLUDE_DIRS}
@@ -48,4 +51,5 @@ target_link_libraries(
   # imgui_impl
   Freetype::Freetype
   streams
-  shader-lang)
+  shader-lang
+  ${PUGIXML_LIBRARY})

@@ -37,6 +37,13 @@ inline ComponentSnapshot snapshot_component(const rendering::TextureBindings &bi
   return snapshot;
 }
 
+inline ComponentSnapshot snapshot_component(const rendering::BloomSettings &settings) {
+  ComponentSnapshot snapshot{.name = "BloomSettings"};
+  snapshot.fields.push_back({"enabled", settings.enabled});
+  snapshot.fields.push_back({"render_layer", settings.render_layer});
+  return snapshot;
+}
+
 inline std::vector<rendering::TextureBinding>
 read_texture_bindings(const serialization::fields::FieldList &fields) {
   std::vector<rendering::TextureBinding> bindings;
@@ -85,6 +92,17 @@ inline void apply_texture_bindings_snapshot(ecs::EntityRef entity,
                                                 FieldList &fields) {
   entity.emplace<rendering::TextureBindings>(
       rendering::TextureBindings{.bindings = read_texture_bindings(fields)});
+}
+
+inline void apply_bloom_settings_snapshot(ecs::EntityRef entity,
+                                          const serialization::fields::
+                                              FieldList &fields) {
+  entity.emplace<rendering::BloomSettings>(rendering::BloomSettings{
+      .enabled = serialization::fields::read_bool(fields, "enabled")
+                     .value_or(true),
+      .render_layer = serialization::fields::read_int(fields, "render_layer")
+                          .value_or(rendering::k_default_bloom_render_layer),
+  });
 }
 
 } // namespace astralix::serialization
