@@ -99,6 +99,26 @@ struct RuntimePanelTheme {
   glm::vec4 accent_soft = theme_alpha(k_theme.sunset_950, 0.94f);
   glm::vec4 success = k_theme.success;
   glm::vec4 success_soft = k_theme.success_soft;
+  glm::vec4 chart_bar_fill = k_theme.sunset_500;
+  glm::vec4 chart_bar_fill_alt = theme_alpha(k_theme.sunset_600, 0.6f);
+  glm::vec4 chart_bar_background = theme_alpha(k_theme.bunker_900, 0.5f);
+  glm::vec4 chart_grid_line = theme_alpha(k_theme.bunker_700, 0.3f);
+  glm::vec4 gauge_track = theme_alpha(k_theme.bunker_800, 0.7f);
+  glm::vec4 gauge_fill_normal = k_theme.success;
+  glm::vec4 gauge_fill_warning = k_theme.sunset_500;
+  glm::vec4 gauge_fill_critical = k_theme.cabaret_600;
+  glm::vec4 tooltip_background = theme_alpha(k_theme.bunker_1000, 0.96f);
+  glm::vec4 tooltip_border = k_theme.bunker_700;
+  glm::vec4 tooltip_text = k_theme.bunker_50;
+  glm::vec4 line_chart_background = theme_alpha(k_theme.bunker_900, 0.4f);
+  glm::vec4 line_chart_grid = theme_alpha(k_theme.bunker_700, 0.2f);
+  glm::vec4 line_chart_fps_line = k_theme.sunset_500;
+  glm::vec4 line_chart_frame_time_line = k_theme.cabaret_500;
+  glm::vec4 line_chart_cpu_line = k_theme.sunset_400;
+  glm::vec4 line_chart_memory_line = k_theme.cabaret_300;
+  glm::vec4 line_chart_draw_calls_line = k_theme.sunset_600;
+  glm::vec4 line_chart_gpu_time_line = k_theme.cabaret_600;
+  glm::vec4 line_chart_heap_line = k_theme.sunset_300;
 };
 
 struct SceneHierarchyPanelTheme {
@@ -137,6 +157,9 @@ struct InspectorPanelTheme {
   glm::vec4 success_soft = k_theme.success_soft;
   glm::vec4 subdued = k_theme.bunker_500;
   glm::vec4 subdued_soft = theme_alpha(k_theme.bunker_900, 0.96f);
+  glm::vec4 separator = theme_alpha(k_theme.bunker_700, 0.4f);
+  glm::vec4 remove_background = theme_alpha(k_theme.cabaret_950, 0.94f);
+  glm::vec4 remove_border = k_theme.cabaret_700;
 };
 
 } // namespace astralix::editor
