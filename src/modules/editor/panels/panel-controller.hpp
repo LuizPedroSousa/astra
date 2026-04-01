@@ -17,10 +17,16 @@ struct PanelUpdateContext {
   double dt = 0.0;
 };
 
+struct PanelMinimumSize {
+  float width = 320.0f;
+  float height = 200.0f;
+};
+
 class PanelController {
 public:
   virtual ~PanelController() = default;
 
+  virtual PanelMinimumSize minimum_size() const { return {}; }
   virtual ui::dsl::NodeSpec build() = 0;
   virtual void mount(const PanelMountContext &context) = 0;
   virtual void unmount() {}
@@ -32,6 +38,7 @@ public:
 struct PanelProviderDescriptor {
   std::string id;
   std::string title;
+  PanelMinimumSize minimum_size;
   bool singleton = true;
   std::function<Scope<PanelController>()> factory;
 };

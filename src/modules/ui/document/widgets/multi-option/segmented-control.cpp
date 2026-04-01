@@ -20,11 +20,9 @@ void normalize_segmented_control_state(UISegmentedControlState &segmented) {
 
 UINodeId UIDocument::create_segmented_control(
     std::vector<std::string> options,
-    size_t selected_index,
-    std::string name
+    size_t selected_index
 ) {
-  UINodeId node_id =
-      allocate_node(NodeType::SegmentedControl, std::move(name));
+  UINodeId node_id = allocate_node(NodeType::SegmentedControl);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
     node->segmented_control.options = std::move(options);
@@ -102,6 +100,19 @@ size_t UIDocument::segmented_selected_index(UINodeId node_id) const {
   }
 
   return target->segmented_control.selected_index;
+}
+
+void UIDocument::set_segmented_item_accent_colors(
+    UINodeId node_id,
+    std::vector<glm::vec4> colors
+) {
+  UINode *target = node(node_id);
+  if (target == nullptr || target->type != NodeType::SegmentedControl) {
+    return;
+  }
+
+  target->segmented_control.item_accent_colors = std::move(colors);
+  m_paint_dirty = true;
 }
 
 } // namespace astralix::ui

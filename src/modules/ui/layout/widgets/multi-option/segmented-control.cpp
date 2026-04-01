@@ -52,18 +52,34 @@ void update_segmented_control_layout(
   const float y =
       content.y + std::max(0.0f, (content.height - item_height) * 0.5f);
 
+  const size_t option_count = node.segmented_control.options.size();
+  const float total_gap = node.style.control_gap *
+                          static_cast<float>(option_count - 1u);
+  const float intrinsic_width = [&]() {
+    float width = 0.0f;
+    for (const auto &option : node.segmented_control.options) {
+      width += measure_label_width(node, context, option) +
+               k_segmented_item_padding_x * 2.0f;
+    }
+    return width + total_gap;
+  }();
+
+  const bool distribute_evenly = content.width > intrinsic_width;
+  const float uniform_item_width =
+      distribute_evenly
+          ? (content.width - total_gap) / static_cast<float>(option_count)
+          : 0.0f;
+
   float cursor_x = content.x;
-  node.layout.segmented_control.item_rects.reserve(
-      node.segmented_control.options.size()
-  );
-  for (size_t index = 0u; index < node.segmented_control.options.size();
-       ++index) {
-    const float item_width = measure_label_width(
-                                 node,
-                                 context,
-                                 node.segmented_control.options[index]
-                             ) +
-                             k_segmented_item_padding_x * 2.0f;
+  node.layout.segmented_control.item_rects.reserve(option_count);
+  for (size_t index = 0u; index < option_count; ++index) {
+    const float item_width =
+        distribute_evenly
+            ? uniform_item_width
+            : measure_label_width(
+                  node, context, node.segmented_control.options[index]
+              ) +
+                  k_segmented_item_padding_x * 2.0f;
     node.layout.segmented_control.item_rects.push_back(UIRect{
         .x = cursor_x,
         .y = y,
@@ -93,6 +109,11 @@ void append_segmented_control_commands(
         node.layout.segmented_control.active_item_index.has_value() &&
         *node.layout.segmented_control.active_item_index == index;
 
+    const glm::vec4 item_accent =
+        (index < node.segmented_control.item_accent_colors.size())
+            ? node.segmented_control.item_accent_colors[index]
+            : node.style.accent_color;
+
     UIDrawCommand bg_command;
     bg_command.type = DrawCommandType::Rect;
     bg_command.node_id = node_id;
@@ -100,14 +121,14 @@ void append_segmented_control_commands(
     apply_content_clip(bg_command, node);
     bg_command.color =
         (selected
-             ? node.style.accent_color *
+             ? item_accent *
                    glm::vec4(1.0f, 1.0f, 1.0f, active ? 0.4f : 0.28f)
          : hovered ? glm::vec4(0.16f, 0.24f, 0.35f, active ? 0.95f : 0.82f)
          : active  ? glm::vec4(0.1f, 0.16f, 0.24f, 0.98f)
                    : glm::vec4(0.0f));
     bg_command.color *= glm::vec4(1.0f, 1.0f, 1.0f, resolved.opacity);
     bg_command.border_color =
-        (selected ? node.style.accent_color
+        (selected ? item_accent
                   : glm::vec4(0.32f, 0.45f, 0.6f, hovered ? 0.5f : 0.28f)) *
         glm::vec4(1.0f, 1.0f, 1.0f, resolved.opacity);
     bg_command.border_width = node.style.border_width;
@@ -119,8 +140,11 @@ void append_segmented_control_commands(
     text_command.node_id = node_id;
     text_command.rect = item_rect;
     apply_content_clip(text_command, node);
+    const float label_width = measure_label_width(
+        node, context, node.segmented_control.options[index]
+    );
     text_command.text_origin = glm::vec2(
-        item_rect.x + k_segmented_item_padding_x,
+        item_rect.x + (item_rect.width - label_width) * 0.5f,
         item_rect.y + std::max(0.0f, (item_rect.height - line_height) * 0.5f)
     );
     text_command.text = node.segmented_control.options[index];

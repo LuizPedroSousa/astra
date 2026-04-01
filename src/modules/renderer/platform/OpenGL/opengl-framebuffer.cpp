@@ -305,8 +305,6 @@ void OpenGLFramebuffer::invalidate() {
   }
 
   if (m_color_attachments.size() > 1) {
-    ASTRA_ENSURE(m_color_attachments.size() > 4, "invalid color attachments");
-
     auto is_depth_only = false;
 
     for (auto color_attachment : m_color_attachment_specifications) {
@@ -320,10 +318,16 @@ void OpenGLFramebuffer::invalidate() {
       glDrawBuffer(GL_NONE);
       glReadBuffer(GL_NONE);
     } else {
-      GLenum buffers[4] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1,
-                           GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
+      std::vector<GLenum> buffers;
+      buffers.reserve(m_color_attachments.size());
+      for (size_t index = 0; index < m_color_attachments.size(); ++index) {
+        buffers.push_back(static_cast<GLenum>(GL_COLOR_ATTACHMENT0 + index));
+      }
 
-      glDrawBuffers(m_color_attachments.size(), buffers);
+      glDrawBuffers(
+          static_cast<GLsizei>(buffers.size()),
+          buffers.data()
+      );
     }
 
   } else if (m_color_attachments.empty()) {
