@@ -35,6 +35,16 @@ void UIDocument::set_on_click(UINodeId node_id, std::function<void()> callback) 
   }
 }
 
+void UIDocument::set_on_secondary_click(
+    UINodeId node_id,
+    std::function<void(const UIPointerButtonEvent &)> callback
+) {
+  UINode *target = node(node_id);
+  if (target != nullptr) {
+    target->on_secondary_click = std::move(callback);
+  }
+}
+
 void UIDocument::set_on_focus(UINodeId node_id, std::function<void()> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {

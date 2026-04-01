@@ -2,13 +2,9 @@
 
 #include "dsl/core.hpp"
 
-#include <utility>
-
 namespace astralix::ui::dsl {
 
-inline NodeSpec pressable(std::string name = {}) {
-  return NodeSpec{.kind = NodeKind::Pressable, .name = std::move(name)};
-}
+inline NodeSpec pressable() { return NodeSpec{.kind = NodeKind::Pressable}; }
 
 namespace detail {
 
@@ -16,7 +12,7 @@ inline UINodeId create_pressable_node(
     UIDocument &document,
     const NodeSpec &spec
 ) {
-  return document.create_pressable(spec.name);
+  return document.create_pressable();
 }
 
 } // namespace detail

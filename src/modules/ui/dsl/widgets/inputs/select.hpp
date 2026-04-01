@@ -9,12 +9,10 @@ namespace astralix::ui::dsl {
 inline NodeSpec select(
     std::vector<std::string> options = {},
     size_t selected_index = 0u,
-    std::string placeholder = {},
-    std::string name = {}
+    std::string placeholder = {}
 ) {
   return NodeSpec{
       .kind = NodeKind::Select,
-      .name = std::move(name),
       .placeholder = std::move(placeholder),
       .option_values = std::move(options),
       .selected_index_value = selected_index,
@@ -30,8 +28,7 @@ inline UINodeId create_select_node(
   return document.create_select(
       spec.option_values,
       spec.selected_index_value.value_or(0u),
-      spec.placeholder,
-      spec.name
+      spec.placeholder
   );
 }
 

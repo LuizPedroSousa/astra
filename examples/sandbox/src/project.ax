@@ -35,9 +35,15 @@
       "flip": false
     },
     {
-      "id": "icons::clear",
+      "id": "icons::trash",
       "type": "Texture2D",
-      "path": "@engine/icons/clear.png",
+      "path": "@engine/icons/trash.png",
+      "flip": false
+    },
+    {
+      "id": "icons::close",
+      "type": "Texture2D",
+      "path": "@engine/icons/close.png",
       "flip": false
     },
     {

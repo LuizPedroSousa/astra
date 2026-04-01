@@ -6,10 +6,9 @@ namespace astralix::ui {
 
 UINodeId UIDocument::create_checkbox(
     std::string label,
-    bool checked,
-    std::string name
+    bool checked
 ) {
-  UINodeId node_id = allocate_node(NodeType::Checkbox, std::move(name));
+  UINodeId node_id = allocate_node(NodeType::Checkbox);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
     node->text = std::move(label);

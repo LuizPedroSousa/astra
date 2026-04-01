@@ -27,10 +27,9 @@ void clamp_text_runtime_state(UIDocument::UINode &node) {
 
 UINodeId UIDocument::create_text_input(
     std::string value,
-    std::string placeholder,
-    std::string name
+    std::string placeholder
 ) {
-  UINodeId node_id = allocate_node(NodeType::TextInput, std::move(name));
+  UINodeId node_id = allocate_node(NodeType::TextInput);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
     node->text = std::move(value);

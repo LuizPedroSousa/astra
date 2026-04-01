@@ -15,8 +15,8 @@ TEST(UIFoundationsTest, RemLengthsPreserveUnitAndDocumentRootFontSize) {
 
   mount(
       *document,
-      column("root").style(fill()).children(
-          view("panel").bind(panel).style(width(rem(2.0f)), height(rem(1.5f)))
+      dsl::column().style(fill()).children(
+          view().bind(panel).style(width(rem(2.0f)), height(rem(1.5f)))
       )
   );
 
@@ -40,8 +40,8 @@ TEST(UIFoundationsTest, FreeStyleHelpersCanChainFromAnyEntryPoint) {
 
   mount(
       *document,
-      column("root").children(
-          view("panel")
+      dsl::column().children(
+          view()
               .bind(panel)
               .style(fill_x().padding(14.0f).gap(12.0f).height(px(40.0f)).radius(6.0f))
       )
@@ -71,8 +71,8 @@ TEST(UIFoundationsTest, MaxContentLengthHelperPreservesUnit) {
 
   mount(
       *document,
-      column("root").children(
-          view("panel").bind(panel).style(max_width(max_content()))
+      dsl::column().children(
+          view().bind(panel).style(max_width(max_content()))
       )
   );
 
@@ -95,15 +95,15 @@ TEST(UIFoundationsTest, DeclarativeDslMountsAndAppendsTrees) {
 
   const UINodeId mounted_root = mount(
       *document,
-      column("root")
+      dsl::column()
           .bind(root)
           .style(fill(), padding(8.0f), gap(6.0f))
           .children(
-              text("HUD", "title").bind(title),
-              row("actions")
+              text("HUD").bind(title),
+              dsl::row()
                   .bind(actions)
                   .style(gap(4.0f))
-                  .children(button("Run", [] {}, "run_button").bind(run_button))
+                  .children(button("Run", [] {}).bind(run_button))
           )
   );
 
@@ -116,8 +116,7 @@ TEST(UIFoundationsTest, DeclarativeDslMountsAndAppendsTrees) {
   EXPECT_EQ(root_node->children[0], title);
   EXPECT_EQ(root_node->children[1], actions);
 
-  const UINodeId appended =
-      append(*document, actions, text("Help", "help").bind(help));
+  const UINodeId appended = append(*document, actions, text("Help").bind(help));
   EXPECT_EQ(appended, help);
 
   const auto *actions_node = document->node(actions);
@@ -137,8 +136,8 @@ TEST(UIFoundationsTest, DeclarativeDslRowColumnAndSpacerSugarMapToStyle) {
 
   mount(
       *document,
-      column("root").bind(root).children(
-          row("toolbar").bind(toolbar).children(spacer("filler").bind(filler))
+      dsl::column().bind(root).children(
+          dsl::row().bind(toolbar).children(spacer().bind(filler))
       )
   );
 
@@ -167,8 +166,8 @@ TEST(UIFoundationsTest, DeclarativeDslFlexSugarMapsToReactiveDefaults) {
 
   mount(
       *document,
-      column("root").bind(root).children(
-          view("body").bind(body).style(flex(1.0f))
+      dsl::column().bind(root).children(
+          view().bind(body).style(flex(1.0f))
       )
   );
 
@@ -194,12 +193,12 @@ TEST(UIFoundationsTest, DeclarativeDslSupportsDraggablePanels) {
 
   mount(
       *document,
-      column("root").children(
-          column("panel")
+      dsl::column().children(
+          dsl::column()
               .bind(panel)
               .style(absolute(), draggable(), left(px(24.0f)), top(px(32.0f)))
               .children(
-                  row("header").bind(header).style(drag_handle()).children(text("Panel", "title"))
+                  dsl::row().bind(header).style(drag_handle()).children(text("Panel"))
               )
       )
   );
@@ -218,7 +217,7 @@ TEST(UIFoundationsTest, DeclarativeDslRejectsChildrenOnLeafNodes) {
   auto document = UIDocument::create();
 
   EXPECT_ANY_THROW(
-      mount(*document, button("Broken", [] {}, "broken").child(text("Nope")))
+      mount(*document, button("Broken", [] {}).child(text("Nope")))
   );
 }
 

@@ -8,12 +8,10 @@ namespace astralix::ui::dsl {
 
 inline NodeSpec combobox(
     std::string value = {},
-    std::string placeholder = {},
-    std::string name = {}
+    std::string placeholder = {}
 ) {
   return NodeSpec{
       .kind = NodeKind::Combobox,
-      .name = std::move(name),
       .text = std::move(value),
       .placeholder = std::move(placeholder),
   };
@@ -25,7 +23,7 @@ inline UINodeId create_combobox_node(
     UIDocument &document,
     const NodeSpec &spec
 ) {
-  return document.create_combobox(spec.text, spec.placeholder, spec.name);
+  return document.create_combobox(spec.text, spec.placeholder);
 }
 
 } // namespace detail

@@ -175,10 +175,6 @@ ui::dsl::NodeSpec ConsolePanelController::build() {
                 [this]() { toggle_filters_expanded(); },
                 "console_filters_toggle"
             )
-                .style(icon_button_style(theme)),
-            icon_button(
-                "icons::clear", [this]() { clear_entries(); }, "console_clear"
-            )
                 .style(icon_button_style(theme))
         );
   };
@@ -316,12 +312,7 @@ ui::dsl::NodeSpec ConsolePanelController::build() {
                 .children(
                     text("Command", "console_command_title")
                         .style(font_size(13.0f).text_color(theme.text_primary)),
-                    spacer("console_command_meta_spacer"),
-                    text(
-                        "Terminal history, inline history, and command autocomplete",
-                        "console_command_hint"
-                    )
-                        .style(font_size(12.0f).text_color(theme.text_muted))
+                    spacer("console_command_meta_spacer")
                 ),
             row("console_command_row")
                 .style(fill_x().items_center().gap(10.0f))

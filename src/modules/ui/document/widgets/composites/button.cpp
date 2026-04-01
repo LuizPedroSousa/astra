@@ -6,11 +6,10 @@ namespace astralix::ui {
 
 UINodeId UIDocument::create_button(
     const std::string &label,
-    const std::function<void()> &on_click,
-    std::string name
+    const std::function<void()> &on_click
 ) {
-  UINodeId button_id = create_pressable(std::move(name));
-  UINodeId label_id = create_text(label, "label");
+  UINodeId button_id = create_pressable();
+  UINodeId label_id = create_text(label);
   append_child(button_id, label_id);
   set_on_click(button_id, on_click);
 

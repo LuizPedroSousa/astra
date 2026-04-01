@@ -4,11 +4,8 @@
 
 namespace astralix::ui {
 
-UINodeId UIDocument::create_image(
-    ResourceDescriptorID texture_id,
-    std::string name
-) {
-  UINodeId node_id = allocate_node(NodeType::Image, std::move(name));
+UINodeId UIDocument::create_image(ResourceDescriptorID texture_id) {
+  UINodeId node_id = allocate_node(NodeType::Image);
   set_texture(node_id, std::move(texture_id));
   return node_id;
 }

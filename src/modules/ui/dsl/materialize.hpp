@@ -17,6 +17,7 @@ UINodeId create_icon_button_node(UIDocument &document, const NodeSpec &spec);
 UINodeId create_text_input_node(UIDocument &document, const NodeSpec &spec);
 UINodeId create_combobox_node(UIDocument &document, const NodeSpec &spec);
 UINodeId create_scroll_view_node(UIDocument &document, const NodeSpec &spec);
+UINodeId create_popover_node(UIDocument &document, const NodeSpec &spec);
 UINodeId create_splitter_node(UIDocument &document, const NodeSpec &spec);
 UINodeId create_button_node(UIDocument &document, const NodeSpec &spec);
 UINodeId create_checkbox_node(UIDocument &document, const NodeSpec &spec);
@@ -52,6 +53,8 @@ inline UINodeId create_node(UIDocument &document, const NodeSpec &spec) {
       return create_combobox_node(document, spec);
     case NodeKind::ScrollView:
       return create_scroll_view_node(document, spec);
+    case NodeKind::Popover:
+      return create_popover_node(document, spec);
     case NodeKind::Splitter:
       return create_splitter_node(document, spec);
     case NodeKind::Button:

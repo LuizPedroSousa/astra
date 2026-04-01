@@ -32,10 +32,9 @@ void close_popup_state(UIDocument::UINode &node) {
 UINodeId UIDocument::create_select(
     std::vector<std::string> options,
     size_t selected_index,
-    std::string placeholder,
-    std::string name
+    std::string placeholder
 ) {
-  UINodeId node_id = allocate_node(NodeType::Select, std::move(name));
+  UINodeId node_id = allocate_node(NodeType::Select);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
     node->placeholder = std::move(placeholder);
@@ -129,6 +128,10 @@ void UIDocument::set_select_open(UINodeId node_id, bool open) {
   if (open && (!target->visible || !target->enabled ||
                target->select.options.empty())) {
     open = false;
+  }
+
+  if (open && !m_open_popover_stack.empty()) {
+    close_all_popovers();
   }
 
   if (open && m_open_popup_node != k_invalid_node_id &&

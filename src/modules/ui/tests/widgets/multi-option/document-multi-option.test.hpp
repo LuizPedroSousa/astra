@@ -7,12 +7,10 @@ namespace {
 
 TEST(UIFoundationsTest, SegmentedControlAndChipGroupExposeDefaults) {
   auto document = UIDocument::create();
-  const UINodeId segmented = document->create_segmented_control(
-      {"All", "Info", "Warn"}, 5u, "segmented"
-  );
-  const UINodeId chips = document->create_chip_group(
-      {"Logs", "Commands", "Output"}, {}, "chips"
-  );
+  const UINodeId segmented =
+      document->create_segmented_control({"All", "Info", "Warn"}, 5u);
+  const UINodeId chips =
+      document->create_chip_group({"Logs", "Commands", "Output"}, {});
 
   const auto *segmented_node = document->node(segmented);
   const auto *chip_node = document->node(chips);
@@ -38,11 +36,10 @@ TEST(UIFoundationsTest, SegmentedControlAndChipGroupExposeDefaults) {
 
 TEST(UIFoundationsTest, SegmentedControlAndChipGroupDocumentStateCanBeUpdated) {
   auto document = UIDocument::create();
-  const UINodeId segmented = document->create_segmented_control(
-      {"All", "Info", "Warn"}, 1u, "segmented"
-  );
+  const UINodeId segmented =
+      document->create_segmented_control({"All", "Info", "Warn"}, 1u);
   const UINodeId chips = document->create_chip_group(
-      {"Logs", "Commands", "Output"}, {true, false, true}, "chips"
+      {"Logs", "Commands", "Output"}, {true, false, true}
   );
 
   document->set_segmented_selected_index(segmented, 2u);

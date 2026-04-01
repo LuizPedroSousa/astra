@@ -8,10 +8,8 @@ namespace {
 
 TEST(UIFoundationsTest, TextInputAndComboboxExposeExpectedDefaults) {
   auto document = UIDocument::create();
-  const UINodeId text_input =
-      document->create_text_input("seed", "Placeholder", "text_input");
-  const UINodeId combobox =
-      document->create_combobox("help", "Command", "combobox");
+  const UINodeId text_input = document->create_text_input("seed", "Placeholder");
+  const UINodeId combobox = document->create_combobox("help", "Command");
 
   document->set_placeholder(text_input, "Updated placeholder");
   document->set_autocomplete_text(text_input, "changed by history");
@@ -66,15 +64,12 @@ TEST(UIFoundationsTest, TextInputAndComboboxExposeExpectedDefaults) {
 
 TEST(UIFoundationsTest, CheckboxSliderAndSelectExposeExpectedDefaults) {
   auto document = UIDocument::create();
-  const UINodeId checkbox =
-      document->create_checkbox("Follow tail", true, "checkbox");
-  const UINodeId slider =
-      document->create_slider(0.24f, 0.0f, 1.0f, 0.2f, "slider");
-  const UINodeId select = document->create_select(
-      {"All", "Info", "Warn"}, 7u, "Severity", "select"
-  );
+  const UINodeId checkbox = document->create_checkbox("Follow tail", true);
+  const UINodeId slider = document->create_slider(0.24f, 0.0f, 1.0f, 0.2f);
+  const UINodeId select =
+      document->create_select({"All", "Info", "Warn"}, 7u, "Severity");
   const UINodeId second_select =
-      document->create_select({"A", "B"}, 0u, "Other", "second_select");
+      document->create_select({"A", "B"}, 0u, "Other");
 
   bool toggled = false;
   float changed_value = 0.0f;
@@ -145,8 +140,7 @@ TEST(UIFoundationsTest, CheckboxSliderAndSelectExposeExpectedDefaults) {
   EXPECT_TRUE(document->select_open(second_select));
   EXPECT_EQ(document->open_select_node(), second_select);
 
-  const UINodeId combobox =
-      document->create_combobox("help", "Command", "combobox");
+  const UINodeId combobox = document->create_combobox("help", "Command");
   document->set_combobox_options(combobox, {"help", "hello"});
   document->set_combobox_open(combobox, true);
   EXPECT_TRUE(document->combobox_open(combobox));
@@ -173,8 +167,7 @@ TEST(UIFoundationsTest, CheckboxSliderAndSelectExposeExpectedDefaults) {
 
 TEST(UIFoundationsTest, TextInputMutationsClampCaretSelectionAndScrollHelpers) {
   auto document = UIDocument::create();
-  const UINodeId text_input =
-      document->create_text_input("hello", "Placeholder", "text_input");
+  const UINodeId text_input = document->create_text_input("hello", "Placeholder");
 
   document->set_text_selection(
       text_input, UITextSelection{.anchor = 4u, .focus = 5u}

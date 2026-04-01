@@ -46,10 +46,9 @@ UINodeId UIDocument::create_slider(
     float value,
     float min_value,
     float max_value,
-    float step,
-    std::string name
+    float step
 ) {
-  UINodeId node_id = allocate_node(NodeType::Slider, std::move(name));
+  UINodeId node_id = allocate_node(NodeType::Slider);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
     node->slider = UISliderState{

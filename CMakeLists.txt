@@ -5,7 +5,7 @@ if(POLICY CMP0079)
   cmake_policy(SET CMP0079 NEW)
 endif()
 
-option(ASTRA_EDITOR "Astra internal Layer Editor" false)
+option(ASTRA_EDITOR "Astra internal Layer Editor" ON)
 option(ASTRA_EDITOR_USOCKET "Astra forward serialization with USocket for external Editor" true)
 option(ASTRA_ENABLE_TESTS "Enable unit tests" false)
 option(ASTRA_TRACE "Enable tracing" OFF)
@@ -115,6 +115,7 @@ if(ASTRA_ENABLE_TESTS)
     archetype_ecs_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/shared/ecs
                                 ${CMAKE_SOURCE_DIR}/src/shared/events
                                 ${CMAKE_SOURCE_DIR}/src/shared/foundation
+                                ${CMAKE_SOURCE_DIR}/src/modules/editor
                                 ${CMAKE_SOURCE_DIR}/src/modules/streams
                                 ${CMAKE_SOURCE_DIR}/src/modules/renderer
                                 ${CMAKE_SOURCE_DIR}/src/modules/ui

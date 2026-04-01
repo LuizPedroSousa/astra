@@ -9,8 +9,8 @@ namespace {
 
 TEST(UIFoundationsTest, VirtualListControllerPoolsSlotsAndTracksVisibleRange) {
   auto document = UIDocument::create();
-  const UINodeId root = document->create_view("root");
-  const UINodeId scroll_view = document->create_scroll_view("scroll_view");
+  const UINodeId root = document->create_view();
+  const UINodeId scroll_view = document->create_scroll_view();
   document->set_root(root);
   document->append_child(root, scroll_view);
   document->mutate_style(scroll_view, [](UIStyle &style) { style.gap = 4.0f; });
@@ -24,10 +24,12 @@ TEST(UIFoundationsTest, VirtualListControllerPoolsSlotsAndTracksVisibleRange) {
   std::vector<std::pair<size_t, size_t>> bound_items;
   VirtualListController controller(
       document, scroll_view, [&](size_t slot_index) {
-                    const UINodeId slot =
-                        document->create_view("slot_" + std::to_string(slot_index));
+                    const UINodeId slot = document->create_view();
                     created_slots.push_back(slot);
-                    return slot; }, [&](size_t slot_index, UINodeId, size_t item_index) { bound_items.emplace_back(slot_index, item_index); }, "logs"
+                    return slot;
+                  }, [&](size_t slot_index, UINodeId, size_t item_index) {
+                    bound_items.emplace_back(slot_index, item_index);
+                  }
   );
   controller.set_overscan(1u);
   controller.set_item_count(5u);

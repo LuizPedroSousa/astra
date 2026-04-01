@@ -4,8 +4,8 @@
 
 namespace astralix::ui::dsl {
 
-inline NodeSpec row(std::string name = {}) {
-  auto spec = view(std::move(name));
+inline NodeSpec row() {
+  auto spec = view();
   spec.style(styles::row());
   return spec;
 }

@@ -8,12 +8,10 @@ namespace astralix::ui::dsl {
 
 inline NodeSpec chip_group(
     std::vector<std::string> options = {},
-    std::vector<bool> selected = {},
-    std::string name = {}
+    std::vector<bool> selected = {}
 ) {
   return NodeSpec{
       .kind = NodeKind::ChipGroup,
-      .name = std::move(name),
       .option_values = std::move(options),
       .chip_selected_values = std::move(selected),
   };
@@ -27,8 +25,7 @@ inline UINodeId create_chip_group_node(
 ) {
   return document.create_chip_group(
       spec.option_values,
-      spec.chip_selected_values,
-      spec.name
+      spec.chip_selected_values
   );
 }
 

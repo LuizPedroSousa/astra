@@ -98,9 +98,15 @@ target_compile_options(sandbox-app PRIVATE
 add_executable(sandbox ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
 add_dependencies(sandbox sandbox-assets)
 target_link_libraries(sandbox PRIVATE sandbox-app)
-if(ASTRA_EDITOR)
+if(ASTRA_EDITOR AND TARGET astralix::editor)
   target_compile_definitions(sandbox PRIVATE ASTRA_EDITOR)
   target_link_libraries(sandbox PRIVATE astralix::editor)
+elseif(ASTRA_EDITOR)
+  message(WARNING
+    "Sandbox editor support was requested, but the installed astralix package "
+    "does not export astralix::editor. Rebuild astralix with -DASTRA_EDITOR=ON "
+    "to enable editor builtins in the sandbox example."
+  )
 endif()
 
 target_compile_features(sandbox PRIVATE cxx_std_20)

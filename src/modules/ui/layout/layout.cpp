@@ -40,6 +40,7 @@ glm::vec2 measure_container_size(
   for (UINodeId child_id : node->children) {
     const auto *child = document.node(child_id);
     if (child == nullptr || !child->visible ||
+        child->type == NodeType::Popover ||
         child->style.position_type == PositionType::Absolute) {
       continue;
     }
@@ -117,6 +118,7 @@ glm::vec2 measure_intrinsic_size(
     case NodeType::View:
     case NodeType::Pressable:
     case NodeType::ScrollView:
+    case NodeType::Popover:
       if (!node->children.empty()) {
         const glm::vec2 container_size =
             measure_container_size(document, node_id, available_size, context);
@@ -252,6 +254,103 @@ void layout_node(
     const UILayoutContext &context
 );
 
+glm::vec2 measure_popover_size(
+    const UIDocument &document,
+    UINodeId node_id,
+    const UILayoutContext &context
+) {
+  return measure_intrinsic_size(
+      document,
+      node_id,
+      context.viewport_size,
+      context
+  );
+}
+
+void update_popover_layout(
+    UIDocument &document,
+    UINodeId node_id,
+    const UILayoutContext &context
+) {
+  auto *node = document.node(node_id);
+  if (node == nullptr || node->type != NodeType::Popover || !node->visible ||
+      !node->enabled || !node->popover.open) {
+    return;
+  }
+
+  const glm::vec2 measured_size = measure_popover_size(document, node_id, context);
+  if (measured_size.x <= 0.0f || measured_size.y <= 0.0f) {
+    node->layout.popover.popup_rect = UIRect{};
+    return;
+  }
+
+  float popup_x = 0.0f;
+  float popup_y = 0.0f;
+  const float anchor_gap =
+      node->popover.anchor_kind == UIPopupAnchorKind::Node ? 4.0f : 0.0f;
+
+  if (node->popover.anchor_kind == UIPopupAnchorKind::Node) {
+    const auto *anchor = document.node(node->popover.anchor_node_id);
+    if (anchor == nullptr || !anchor->visible) {
+      document.close_popover(node_id);
+      if (auto *updated = document.node(node_id); updated != nullptr) {
+        updated->layout.popover.popup_rect = UIRect{};
+      }
+      return;
+    }
+
+    switch (node->popover.placement) {
+      case UIPopupPlacement::BottomStart:
+        popup_x = anchor->layout.bounds.x;
+        popup_y = anchor->layout.bounds.bottom() + anchor_gap;
+        break;
+      case UIPopupPlacement::TopStart:
+        popup_x = anchor->layout.bounds.x;
+        popup_y = anchor->layout.bounds.y - measured_size.y - anchor_gap;
+        break;
+      case UIPopupPlacement::RightStart:
+        popup_x = anchor->layout.bounds.right() + anchor_gap;
+        popup_y = anchor->layout.bounds.y;
+        break;
+    }
+  } else {
+    switch (node->popover.placement) {
+      case UIPopupPlacement::BottomStart:
+        popup_x = node->popover.anchor_point.x;
+        popup_y = node->popover.anchor_point.y;
+        break;
+      case UIPopupPlacement::TopStart:
+        popup_x = node->popover.anchor_point.x;
+        popup_y = node->popover.anchor_point.y - measured_size.y;
+        break;
+      case UIPopupPlacement::RightStart:
+        popup_x = node->popover.anchor_point.x;
+        popup_y = node->popover.anchor_point.y;
+        break;
+    }
+  }
+
+  const UIRect popup_rect = clamp_rect_to_bounds(
+      UIRect{
+          .x = popup_x,
+          .y = popup_y,
+          .width = measured_size.x,
+          .height = measured_size.y,
+      },
+      UIRect{
+          .x = 0.0f,
+          .y = 0.0f,
+          .width = context.viewport_size.x,
+          .height = context.viewport_size.y,
+      }
+  );
+
+  layout_node(document, node_id, popup_rect, std::nullopt, context);
+  if (auto *updated = document.node(node_id); updated != nullptr) {
+    updated->layout.popover.popup_rect = popup_rect;
+  }
+}
+
 void layout_children(
     UIDocument &document,
     UINodeId node_id,
@@ -270,6 +369,7 @@ void layout_children(
   for (UINodeId child_id : node->children) {
     auto *child = document.node(child_id);
     if (child == nullptr || !child->visible ||
+        child->type == NodeType::Popover ||
         child->style.position_type == PositionType::Absolute) {
       continue;
     }
@@ -512,6 +612,7 @@ void layout_children(
   for (UINodeId child_id : node->children) {
     auto *child = document.node(child_id);
     if (child == nullptr || !child->visible ||
+        child->type == NodeType::Popover ||
         child->style.position_type != PositionType::Absolute) {
       continue;
     }
@@ -818,11 +919,30 @@ void append_draw_commands(
   }
 
   for (UINodeId child_id : node->children) {
+    if (const auto *child = document.node(child_id);
+        child != nullptr && child->type == NodeType::Popover) {
+      continue;
+    }
+
     append_draw_commands(document, child_id, context, effective_enabled);
   }
 
   append_scrollbar_commands(document, node_id, *node, resolved);
   append_resize_handle_commands(document, node_id, *node, resolved);
+}
+
+void append_popover_overlay_commands(
+    UIDocument &document,
+    UINodeId node_id,
+    const UILayoutContext &context
+) {
+  const auto *node = document.node(node_id);
+  if (node == nullptr || node->type != NodeType::Popover || !node->visible ||
+      !node->enabled || !node->popover.open) {
+    return;
+  }
+
+  append_draw_commands(document, node_id, context);
 }
 
 std::optional<UIHitResult>
@@ -899,6 +1019,11 @@ hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
   }
 
   for (auto it = node->children.rbegin(); it != node->children.rend(); ++it) {
+    if (const auto *child = document.node(*it);
+        child != nullptr && child->type == NodeType::Popover) {
+      continue;
+    }
+
     auto hit = hit_test_node(document, *it, point);
     if (hit.has_value()) {
       return hit;
@@ -956,6 +1081,11 @@ void layout_document(UIDocument &document, const UILayoutContext &context) {
       context
   );
 
+  const std::vector<UINodeId> open_popovers = document.open_popover_stack();
+  for (UINodeId popover_id : open_popovers) {
+    update_popover_layout(document, popover_id, context);
+  }
+
   document.mark_paint_dirty();
   document.clear_layout_dirty();
 }
@@ -964,6 +1094,23 @@ std::optional<UIHitResult>
 hit_test_document(const UIDocument &document, glm::vec2 point) {
   if (document.root() == k_invalid_node_id) {
     return std::nullopt;
+  }
+
+  for (auto it = document.open_popover_stack().rbegin();
+       it != document.open_popover_stack().rend();
+       ++it) {
+    const auto *popup = document.node(*it);
+    if (popup == nullptr || popup->type != NodeType::Popover ||
+        !popup->visible || !popup->enabled || !popup->popover.open ||
+        !popup->layout.popover.popup_rect.contains(point)) {
+      continue;
+    }
+
+    if (auto hit = hit_test_node(document, *it, point); hit.has_value()) {
+      return hit;
+    }
+
+    return UIHitResult{.node_id = *it, .part = UIHitPart::Body};
   }
 
   const UINodeId open_popup_id = document.open_popup_node();
@@ -1024,6 +1171,10 @@ void build_draw_list(UIDocument &document, const UILayoutContext &context) {
           context
       );
     }
+  }
+
+  for (UINodeId popover_id : document.open_popover_stack()) {
+    append_popover_overlay_commands(document, popover_id, context);
   }
   document.clear_paint_dirty();
 }

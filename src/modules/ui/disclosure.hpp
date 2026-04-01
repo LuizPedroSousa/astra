@@ -1,7 +1,6 @@
 #pragma once
 
 #include "document/document.hpp"
-#include <string>
 
 namespace astralix::ui {
 
@@ -13,19 +12,19 @@ struct UIDisclosureNodes {
 };
 
 struct UIDisclosureOptions {
-  std::string name;
   bool open = false;
 };
 
-inline UIDisclosureNodes create_disclosure(UIDocument &document, UINodeId parent_id, UIDisclosureOptions options = {}) {
-  const std::string name_prefix =
-      options.name.empty() ? "ui_disclosure" : std::move(options.name);
-
+inline UIDisclosureNodes create_disclosure(
+    UIDocument &document,
+    UINodeId parent_id,
+    UIDisclosureOptions options = {}
+) {
   UIDisclosureNodes nodes;
-  nodes.root = document.create_view(name_prefix);
-  nodes.header_button = document.create_pressable(name_prefix + "_header");
-  nodes.header_content = document.create_view(name_prefix + "_header_content");
-  nodes.body = document.create_view(name_prefix + "_body");
+  nodes.root = document.create_view();
+  nodes.header_button = document.create_pressable();
+  nodes.header_content = document.create_view();
+  nodes.body = document.create_view();
 
   document.append_child(parent_id, nodes.root);
   document.append_child(nodes.root, nodes.header_button);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "events/key-event.hpp"
+#include "events/mouse.hpp"
 #include "glm/glm.hpp"
 #include "guid.hpp"
 #include "systems/render-system/render-image-export.hpp"
@@ -27,6 +28,7 @@ enum class NodeType : uint8_t {
   TextInput,
   Combobox,
   ScrollView,
+  Popover,
   Splitter,
   Checkbox,
   Slider,
@@ -351,6 +353,28 @@ struct UIComboboxState {
   bool open_on_arrow_keys = true;
 };
 
+enum class UIPopupAnchorKind : uint8_t {
+  Cursor,
+  Node,
+};
+
+enum class UIPopupPlacement : uint8_t {
+  BottomStart,
+  TopStart,
+  RightStart,
+};
+
+struct UIPopoverState {
+  bool open = false;
+  UIPopupAnchorKind anchor_kind = UIPopupAnchorKind::Cursor;
+  UIPopupPlacement placement = UIPopupPlacement::BottomStart;
+  UINodeId anchor_node_id = k_invalid_node_id;
+  glm::vec2 anchor_point = glm::vec2(0.0f);
+  size_t depth = 0u;
+  bool close_on_outside_click = true;
+  bool close_on_escape = true;
+};
+
 struct UISegmentedControlState {
   std::vector<std::string> options;
   size_t selected_index = 0u;
@@ -402,6 +426,10 @@ struct UILayoutMetrics {
     std::optional<size_t> hovered_option_index;
   };
 
+  struct PopoverLayout {
+    UIRect popup_rect;
+  };
+
   struct SegmentedControlLayout {
     std::vector<UIRect> item_rects;
     std::optional<size_t> hovered_item_index;
@@ -424,6 +452,7 @@ struct UILayoutMetrics {
   SliderLayout slider;
   SelectLayout select;
   ComboboxLayout combobox;
+  PopoverLayout popover;
   SegmentedControlLayout segmented_control;
   ChipGroupLayout chip_group;
   UIScrollState scroll;
@@ -467,6 +496,12 @@ struct UICharacterInputEvent {
 
 struct UIMouseWheelInputEvent {
   glm::vec2 offset = glm::vec2(0.0f);
+  input::KeyModifiers modifiers;
+};
+
+struct UIPointerButtonEvent {
+  glm::vec2 position = glm::vec2(0.0f);
+  input::MouseButton button = input::MouseButton::Left;
   input::KeyModifiers modifiers;
 };
 

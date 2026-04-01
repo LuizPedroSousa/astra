@@ -6,7 +6,6 @@
 #include <cmath>
 #include <functional>
 #include <optional>
-#include <string>
 #include <vector>
 
 namespace astralix::ui {
@@ -26,12 +25,16 @@ public:
   using BindSlotCallback =
       std::function<void(size_t slot_index, UINodeId slot_root, size_t item_index)>;
 
-  VirtualListController(Ref<UIDocument> document, UINodeId scroll_view, CreateSlotCallback create_slot, BindSlotCallback bind_slot, std::string name_prefix = "ui_virtual_list")
+  VirtualListController(
+      Ref<UIDocument> document,
+      UINodeId scroll_view,
+      CreateSlotCallback create_slot,
+      BindSlotCallback bind_slot
+  )
       : m_document(std::move(document)),
         m_scroll_view(scroll_view),
         m_create_slot(std::move(create_slot)),
-        m_bind_slot(std::move(bind_slot)),
-        m_name_prefix(std::move(name_prefix)) {
+        m_bind_slot(std::move(bind_slot)) {
     ensure_structure();
   }
 
@@ -144,13 +147,13 @@ private:
     }
 
     if (m_top_spacer == k_invalid_node_id) {
-      m_top_spacer = m_document->create_view(m_name_prefix + "_top_spacer");
+      m_top_spacer = m_document->create_view();
       m_document->append_child(m_scroll_view, m_top_spacer);
       m_document->set_visible(m_top_spacer, false);
     }
 
     if (m_bottom_spacer == k_invalid_node_id) {
-      m_bottom_spacer = m_document->create_view(m_name_prefix + "_bottom_spacer");
+      m_bottom_spacer = m_document->create_view();
       m_document->append_child(m_scroll_view, m_bottom_spacer);
       m_document->set_visible(m_bottom_spacer, false);
     }
@@ -410,7 +413,6 @@ private:
   UINodeId m_scroll_view = k_invalid_node_id;
   CreateSlotCallback m_create_slot;
   BindSlotCallback m_bind_slot;
-  std::string m_name_prefix;
   std::vector<float> m_item_heights;
   std::vector<float> m_prefix_heights;
   std::vector<Slot> m_slots;

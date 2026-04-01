@@ -7,10 +7,9 @@ namespace {
 
 TEST(UIFoundationsTest, ButtonAndIconButtonExposeExpectedDefaults) {
   auto document = UIDocument::create();
-  const UINodeId button =
-      document->create_button("Spawn", [] {}, "spawn_button");
+  const UINodeId button = document->create_button("Spawn", [] {});
   const UINodeId icon_button =
-      document->create_icon_button("icons::clear", [] {}, "icon_button");
+      document->create_icon_button("icons::clear", [] {});
 
   const auto *button_node = document->node(button);
   const auto *icon_button_node = document->node(icon_button);

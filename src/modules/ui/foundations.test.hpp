@@ -124,8 +124,8 @@ TEST(UIFoundationsTest, DistributedJustificationKeepsGapAsMinimumGutter) {
 
 TEST(UIFoundationsTest, DetachedNodesDoNotAllowInteraction) {
   auto document = UIDocument::create();
-  const UINodeId root = document->create_view("root");
-  const UINodeId child = document->create_text_input("value", {}, "child");
+  const UINodeId root = document->create_view();
+  const UINodeId child = document->create_text_input("value", {});
 
   document->append_child(root, child);
   document->set_root(root);

@@ -5,8 +5,8 @@
 
 namespace astralix::ui {
 
-UINodeId UIDocument::create_pressable(std::string name) {
-  UINodeId node_id = allocate_node(NodeType::Pressable, std::move(name));
+UINodeId UIDocument::create_pressable() {
+  UINodeId node_id = allocate_node(NodeType::Pressable);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
   }

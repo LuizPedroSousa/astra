@@ -25,10 +25,9 @@ void normalize_chip_group_state(UIChipGroupState &chip_group) {
 
 UINodeId UIDocument::create_chip_group(
     std::vector<std::string> options,
-    std::vector<bool> selected,
-    std::string name
+    std::vector<bool> selected
 ) {
-  UINodeId node_id = allocate_node(NodeType::ChipGroup, std::move(name));
+  UINodeId node_id = allocate_node(NodeType::ChipGroup);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->chip_group.options = std::move(options);
     node->chip_group.selected = std::move(selected);

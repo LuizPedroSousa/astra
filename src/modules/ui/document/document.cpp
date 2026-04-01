@@ -6,7 +6,7 @@ namespace astralix::ui {
 
 Ref<UIDocument> UIDocument::create() { return create_ref<UIDocument>(); }
 
-UINodeId UIDocument::allocate_node(NodeType type, std::string name) {
+UINodeId UIDocument::allocate_node(NodeType type) {
   if (m_nodes.empty()) {
     m_nodes.push_back(NodeSlot{});
   }
@@ -17,7 +17,6 @@ UINodeId UIDocument::allocate_node(NodeType type, std::string name) {
           UINode{
               .id = node_id,
               .type = type,
-              .name = std::move(name),
           },
       .alive = true,
   });

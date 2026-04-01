@@ -82,6 +82,7 @@ void SceneHierarchyPanelController::refresh(bool force) {
       m_scene_name_node,
       snapshot.has_scene ? snapshot.scene_name : std::string("No active scene")
   );
+  m_document->set_enabled(m_create_button_node, snapshot.has_scene);
   m_document->set_text(
       m_entity_count_node,
       scene_hierarchy_panel::entity_count_label(
@@ -127,6 +128,19 @@ void SceneHierarchyPanelController::refresh(bool force) {
             ? "Spawn entities into the active scene to populate the hierarchy."
             : "Adjust the search query to show more entities."
     );
+  }
+
+  const bool context_is_valid =
+      !m_context_entity_id.has_value() ||
+      std::any_of(
+          m_all_entities.begin(),
+          m_all_entities.end(),
+          [context_id = *m_context_entity_id](const EntityEntry &entry) {
+            return scene_hierarchy_panel::same_entity(entry.id, context_id);
+          }
+      );
+  if (!snapshot.has_scene || !context_is_valid) {
+    close_menus();
   }
 
   const bool selection_changed =

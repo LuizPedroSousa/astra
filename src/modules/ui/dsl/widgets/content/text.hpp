@@ -6,10 +6,9 @@
 
 namespace astralix::ui::dsl {
 
-inline NodeSpec text(std::string value = {}, std::string name = {}) {
+inline NodeSpec text(std::string value = {}) {
   return NodeSpec{
       .kind = NodeKind::Text,
-      .name = std::move(name),
       .text = std::move(value),
   };
 }
@@ -17,7 +16,7 @@ inline NodeSpec text(std::string value = {}, std::string name = {}) {
 namespace detail {
 
 inline UINodeId create_text_node(UIDocument &document, const NodeSpec &spec) {
-  return document.create_text(spec.text, spec.name);
+  return document.create_text(spec.text);
 }
 
 } // namespace detail

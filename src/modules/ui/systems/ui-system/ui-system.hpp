@@ -50,6 +50,12 @@ public:
   void update(double dt) override;
 
 private:
+  struct SecondaryClickPress {
+    Target target;
+    glm::vec2 pointer = glm::vec2(0.0f);
+    input::KeyModifiers modifiers;
+  };
+
   struct TextSelectionDrag {
     Target target;
     size_t anchor_index = 0u;
@@ -99,8 +105,10 @@ private:
       const glm::vec2 &viewport_size
   );
   void handle_pointer_release(
+      const std::vector<ui_system_core::RootEntry> &roots,
       bool pointer_enabled,
-      const std::optional<ui_system_core::PointerHit> &deepest_hit
+      const std::optional<ui_system_core::PointerHit> &deepest_hit,
+      const glm::vec2 &pointer
   );
   void dispatch_key_input(const std::vector<ui_system_core::RootEntry> &roots, const glm::vec2 &viewport_size);
   void dispatch_character_input(
@@ -128,6 +136,7 @@ private:
   void clear_hot_target();
   void clear_active_target(bool queue_release);
   void clear_focused_target(bool queue_blur);
+  void clear_secondary_click_state();
   void clear_text_selection_drag();
   void clear_scrollbar_drag();
   void clear_slider_drag();
@@ -143,6 +152,7 @@ private:
   ui::UIHitPart m_active_item_part = ui::UIHitPart::Body;
   std::optional<size_t> m_active_item_index;
   std::optional<Target> m_focused_target;
+  std::optional<SecondaryClickPress> m_secondary_click_press;
   std::optional<TextSelectionDrag> m_text_selection_drag;
   std::optional<ScrollbarDrag> m_scrollbar_drag;
   std::optional<SliderDrag> m_slider_drag;

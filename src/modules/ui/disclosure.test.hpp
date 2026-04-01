@@ -7,11 +7,11 @@ namespace {
 
 TEST(UIFoundationsTest, DisclosureHelperCreatesExpectedStructureAndTogglesBody) {
   auto document = UIDocument::create();
-  const UINodeId root = document->create_view("root");
+  const UINodeId root = document->create_view();
   document->set_root(root);
 
   const UIDisclosureNodes disclosure = create_disclosure(
-      *document, root, UIDisclosureOptions{.name = "details", .open = false}
+      *document, root, UIDisclosureOptions{.open = false}
   );
 
   const auto *root_node = document->node(disclosure.root);

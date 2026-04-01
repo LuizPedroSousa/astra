@@ -40,6 +40,9 @@ void SceneHierarchyPanelController::mount(const PanelMountContext &context) {
 }
 
 void SceneHierarchyPanelController::unmount() {
+  m_context_entity_id.reset();
+  m_add_component_options.clear();
+  m_add_component_lookup.clear();
   m_virtual_list.reset();
   m_row_slots.clear();
   m_all_entities.clear();

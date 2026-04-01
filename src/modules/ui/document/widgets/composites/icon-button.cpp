@@ -6,11 +6,10 @@ namespace astralix::ui {
 
 UINodeId UIDocument::create_icon_button(
     ResourceDescriptorID texture_id,
-    const std::function<void()> &on_click,
-    std::string name
+    const std::function<void()> &on_click
 ) {
-  UINodeId button_id = create_pressable(std::move(name));
-  UINodeId icon_id = create_image(std::move(texture_id), "icon");
+  UINodeId button_id = create_pressable();
+  UINodeId icon_id = create_image(std::move(texture_id));
   append_child(button_id, icon_id);
   set_on_click(button_id, on_click);
 

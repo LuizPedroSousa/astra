@@ -29,10 +29,9 @@ void close_popup_state(UIDocument::UINode &node) {
 
 UINodeId UIDocument::create_combobox(
     std::string value,
-    std::string placeholder,
-    std::string name
+    std::string placeholder
 ) {
-  UINodeId node_id = allocate_node(NodeType::Combobox, std::move(name));
+  UINodeId node_id = allocate_node(NodeType::Combobox);
   if (UINode *node = this->node(node_id); node != nullptr) {
     node->focusable = true;
     node->text = std::move(value);
@@ -96,6 +95,10 @@ void UIDocument::set_combobox_open(UINodeId node_id, bool open) {
   if (open && (!target->visible || !target->enabled ||
                target->combobox.options.empty())) {
     open = false;
+  }
+
+  if (open && !m_open_popover_stack.empty()) {
+    close_all_popovers();
   }
 
   if (open && m_open_popup_node != k_invalid_node_id &&

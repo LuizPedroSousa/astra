@@ -15,8 +15,8 @@ TEST(UIFoundationsTest, DeclarativeDslAppliesButtonRulesOnTopOfDefaults) {
 
   mount(
       *document,
-      column("root").children(
-          button("Spawn", [] {}, "spawn_button")
+      dsl::column().children(
+          button("Spawn", [] {})
               .bind(button_id)
               .style(
                   padding_xy(20.0f, 6.0f),

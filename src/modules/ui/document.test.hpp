@@ -9,14 +9,14 @@ namespace {
 
 TEST(UIFoundationsTest, CollectsFocusableOrderAndNearestAncestors) {
   auto document = UIDocument::create();
-  const UINodeId root = document->create_view("root");
-  const UINodeId button = document->create_pressable("button");
-  const UINodeId button_label = document->create_text("press", "label");
-  const UINodeId custom_focusable = document->create_view("custom");
-  const UINodeId hidden_button = document->create_pressable("hidden");
-  const UINodeId disabled_button = document->create_pressable("disabled");
-  const UINodeId scroll_container = document->create_view("scroll");
-  const UINodeId leaf = document->create_text("leaf", "leaf");
+  const UINodeId root = document->create_view();
+  const UINodeId button = document->create_pressable();
+  const UINodeId button_label = document->create_text("press");
+  const UINodeId custom_focusable = document->create_view();
+  const UINodeId hidden_button = document->create_pressable();
+  const UINodeId disabled_button = document->create_pressable();
+  const UINodeId scroll_container = document->create_view();
+  const UINodeId leaf = document->create_text("leaf");
 
   document->set_root(root);
   document->append_child(root, button);
@@ -48,9 +48,8 @@ TEST(UIFoundationsTest, CollectsFocusableOrderAndNearestAncestors) {
 
 TEST(UIFoundationsTest, DocumentStateMutationsUpdateFocusCaretAndScrollState) {
   auto document = UIDocument::create();
-  const UINodeId root = document->create_view("root");
-  const UINodeId node =
-      document->create_text_input("stateful", "placeholder", "node");
+  const UINodeId root = document->create_view();
+  const UINodeId node = document->create_text_input("stateful", "placeholder");
 
   document->set_root(root);
   document->append_child(root, node);
@@ -90,9 +89,8 @@ TEST(UIFoundationsTest, DocumentStateMutationsUpdateFocusCaretAndScrollState) {
 
 TEST(UIFoundationsTest, DocumentCanQueueAndConsumeFocusRequests) {
   auto document = UIDocument::create();
-  const UINodeId root = document->create_view("root");
-  const UINodeId input =
-      document->create_text_input({}, "Placeholder", "input");
+  const UINodeId root = document->create_view();
+  const UINodeId input = document->create_text_input({}, "Placeholder");
 
   document->set_root(root);
   document->append_child(root, input);

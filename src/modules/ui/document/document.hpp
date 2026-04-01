@@ -37,6 +37,7 @@ public:
     UISliderState slider;
     UISelectState select;
     UIComboboxState combobox;
+    UIPopoverState popover;
     UISegmentedControlState segmented_control;
     UIChipGroupState chip_group;
 
@@ -44,6 +45,7 @@ public:
     std::function<void()> on_press;
     std::function<void()> on_release;
     std::function<void()> on_click;
+    std::function<void(const UIPointerButtonEvent &)> on_secondary_click;
     std::function<void()> on_focus;
     std::function<void()> on_blur;
     std::function<void(const UIKeyInputEvent &)> on_key_input;
@@ -72,6 +74,7 @@ public:
   UINodeId create_text_input(std::string value = {}, std::string placeholder = {}, std::string name = {});
   UINodeId create_combobox(std::string value = {}, std::string placeholder = {}, std::string name = {});
   UINodeId create_scroll_view(std::string name = {});
+  UINodeId create_popover(std::string name = {});
   UINodeId create_splitter(std::string name = {});
   UINodeId create_checkbox(std::string label = {}, bool checked = false, std::string name = {});
   UINodeId create_slider(float value = 0.0f, float min_value = 0.0f, float max_value = 1.0f, float step = 0.1f, std::string name = {});
@@ -131,6 +134,10 @@ public:
   void set_on_press(UINodeId node_id, std::function<void()> callback);
   void set_on_release(UINodeId node_id, std::function<void()> callback);
   void set_on_click(UINodeId node_id, std::function<void()> callback);
+  void set_on_secondary_click(
+      UINodeId node_id,
+      std::function<void(const UIPointerButtonEvent &)> callback
+  );
   void set_on_focus(UINodeId node_id, std::function<void()> callback);
   void set_on_blur(UINodeId node_id, std::function<void()> callback);
   void set_on_key_input(UINodeId node_id, std::function<void(const UIKeyInputEvent &)> callback);
@@ -193,6 +200,24 @@ public:
   UINodeId consume_requested_focus();
   void suppress_next_character_input(uint32_t codepoint);
   bool consume_suppressed_character_input(uint32_t codepoint);
+  void open_popover_at(
+      UINodeId node_id,
+      glm::vec2 anchor_point,
+      UIPopupPlacement placement,
+      size_t depth = 0u
+  );
+  void open_popover_anchored_to(
+      UINodeId node_id,
+      UINodeId anchor_node_id,
+      UIPopupPlacement placement,
+      size_t depth = 0u
+  );
+  void close_popover(UINodeId node_id);
+  void close_popovers_from_depth(size_t depth);
+  void close_all_popovers();
+  const std::vector<UINodeId> &open_popover_stack() const {
+    return m_open_popover_stack;
+  }
   UINodeId requested_focus() const { return m_requested_focus_node; }
   UINodeId hot_node() const { return m_hot_node; }
   UINodeId active_node() const { return m_active_node; }
@@ -233,6 +258,7 @@ private:
   UINodeId m_active_node = k_invalid_node_id;
   UINodeId m_focused_node = k_invalid_node_id;
   UINodeId m_open_popup_node = k_invalid_node_id;
+  std::vector<UINodeId> m_open_popover_stack;
   UINodeId m_requested_focus_node = k_invalid_node_id;
   std::optional<uint32_t> m_suppressed_character_input_codepoint;
 };

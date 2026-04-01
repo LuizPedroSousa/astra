@@ -8,12 +8,10 @@ namespace astralix::ui::dsl {
 
 inline NodeSpec button(
     std::string label,
-    std::function<void()> on_click = {},
-    std::string name = {}
+    std::function<void()> on_click = {}
 ) {
   return NodeSpec{
       .kind = NodeKind::Button,
-      .name = std::move(name),
       .text = std::move(label),
       .on_click_callback = std::move(on_click),
   };
@@ -22,7 +20,7 @@ inline NodeSpec button(
 namespace detail {
 
 inline UINodeId create_button_node(UIDocument &document, const NodeSpec &spec) {
-  return document.create_button(spec.text, spec.on_click_callback, spec.name);
+  return document.create_button(spec.text, spec.on_click_callback);
 }
 
 } // namespace detail

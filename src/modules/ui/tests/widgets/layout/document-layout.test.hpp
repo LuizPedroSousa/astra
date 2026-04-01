@@ -7,8 +7,8 @@ namespace {
 
 TEST(UIFoundationsTest, ScrollViewAndSplitterExposeExpectedDefaults) {
   auto document = UIDocument::create();
-  const UINodeId scroll_view = document->create_scroll_view("scroll_view");
-  const UINodeId splitter = document->create_splitter("splitter");
+  const UINodeId scroll_view = document->create_scroll_view();
+  const UINodeId splitter = document->create_splitter();
 
   const auto *scroll_view_node = document->node(scroll_view);
   ASSERT_NE(scroll_view_node, nullptr);

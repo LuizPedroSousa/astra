@@ -4,8 +4,8 @@
 
 namespace astralix::ui {
 
-UINodeId UIDocument::create_splitter(std::string name) {
-  UINodeId node_id = allocate_node(NodeType::Splitter, std::move(name));
+UINodeId UIDocument::create_splitter() {
+  UINodeId node_id = allocate_node(NodeType::Splitter);
   mutate_style(node_id, [](UIStyle &style) {
     style.align_self = AlignSelf::Stretch;
     style.flex_shrink = 0.0f;

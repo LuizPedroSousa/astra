@@ -232,6 +232,14 @@ public:
     });
   }
 
+  StyleBuilder &padding_bottom(float value) {
+    return add([value](UIStyle &style) {
+      style.padding = UIEdges{
+          .bottom = value
+      };
+    });
+  }
+
   StyleBuilder &background(glm::vec4 color) {
     return add([color](UIStyle &style) { style.background_color = color; });
   }
@@ -523,6 +531,7 @@ enum class NodeKind : uint8_t {
   TextInput,
   Combobox,
   ScrollView,
+  Popover,
   Splitter,
   Button,
   Checkbox,
@@ -561,6 +570,8 @@ struct NodeSpec {
   std::function<void()> on_press_callback;
   std::function<void()> on_release_callback;
   std::function<void()> on_click_callback;
+  std::function<void(const UIPointerButtonEvent &)>
+      on_secondary_click_callback;
   std::function<void()> on_focus_callback;
   std::function<void()> on_blur_callback;
   std::function<void(const UIKeyInputEvent &)> on_key_input_callback;
@@ -690,6 +701,13 @@ struct NodeSpec {
     return *this;
   }
 
+  NodeSpec &on_secondary_click(
+      std::function<void(const UIPointerButtonEvent &)> callback
+  ) {
+    on_secondary_click_callback = std::move(callback);
+    return *this;
+  }
+
   NodeSpec &on_focus(std::function<void()> callback) {
     on_focus_callback = std::move(callback);
     return *this;
@@ -760,6 +778,7 @@ inline bool spec_allows_children(NodeKind kind) {
     case NodeKind::View:
     case NodeKind::Pressable:
     case NodeKind::ScrollView:
+    case NodeKind::Popover:
       return true;
     case NodeKind::Text:
     case NodeKind::Image:
@@ -867,6 +886,10 @@ inline void apply_properties(
 
   if (spec.on_click_callback && spec.kind != NodeKind::Button) {
     document.set_on_click(node_id, spec.on_click_callback);
+  }
+
+  if (spec.on_secondary_click_callback) {
+    document.set_on_secondary_click(node_id, spec.on_secondary_click_callback);
   }
 
   if (spec.on_focus_callback) {

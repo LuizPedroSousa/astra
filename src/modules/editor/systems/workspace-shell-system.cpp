@@ -43,7 +43,7 @@ ui::dsl::StyleBuilder panel_close_button_style() {
 ui::dsl::NodeSpec
 build_panel_close_button(std::string name, std::function<void()> on_click) {
   return ui::dsl::icon_button(
-             "icons::clear", std::move(on_click), std::move(name)
+             "icons::close", std::move(on_click), std::move(name)
   )
       .style(panel_close_button_style());
 }

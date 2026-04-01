@@ -10,6 +10,7 @@
 #include "systems/ui-system/resize.hpp"
 #include "systems/ui-system/widgets/layout/scroll-view.hpp"
 #include "systems/ui-system/widgets/inputs/text-input.hpp"
+#include "systems/ui-system/widgets/popup/popover.hpp"
 #include <algorithm>
 
 namespace astralix {
@@ -36,6 +37,19 @@ std::optional<CursorIcon> cursor_icon_for_target(
     default:
       return std::nullopt;
   }
+}
+
+input::KeyModifiers current_key_modifiers() {
+  return input::KeyModifiers{
+      .shift = input::IS_KEY_DOWN(input::KeyCode::LeftShift) ||
+               input::IS_KEY_DOWN(input::KeyCode::RightShift),
+      .control = input::IS_KEY_DOWN(input::KeyCode::LeftControl) ||
+                 input::IS_KEY_DOWN(input::KeyCode::RightControl),
+      .alt = input::IS_KEY_DOWN(input::KeyCode::LeftAlt) ||
+             input::IS_KEY_DOWN(input::KeyCode::RightAlt),
+      .super = input::IS_KEY_DOWN(input::KeyCode::LeftSuper) ||
+               input::IS_KEY_DOWN(input::KeyCode::RightSuper),
+  };
 }
 
 } // namespace
@@ -110,7 +124,7 @@ void UISystem::update(double dt) {
   update_active_drags(roots, pointer_enabled, pointer, viewport_size);
   resolve_hot_target(roots, deepest_hit);
   handle_pointer_press(roots, deepest_hit, pointer_enabled, pointer, viewport_size);
-  handle_pointer_release(pointer_enabled, deepest_hit);
+  handle_pointer_release(roots, pointer_enabled, deepest_hit, pointer);
   dispatch_key_input(roots, viewport_size);
   dispatch_character_input(roots, viewport_size);
   dispatch_scroll_input(roots, deepest_hit);
@@ -210,6 +224,14 @@ void UISystem::validate_targets(const std::vector<detail::RootEntry> &roots, boo
   if (m_slider_drag.has_value() &&
       !detail::target_available(roots, m_slider_drag->target, true)) {
     clear_slider_drag();
+  }
+  if (m_secondary_click_press.has_value() &&
+      !detail::target_available(
+          roots,
+          std::optional<Target>{m_secondary_click_press->target},
+          true
+      )) {
+    clear_secondary_click_state();
   }
   if (m_panel_move_drag.has_value() &&
       (!detail::target_available(roots, m_panel_move_drag->panel_target, true) ||
@@ -358,8 +380,47 @@ void UISystem::handle_pointer_press(
     const std::optional<detail::PointerHit> &deepest_hit, bool pointer_enabled,
     const glm::vec2 &pointer, const glm::vec2 &viewport_size
 ) {
-  if (!pointer_enabled ||
-      !input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Left)) {
+  if (!pointer_enabled) {
+    return;
+  }
+
+  if ((input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Left) ||
+       input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Right)) &&
+      detail::close_popovers_on_outside_press(roots, pointer)) {
+    clear_secondary_click_state();
+    return;
+  }
+
+  if (input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Right)) {
+    clear_secondary_click_state();
+    if (!deepest_hit.has_value()) {
+      return;
+    }
+
+    const detail::RootEntry *root_entry =
+        detail::find_root_entry(roots, deepest_hit->target);
+    if (root_entry == nullptr) {
+      return;
+    }
+
+    auto secondary_target = detail::find_secondary_click_target(
+        *root_entry,
+        deepest_hit->target.node_id,
+        deepest_hit->part
+    );
+    if (!secondary_target.has_value()) {
+      return;
+    }
+
+    m_secondary_click_press = SecondaryClickPress{
+        .target = *secondary_target,
+        .pointer = pointer,
+        .modifiers = current_key_modifiers(),
+    };
+    return;
+  }
+
+  if (!input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Left)) {
     return;
   }
 
@@ -555,11 +616,60 @@ void UISystem::handle_pointer_press(
 }
 
 void UISystem::handle_pointer_release(
+    const std::vector<detail::RootEntry> &roots,
     bool pointer_enabled,
-    const std::optional<detail::PointerHit> &deepest_hit
+    const std::optional<detail::PointerHit> &deepest_hit,
+    const glm::vec2 &pointer
 ) {
-  if (!pointer_enabled ||
-      !input::IS_MOUSE_BUTTON_RELEASED(input::MouseButton::Left)) {
+  if (!pointer_enabled) {
+    return;
+  }
+
+  if (input::IS_MOUSE_BUTTON_RELEASED(input::MouseButton::Right)) {
+    auto pressed = m_secondary_click_press;
+    clear_secondary_click_state();
+
+    if (!pressed.has_value() || !deepest_hit.has_value() ||
+        pressed->target.document == nullptr) {
+      return;
+    }
+
+    const detail::RootEntry *root_entry =
+        detail::find_root_entry(roots, deepest_hit->target);
+    if (root_entry == nullptr) {
+      return;
+    }
+
+    auto released_target = detail::find_secondary_click_target(
+        *root_entry,
+        deepest_hit->target.node_id,
+        deepest_hit->part
+    );
+    if (!detail::same_target(
+            std::optional<Target>{pressed->target},
+            released_target
+        )) {
+      return;
+    }
+
+    const auto *node = pressed->target.document->node(pressed->target.node_id);
+    if (node == nullptr || !node->on_secondary_click) {
+      return;
+    }
+
+    auto callback = node->on_secondary_click;
+    const ui::UIPointerButtonEvent event{
+        .position = pointer,
+        .button = input::MouseButton::Right,
+        .modifiers = pressed->modifiers,
+    };
+    pressed->target.document->queue_callback(
+        [callback, event]() { callback(event); }
+    );
+    return;
+  }
+
+  if (!input::IS_MOUSE_BUTTON_RELEASED(input::MouseButton::Left)) {
     return;
   }
 
@@ -623,6 +733,10 @@ void UISystem::dispatch_key_input(const std::vector<detail::RootEntry> &roots, c
   const auto focus_order = detail::collect_focus_order(roots);
   for (const QueuedKeyInput &queued_key : m_key_inputs) {
     const auto &event = queued_key.event;
+    if (detail::close_popovers_on_escape(roots, event)) {
+      continue;
+    }
+
     if (event.key_code == input::KeyCode::Tab && !event.modifiers.shift &&
         m_focused_target.has_value() && m_focused_target->document != nullptr) {
       const auto *focused_node =
@@ -1279,6 +1393,10 @@ void UISystem::clear_focused_target(bool queue_blur) {
   m_focused_target.reset();
 }
 
+void UISystem::clear_secondary_click_state() {
+  m_secondary_click_press.reset();
+}
+
 void UISystem::clear_text_selection_drag() { m_text_selection_drag.reset(); }
 
 void UISystem::clear_scrollbar_drag() { m_scrollbar_drag.reset(); }
@@ -1304,6 +1422,7 @@ void UISystem::clear_pointer_state() {
   clear_hot_target();
   clear_active_target(false);
   clear_focused_target(false);
+  clear_secondary_click_state();
   clear_drag_state();
 }
 

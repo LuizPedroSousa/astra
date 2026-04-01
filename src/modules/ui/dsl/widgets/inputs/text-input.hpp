@@ -8,12 +8,10 @@ namespace astralix::ui::dsl {
 
 inline NodeSpec text_input(
     std::string value = {},
-    std::string placeholder = {},
-    std::string name = {}
+    std::string placeholder = {}
 ) {
   return NodeSpec{
       .kind = NodeKind::TextInput,
-      .name = std::move(name),
       .text = std::move(value),
       .placeholder = std::move(placeholder),
   };
@@ -21,14 +19,9 @@ inline NodeSpec text_input(
 
 inline NodeSpec input(
     std::string value = {},
-    std::string placeholder = {},
-    std::string name = {}
+    std::string placeholder = {}
 ) {
-  return text_input(
-      std::move(value),
-      std::move(placeholder),
-      std::move(name)
-  );
+  return text_input(std::move(value), std::move(placeholder));
 }
 
 namespace detail {
@@ -37,7 +30,7 @@ inline UINodeId create_text_input_node(
     UIDocument &document,
     const NodeSpec &spec
 ) {
-  return document.create_text_input(spec.text, spec.placeholder, spec.name);
+  return document.create_text_input(spec.text, spec.placeholder);
 }
 
 } // namespace detail

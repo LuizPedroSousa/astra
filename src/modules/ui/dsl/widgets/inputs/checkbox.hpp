@@ -8,12 +8,10 @@ namespace astralix::ui::dsl {
 
 inline NodeSpec checkbox(
     std::string label = {},
-    bool checked = false,
-    std::string name = {}
+    bool checked = false
 ) {
   return NodeSpec{
       .kind = NodeKind::Checkbox,
-      .name = std::move(name),
       .text = std::move(label),
       .checked_value = checked,
   };
@@ -27,8 +25,7 @@ inline UINodeId create_checkbox_node(
 ) {
   return document.create_checkbox(
       spec.text,
-      spec.checked_value.value_or(false),
-      spec.name
+      spec.checked_value.value_or(false)
   );
 }
 

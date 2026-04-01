@@ -18,8 +18,10 @@ set(EDITOR_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/snapshot.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/timing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/actions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/menus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/refresh.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/rows.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/scene-hierarchy-panel-controller.cpp

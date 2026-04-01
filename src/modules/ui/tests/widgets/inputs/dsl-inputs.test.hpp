@@ -17,17 +17,17 @@ TEST(UIFoundationsTest, DeclarativeDslAppliesInputAndLayoutRulesOnTopOfDefaults)
 
   mount(
       *document,
-      column("root").children(
-          text_input("seed", "Placeholder", "text_input")
+      dsl::column().children(
+          text_input("seed", "Placeholder")
               .bind(input_id)
               .style(
                   fill_x(),
                   focused(state().border(3.0f, rgba(0.9f, 0.8f, 0.7f, 1.0f)))
               ),
-          scroll_view("scroll_view")
+          scroll_view()
               .bind(scroll_id)
               .style(width(px(240.0f)), scroll_both()),
-          splitter("splitter")
+          splitter()
               .bind(splitter_id)
               .style(background(rgba(0.7f, 0.2f, 0.3f, 0.8f)))
       )
@@ -73,8 +73,8 @@ TEST(UIFoundationsTest, DeclarativeDslSupportsCheckboxSliderSelectAndCombobox) {
 
   mount(
       *document,
-      column("root").children(
-          checkbox("Follow tail", true, "checkbox")
+      dsl::column().children(
+          checkbox("Follow tail", true)
               .bind(checkbox_id)
               .style(
                   accent_color(rgba(0.4f, 0.7f, 0.9f, 1.0f)),
@@ -82,7 +82,7 @@ TEST(UIFoundationsTest, DeclarativeDslSupportsCheckboxSliderSelectAndCombobox) {
                   control_indicator_size(20.0f)
               )
               .on_toggle([](bool) {}),
-          slider(0.55f, 0.0f, 1.0f, "slider")
+          slider(0.55f, 0.0f, 1.0f)
               .bind(slider_id)
               .step(0.25f)
               .style(
@@ -92,14 +92,14 @@ TEST(UIFoundationsTest, DeclarativeDslSupportsCheckboxSliderSelectAndCombobox) {
                   slider_thumb_radius(12.0f)
               )
               .on_value_change([](float) {}),
-          select({"All", "Warn", "Error"}, 1u, "Severity", "select")
+          select({"All", "Warn", "Error"}, 1u, "Severity")
               .bind(select_id)
               .style(
                   width(px(180.0f)),
                   accent_color(rgba(0.6f, 0.8f, 0.9f, 1.0f))
               )
               .on_select([](size_t, const std::string &) {}),
-          combobox("help", "Command", "combobox")
+          combobox("help", "Command")
               .bind(combobox_id)
               .options({"help", "hello"})
               .style(

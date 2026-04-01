@@ -97,7 +97,7 @@ ui::UINodeId SceneHierarchyPanelController::create_row_slot(size_t slot_index) {
     style.justify_content = ui::JustifyContent::Center;
     style.flex_grow = 1.0f;
     style.flex_shrink = 1.0f;
-    style.gap = 8.0f;
+    style.gap = 0.0f;
   });
   m_document->mutate_style(header, [](ui::UIStyle &style) {
     style.flex_direction = ui::FlexDirection::Row;
@@ -178,6 +178,13 @@ void SceneHierarchyPanelController::bind_row_slot(
   m_document->set_text(nodes.meta, entry.meta_label);
   m_document->set_on_click(
       nodes.button, [this, entity_id = entry.id]() { select_entity(entity_id); }
+  );
+  m_document->set_on_secondary_click(
+      nodes.button,
+      [this, entity_id = entry.id](const ui::UIPointerButtonEvent &event) {
+        select_entity(entity_id);
+        open_row_menu(entity_id, event.position);
+      }
   );
 
   m_document->mutate_style(

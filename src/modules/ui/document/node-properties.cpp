@@ -72,6 +72,11 @@ void UIDocument::set_visible(UINodeId node_id, bool visible) {
     return;
   }
 
+  if (!visible && target->type == NodeType::Popover) {
+    close_popover(node_id);
+    return;
+  }
+
   if (!visible && target->type == NodeType::Select) {
     set_select_open(node_id, false);
   } else if (!visible && target->type == NodeType::Combobox) {
@@ -90,7 +95,9 @@ void UIDocument::set_enabled(UINodeId node_id, bool enabled) {
   }
 
   target->enabled = enabled;
-  if (!enabled && target->type == NodeType::Select) {
+  if (!enabled && target->type == NodeType::Popover) {
+    close_popover(node_id);
+  } else if (!enabled && target->type == NodeType::Select) {
     set_select_open(node_id, false);
   } else if (!enabled && target->type == NodeType::Combobox) {
     set_combobox_open(node_id, false);
