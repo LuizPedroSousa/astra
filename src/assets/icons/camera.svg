@@ -1,0 +1,19 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="24"
+  height="24"
+  viewBox="0 0 24 24">
+  <path
+    d="M6 8 L8.8 8 L10.2 5.5 L13.8 5.5 L15.2 8 L18 8 L20 10 L20 18 L4 18 L4 10 Z"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="1.8"
+    stroke-linejoin="round" />
+  <circle
+    cx="12"
+    cy="13"
+    r="3.4"
+    fill="none"
+    stroke="#ffffff"
+    stroke-width="1.8" />
+</svg>
