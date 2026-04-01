@@ -23,13 +23,14 @@ struct ProjectSerializationConfig {
   SerializationFormat formatFromString(const std::string &format) {
     static const std::map<std::string, SerializationFormat> formats = {
         {"json", SerializationFormat::Json},
+        {"toml", SerializationFormat::Toml},
+        {"yaml", SerializationFormat::Yaml},
+        {"xml", SerializationFormat::Xml},
     };
 
     auto it = formats.find(format);
 
-    ASTRA_ENSURE_WITH_SUGGESTIONS(it == formats.end(), formats, format,
-                                  "serialization format",
-                                  "ProjectSerialization")
+    ASTRA_ENSURE_WITH_SUGGESTIONS(it == formats.end(), formats, format, "serialization format", "ProjectSerialization")
 
     return it->second;
   }
@@ -47,7 +48,8 @@ struct WindowConfig {
   int width;
 };
 
-enum SystemType { Physics, Render };
+enum SystemType { Physics,
+                  Render };
 
 struct PhysicsSystemConfig {
   std::string backend;

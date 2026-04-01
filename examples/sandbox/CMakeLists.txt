@@ -9,7 +9,7 @@ option(ASTRA_EDITOR "Enable editor builtins in the sandbox example" ON)
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 
 # list(APPEND CMAKE_PREFIX_PATH "${ASTRA_INSTALL}" "${VCPKG_ROOT}")
-set(ASTRALIX_STREAMS_FORMATS Json)
+set(ASTRALIX_STREAMS_FORMATS Yaml Json)
 if(CMAKE_VERSION VERSION_LESS 3.12)
   find_package(PythonInterp 3 REQUIRED)
   set(SANDBOX_PYTHON_EXECUTABLE "${PYTHON_EXECUTABLE}")
