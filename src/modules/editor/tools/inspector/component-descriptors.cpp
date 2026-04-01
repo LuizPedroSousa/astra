@@ -201,6 +201,13 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .enum_options = &no_enum_options,
     },
     {
+        .name = "BloomSettings",
+        .can_add = &can_add_if_missing<rendering::BloomSettings>,
+        .remove_component = &erase_component<rendering::BloomSettings>,
+        .field_editable = &editable_all_fields,
+        .enum_options = &no_enum_options,
+    },
+    {
         .name = "SkyboxBinding",
         .can_add = &can_add_if_missing<rendering::SkyboxBinding>,
         .remove_component = &erase_component<rendering::SkyboxBinding>,

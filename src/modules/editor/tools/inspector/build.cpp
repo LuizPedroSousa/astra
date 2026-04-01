@@ -384,9 +384,9 @@ ui::dsl::StyleBuilder panel::component_card_style(
     const InspectorPanelTheme &theme
 ) {
   return fill_x()
-      .padding(16.0f)
-      .gap(12.0f)
-      .radius(18.0f)
+      .padding(4.0f)
+      .gap(8.0f)
+      .radius(12.0f)
       .background(theme.card_background)
       .border(1.0f, theme.card_border);
 }
@@ -395,54 +395,78 @@ ui::dsl::StyleBuilder panel::input_field_style(
     const InspectorPanelTheme &theme
 ) {
   return fill_x()
+      .padding_xy(8.0f, 6.0f)
+      .font_size(12.5f)
+      .control_gap(5.0f)
+      .control_indicator_size(14.0f)
       .background(theme.input_background)
       .border(1.0f, theme.input_border)
-      .radius(14.0f);
+      .radius(8.0f);
 }
 
 ui::dsl::StyleBuilder panel::compact_button_style(
     const InspectorPanelTheme &theme
 ) {
-  return padding_xy(12.0f, 8.0f)
+  return padding_xy(10.0f, 5.0f)
       .background(theme.accent_soft)
       .border(1.0f, theme.accent)
-      .radius(12.0f);
+      .radius(8.0f);
+}
+
+ui::dsl::StyleBuilder panel::remove_button_style(
+    const InspectorPanelTheme &theme
+) {
+  return padding_xy(10.0f, 5.0f)
+      .background(theme.remove_background)
+      .border(1.0f, theme.remove_border)
+      .radius(8.0f);
+}
+
+ui::dsl::StyleBuilder panel::checkbox_field_style(
+    const InspectorPanelTheme &theme
+) {
+  return fill_x()
+      .padding_xy(0.0f, 4.0f)
+      .font_size(12.5f)
+      .text_color(theme.text_primary)
+      .control_gap(5.0f)
+      .control_indicator_size(14.0f);
 }
 
 ui::dsl::NodeSpec InspectorPanelController::build() {
   const InspectorPanelTheme theme;
 
-  auto header_row = row("inspector_header").style(fill_x().items_center().gap(12.0f));
+  auto header_row = ui::dsl::row().style(fill_x().items_center().gap(8.0f));
   header_row.child(
-      column("inspector_header_copy")
+      ui::dsl::column()
           .style(items_start().gap(3.0f))
           .children(
-              text("Inspector", "inspector_title")
-                  .style(font_size(20.0f).text_color(theme.text_primary)),
-              text(
-                  "Inspect and edit the selected scene entity.",
-                  "inspector_subtitle"
-              )
-                  .style(font_size(13.0f).text_color(theme.text_muted))
+              text("Inspector")
+                  .style(font_size(18.0f).text_color(theme.text_primary)),
+              text("Inspect and edit the selected scene entity.")
+                  .style(font_size(12.0f).text_color(theme.text_muted))
           )
   );
-  header_row.child(spacer("inspector_header_spacer"));
+  header_row.child(spacer());
   header_row.child(
-      text("No active scene", "inspector_scene_name")
-          .bind(m_scene_name_node)
+      ui::dsl::row()
           .style(
-              font_size(12.0f)
-                  .text_color(theme.accent)
-                  .padding_xy(12.0f, 8.0f)
+              items_center()
+                  .padding_xy(12.0f, 6.0f)
                   .background(theme.accent_soft)
                   .border(1.0f, theme.accent)
-                  .radius(999.0f)
+                  .radius(8.0f)
+          )
+          .child(
+              text("No active scene")
+                  .bind(m_scene_name_node)
+                  .style(font_size(12.0f).text_color(theme.accent))
           )
   );
 
-  auto add_row = row("inspector_add_row").style(fill_x().items_end().gap(10.0f));
+  auto add_row = ui::dsl::row().style(fill_x().items_center().gap(8.0f));
   add_row.child(
-      select({}, 0u, "Add component", "inspector_add_select")
+      select({}, 0u, "Add component")
           .bind(m_add_component_select_node)
           .enabled(false)
           .on_select([this](size_t, const std::string &value) {
@@ -454,39 +478,37 @@ ui::dsl::NodeSpec InspectorPanelController::build() {
   );
   add_row.child(
       button(
-          "Add",
-          [this]() { add_component(m_pending_add_component_name); },
-          "inspector_add_button"
+          "Add", [this]() { add_component(m_pending_add_component_name); }
       )
           .bind(m_add_component_button_node)
           .enabled(false)
           .style(panel::compact_button_style(theme))
   );
 
-  return column("inspector_root")
-      .style(fill().background(theme.shell_background).padding(14.0f).gap(12.0f))
+  return ui::dsl::column()
+      .style(fill().background(theme.shell_background).padding(12.0f).gap(10.0f))
       .children(
-          column("inspector_summary_card")
+          ui::dsl::column()
               .style(
                   fill_x()
-                      .padding(16.0f)
-                      .gap(10.0f)
-                      .radius(18.0f)
+                      .padding(14.0f)
+                      .gap(8.0f)
+                      .radius(12.0f)
                       .background(theme.panel_background)
                       .border(1.0f, theme.panel_border)
               )
               .children(
                   std::move(header_row),
-                  text("Nothing selected", "inspector_selection_title")
+                  text("Nothing selected")
                       .bind(m_selection_title_node)
-                      .style(font_size(18.0f).text_color(theme.text_primary)),
-                  text("0 components", "inspector_component_count")
+                      .style(font_size(16.0f).text_color(theme.text_primary)),
+                  text("0 components")
                       .bind(m_component_count_node)
-                      .style(font_size(12.5f).text_color(theme.text_muted)),
-                  text("Entity ID --", "inspector_entity_id")
+                      .style(font_size(12.0f).text_color(theme.text_muted)),
+                  text("Entity ID --")
                       .bind(m_entity_id_node)
-                      .style(font_size(12.5f).text_color(theme.text_muted)),
-                  text_input({}, "Entity name", "inspector_entity_name")
+                      .style(font_size(12.0f).text_color(theme.text_muted)),
+                  text_input({}, "Entity name")
                       .bind(m_entity_name_input_node)
                       .enabled(false)
                       .select_all_on_focus(true)
@@ -494,57 +516,55 @@ ui::dsl::NodeSpec InspectorPanelController::build() {
                         set_entity_name(value);
                       })
                       .style(panel::input_field_style(theme)),
-                  checkbox("Entity is active", false, "inspector_entity_active")
+                  checkbox("Entity is active", false)
                       .bind(m_entity_active_node)
                       .enabled(false)
+                      .style(panel::checkbox_field_style(theme))
                       .on_toggle([this](bool active) { set_entity_active(active); })
               ),
           std::move(add_row),
-          scroll_view("inspector_scroll")
+          scroll_view()
               .bind(m_component_scroll_node)
               .style(
                   fill_x()
                       .flex(1.0f)
                       .padding(ui::UIEdges{
-                          .left = 8.0f,
-                          .top = 8.0f,
-                          .right = 8.0f,
-                          .bottom = 24.0f,
+                          .left = 6.0f,
+                          .top = 6.0f,
+                          .right = 6.0f,
+                          .bottom = 10.0f,
                       })
-                      .gap(12.0f)
+                      .gap(8.0f)
                       .background(theme.panel_background)
                       .border(1.0f, theme.panel_border)
-                      .radius(18.0f)
+                      .radius(12.0f)
               )
               .child(
-                  column("inspector_component_stack")
+                  ui::dsl::column()
                       .bind(m_component_stack_node)
-                      .style(fill_x().gap(12.0f))
+                      .style(fill_x().gap(4.0f))
               ),
-          column("inspector_empty_state")
+          ui::dsl::column()
               .bind(m_empty_state_node)
               .style(
                   fill_x()
                       .flex(1.0f)
                       .justify_center()
                       .items_center()
-                      .padding(24.0f)
+                      .padding(18.0f)
                       .gap(8.0f)
-                      .radius(18.0f)
+                      .radius(12.0f)
                       .background(theme.panel_background)
                       .border(1.0f, theme.panel_border)
               )
               .visible(false)
               .children(
-                  text("Nothing selected", "inspector_empty_title")
+                  text("Nothing selected")
                       .bind(m_empty_title_node)
-                      .style(font_size(18.0f).text_color(theme.text_primary)),
-                  text(
-                      "Select an entity in Scene Hierarchy to inspect it.",
-                      "inspector_empty_body"
-                  )
+                      .style(font_size(16.0f).text_color(theme.text_primary)),
+                  text("Select an entity in Scene Hierarchy to inspect it.")
                       .bind(m_empty_body_node)
-                      .style(font_size(13.0f).text_color(theme.text_muted))
+                      .style(font_size(12.0f).text_color(theme.text_muted))
               )
       );
 }

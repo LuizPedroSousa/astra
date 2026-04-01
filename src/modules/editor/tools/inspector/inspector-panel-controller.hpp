@@ -12,6 +12,11 @@ namespace astralix::editor {
 
 class InspectorPanelController final : public PanelController {
 public:
+  static constexpr PanelMinimumSize kMinimumSize{
+      .width = 400.0f,
+      .height = 320.0f,
+  };
+
   struct InspectedEntitySnapshot {
     bool has_scene = false;
     std::string scene_name;
@@ -21,6 +26,7 @@ public:
     std::vector<serialization::ComponentSnapshot> components;
   };
 
+  PanelMinimumSize minimum_size() const override { return kMinimumSize; }
   ui::dsl::NodeSpec build() override;
   void mount(const PanelMountContext &context) override;
   void unmount() override;
