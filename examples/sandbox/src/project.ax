@@ -30,27 +30,58 @@
     },
     {
       "id": "icons::adjust",
-      "type": "Texture2D",
-      "path": "@engine/icons/adjust.png",
-      "flip": false
+      "type": "Svg",
+      "path": "@engine/icons/adjust.svg"
     },
     {
       "id": "icons::trash",
-      "type": "Texture2D",
-      "path": "@engine/icons/trash.png",
-      "flip": false
+      "type": "Svg",
+      "path": "@engine/icons/trash.svg"
     },
     {
       "id": "icons::close",
-      "type": "Texture2D",
-      "path": "@engine/icons/close.png",
-      "flip": false
+      "type": "Svg",
+      "path": "@engine/icons/close.svg"
+    },
+    {
+      "id": "icons::right_arrow",
+      "type": "Svg",
+      "path": "@engine/icons/right-arrow.svg"
+    },
+    {
+      "id": "icons::right_arrow_down",
+      "type": "Svg",
+      "path": "@engine/icons/right-arrow-down.svg"
     },
     {
       "id": "icons::cube",
-      "type": "Texture2D",
-      "path": "@engine/icons/cube.png",
-      "flip": false
+      "type": "Svg",
+      "path": "@engine/icons/cube.svg"
+    },
+    {
+      "id": "icons::camera",
+      "type": "Svg",
+      "path": "@engine/icons/camera.svg"
+    },
+    {
+      "id": "icons::light",
+      "type": "Svg",
+      "path": "@engine/icons/light.svg"
+    },
+    {
+      "id": "icons::mesh",
+      "type": "Svg",
+      "path": "@engine/icons/mesh.svg"
+    },
+    {
+      "id": "icons::directory",
+      "type": "Svg",
+      "path": "@engine/icons/directory.svg"
+    },
+    {
+      "id": "icons::file",
+      "type": "Svg",
+      "path": "@engine/icons/file.svg"
     },
     {
       "id": "cubemaps::skybox",
@@ -161,6 +192,12 @@
       "fragment": "@engine/shaders/hdr.axsl"
     },
     {
+      "id": "shaders::bloom",
+      "type": "Shader",
+      "vertex": "@engine/shaders/post-process.axsl",
+      "fragment": "@engine/shaders/bloom.axsl"
+    },
+    {
       "id": "shaders::lighting",
       "type": "Shader",
       "vertex": "@engine/shaders/light.axsl",
@@ -171,6 +208,12 @@
       "type": "Shader",
       "vertex": "@engine/shaders/ssao.axsl",
       "fragment": "@engine/shaders/ssao.axsl"
+    },
+    {
+      "id": "shaders::ssao_blur",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssao-blur.axsl",
+      "fragment": "@engine/shaders/ssao-blur.axsl"
     },
     {
       "id": "shaders::lighting_forward",
