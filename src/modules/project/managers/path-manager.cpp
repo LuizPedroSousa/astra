@@ -14,8 +14,6 @@ PathManager::resolve_project_path(std::string relative_path) {
   auto resolved_path = std::filesystem::path(project_config.directory) /
                        project_config.resources.directory / relative_path;
 
-  LOG_DEBUG(resolved_path);
-
   return resolved_path;
 }
 
@@ -31,12 +29,10 @@ std::filesystem::path PathManager::resolve(Ref<Path> path) {
 
   switch (path->get_base_directory()) {
   case BaseDirectory::Project: {
-    LOG_DEBUG("PROJECT PATH", path->get_relative_path());
     return resolve_project_path(path->get_relative_path());
   }
 
   case BaseDirectory::Engine: {
-    LOG_DEBUG("ENGINE PATH", path->get_relative_path());
     return resolve_engine_path(path->get_relative_path());
   }
 
