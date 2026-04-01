@@ -3,8 +3,6 @@ project(astralix_tests CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
-find_library(PUGIXML_LIBRARY pugixml REQUIRED)
-
 set(VCPKG_INSTALLED_ROOT "${CMAKE_SOURCE_DIR}/../vcpkg_installed/x64-linux")
 
 set(SHADER_LANG_DIR "${CMAKE_SOURCE_DIR}/../src/modules/renderer/shader-lang")
@@ -78,8 +76,7 @@ target_include_directories(astralix_tests PRIVATE
 target_link_libraries(astralix_tests PRIVATE
   faker-cxx
   gtest
-  gtest_main
-  ${PUGIXML_LIBRARY})
+  gtest_main)
 
 target_compile_definitions(astralix_tests PRIVATE
   ASTRALIX_ENGINE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/../src/assets"

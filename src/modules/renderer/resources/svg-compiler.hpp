@@ -1,13 +1,14 @@
 #pragma once
 
+#include "adapters/xml/xml-serialization-context.hpp"
 #include "assert.hpp"
 #include "glm/glm.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <cstddef>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -21,8 +22,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include <pugixml.hpp>
 
 namespace astralix {
 
@@ -42,6 +41,28 @@ struct SvgDocumentData {
 };
 
 namespace svg_detail {
+
+using XmlAttribute = xml_detail::Attribute;
+using XmlNode = xml_detail::Node;
+
+inline const XmlAttribute *find_xml_attribute(
+    const XmlNode &node,
+    std::string_view name
+) {
+  return xml_detail::find_attribute(node, name);
+}
+
+inline bool has_xml_attribute(const XmlNode &node, std::string_view name) {
+  return find_xml_attribute(node, name) != nullptr;
+}
+
+inline std::string_view xml_attribute_value(
+    const XmlNode &node,
+    std::string_view name
+) {
+  const auto *attribute = find_xml_attribute(node, name);
+  return attribute == nullptr ? std::string_view{} : std::string_view(attribute->value);
+}
 
 constexpr float k_svg_epsilon = 1.0e-4f;
 constexpr float k_curve_flatness = 0.25f;
@@ -441,8 +462,7 @@ inline void apply_style_property(
 
   if (property == "fill-rule") {
     const std::string lowered = lower_copy(parsed_value);
-    ASTRA_ENSURE(lowered != "evenodd" && lowered != "nonzero",
-                 "Unsupported SVG fill-rule: ", parsed_value);
+    ASTRA_ENSURE(lowered != "evenodd" && lowered != "nonzero", "Unsupported SVG fill-rule: ", parsed_value);
     state.fill_rule =
         lowered == "evenodd" ? FillRule::EvenOdd : FillRule::NonZero;
     return;
@@ -535,8 +555,7 @@ inline glm::mat3 parse_transform(std::string_view input) {
     index = name_end;
     skip_whitespace();
 
-    ASTRA_ENSURE(index >= text.size() || text[index] != '(',
-                 "Invalid SVG transform syntax: ", input);
+    ASTRA_ENSURE(index >= text.size() || text[index] != '(', "Invalid SVG transform syntax: ", input);
     ++index;
 
     const size_t value_start = index;
@@ -559,21 +578,16 @@ inline glm::mat3 parse_transform(std::string_view input) {
     if (name == "matrix") {
       ASTRA_ENSURE(values.size() != 6u, "Invalid SVG matrix transform: ", input);
       local = glm::mat3(
-          values[0u], values[1u], 0.0f,
-          values[2u], values[3u], 0.0f,
-          values[4u], values[5u], 1.0f
+          values[0u], values[1u], 0.0f, values[2u], values[3u], 0.0f, values[4u], values[5u], 1.0f
       );
     } else if (name == "translate") {
-      ASTRA_ENSURE(values.empty() || values.size() > 2u,
-                   "Invalid SVG translate transform: ", input);
+      ASTRA_ENSURE(values.empty() || values.size() > 2u, "Invalid SVG translate transform: ", input);
       local = make_translation(values[0u], values.size() > 1u ? values[1u] : 0.0f);
     } else if (name == "scale") {
-      ASTRA_ENSURE(values.empty() || values.size() > 2u,
-                   "Invalid SVG scale transform: ", input);
+      ASTRA_ENSURE(values.empty() || values.size() > 2u, "Invalid SVG scale transform: ", input);
       local = make_scale(values[0u], values.size() > 1u ? values[1u] : values[0u]);
     } else if (name == "rotate") {
-      ASTRA_ENSURE(values.size() != 1u && values.size() != 3u,
-                   "Invalid SVG rotate transform: ", input);
+      ASTRA_ENSURE(values.size() != 1u && values.size() != 3u, "Invalid SVG rotate transform: ", input);
       const float radians = glm::radians(values[0u]);
       local = make_rotation(radians);
       if (values.size() == 3u) {
@@ -598,12 +612,12 @@ inline glm::mat3 parse_transform(std::string_view input) {
 }
 
 inline void apply_presentation_attributes(
-    const pugi::xml_node &node,
+    const XmlNode &node,
     SvgStyleState &state
 ) {
-  for (const pugi::xml_attribute &attribute : node.attributes()) {
-    const std::string name = attribute.name();
-    const std::string value = attribute.value();
+  for (const XmlAttribute &attribute : node.attributes) {
+    const std::string &name = attribute.name;
+    const std::string &value = attribute.value;
 
     if (name == "style") {
       apply_style_attribute(state, value);
@@ -1005,9 +1019,9 @@ inline void add_round_fan(
 
   for (int index = 0; index < segments; ++index) {
     const float start = start_angle + delta * static_cast<float>(index) /
-                                         static_cast<float>(segments);
+                                          static_cast<float>(segments);
     const float end = start_angle + delta * static_cast<float>(index + 1) /
-                                       static_cast<float>(segments);
+                                        static_cast<float>(segments);
 
     vertices.push_back({center, color});
     vertices.push_back(
@@ -1261,8 +1275,7 @@ inline void append_arc_curve(
   }
 
   const int segments = std::max(
-      1, static_cast<int>(std::ceil(std::abs(delta_angle) /
-                                    (std::numbers::pi_v<float> / 8.0f)))
+      1, static_cast<int>(std::ceil(std::abs(delta_angle) / (std::numbers::pi_v<float> / 8.0f)))
   );
 
   for (int index = 1; index <= segments; ++index) {
@@ -1340,8 +1353,7 @@ private:
       return false;
     }
 
-    ASTRA_ENSURE(parsed != 0.0f && parsed != 1.0f,
-                 "Invalid SVG arc flag in path data: ", m_data);
+    ASTRA_ENSURE(parsed != 0.0f && parsed != 1.0f, "Invalid SVG arc flag in path data: ", m_data);
     value = parsed > 0.5f;
     return true;
   }
@@ -1627,20 +1639,24 @@ inline void transform_shape(SvgShape &shape, const glm::mat3 &transform) {
   }
 }
 
-inline SvgShape build_rect_shape(const pugi::xml_node &node) {
-  const float width = parse_svg_length(node.attribute("width").value(), "rect width");
-  const float height = parse_svg_length(node.attribute("height").value(), "rect height");
+inline SvgShape build_rect_shape(const XmlNode &node) {
+  const float width = parse_svg_length(xml_attribute_value(node, "width"), "rect width");
+  const float height = parse_svg_length(xml_attribute_value(node, "height"), "rect height");
   ASTRA_ENSURE(width <= 0.0f || height <= 0.0f, "Invalid SVG rect size");
 
-  const float x =
-      node.attribute("x") ? parse_svg_length(node.attribute("x").value(), "rect x") : 0.0f;
-  const float y =
-      node.attribute("y") ? parse_svg_length(node.attribute("y").value(), "rect y") : 0.0f;
+  const float x = has_xml_attribute(node, "x")
+                      ? parse_svg_length(xml_attribute_value(node, "x"), "rect x")
+                      : 0.0f;
+  const float y = has_xml_attribute(node, "y")
+                      ? parse_svg_length(xml_attribute_value(node, "y"), "rect y")
+                      : 0.0f;
 
-  const float rx =
-      node.attribute("rx") ? parse_svg_length(node.attribute("rx").value(), "rect rx") : 0.0f;
-  const float ry =
-      node.attribute("ry") ? parse_svg_length(node.attribute("ry").value(), "rect ry") : 0.0f;
+  const float rx = has_xml_attribute(node, "rx")
+                       ? parse_svg_length(xml_attribute_value(node, "rx"), "rect rx")
+                       : 0.0f;
+  const float ry = has_xml_attribute(node, "ry")
+                       ? parse_svg_length(xml_attribute_value(node, "ry"), "rect ry")
+                       : 0.0f;
   ASTRA_ENSURE(rx > 0.0f || ry > 0.0f, "Rounded SVG rect corners are not supported");
 
   SvgShape shape;
@@ -1658,12 +1674,14 @@ inline SvgShape build_rect_shape(const pugi::xml_node &node) {
   return shape;
 }
 
-inline SvgShape build_circle_shape(const pugi::xml_node &node) {
-  const float cx =
-      node.attribute("cx") ? parse_svg_length(node.attribute("cx").value(), "circle cx") : 0.0f;
-  const float cy =
-      node.attribute("cy") ? parse_svg_length(node.attribute("cy").value(), "circle cy") : 0.0f;
-  const float r = parse_svg_length(node.attribute("r").value(), "circle r");
+inline SvgShape build_circle_shape(const XmlNode &node) {
+  const float cx = has_xml_attribute(node, "cx")
+                       ? parse_svg_length(xml_attribute_value(node, "cx"), "circle cx")
+                       : 0.0f;
+  const float cy = has_xml_attribute(node, "cy")
+                       ? parse_svg_length(xml_attribute_value(node, "cy"), "circle cy")
+                       : 0.0f;
+  const float r = parse_svg_length(xml_attribute_value(node, "r"), "circle r");
   ASTRA_ENSURE(r <= 0.0f, "Invalid SVG circle radius");
 
   const int segments = std::max(16, static_cast<int>(std::ceil(2.0f * std::numbers::pi_v<float> * r / 6.0f)));
@@ -1683,13 +1701,15 @@ inline SvgShape build_circle_shape(const pugi::xml_node &node) {
   return shape;
 }
 
-inline SvgShape build_ellipse_shape(const pugi::xml_node &node) {
-  const float cx =
-      node.attribute("cx") ? parse_svg_length(node.attribute("cx").value(), "ellipse cx") : 0.0f;
-  const float cy =
-      node.attribute("cy") ? parse_svg_length(node.attribute("cy").value(), "ellipse cy") : 0.0f;
-  const float rx = parse_svg_length(node.attribute("rx").value(), "ellipse rx");
-  const float ry = parse_svg_length(node.attribute("ry").value(), "ellipse ry");
+inline SvgShape build_ellipse_shape(const XmlNode &node) {
+  const float cx = has_xml_attribute(node, "cx")
+                       ? parse_svg_length(xml_attribute_value(node, "cx"), "ellipse cx")
+                       : 0.0f;
+  const float cy = has_xml_attribute(node, "cy")
+                       ? parse_svg_length(xml_attribute_value(node, "cy"), "ellipse cy")
+                       : 0.0f;
+  const float rx = parse_svg_length(xml_attribute_value(node, "rx"), "ellipse rx");
+  const float ry = parse_svg_length(xml_attribute_value(node, "ry"), "ellipse ry");
   ASTRA_ENSURE(rx <= 0.0f || ry <= 0.0f, "Invalid SVG ellipse radius");
 
   const int segments = std::max(
@@ -1717,19 +1737,19 @@ inline SvgShape build_ellipse_shape(const pugi::xml_node &node) {
   return shape;
 }
 
-inline SvgShape build_line_shape(const pugi::xml_node &node) {
+inline SvgShape build_line_shape(const XmlNode &node) {
   SvgShape shape;
   shape.contours.push_back(
       SvgContour{
           .points =
               {
                   glm::vec2(
-                      parse_svg_length(node.attribute("x1").value(), "line x1"),
-                      parse_svg_length(node.attribute("y1").value(), "line y1")
+                      parse_svg_length(xml_attribute_value(node, "x1"), "line x1"),
+                      parse_svg_length(xml_attribute_value(node, "y1"), "line y1")
                   ),
                   glm::vec2(
-                      parse_svg_length(node.attribute("x2").value(), "line x2"),
-                      parse_svg_length(node.attribute("y2").value(), "line y2")
+                      parse_svg_length(xml_attribute_value(node, "x2"), "line x2"),
+                      parse_svg_length(xml_attribute_value(node, "y2"), "line y2")
                   ),
               },
           .closed = false,
@@ -1739,28 +1759,28 @@ inline SvgShape build_line_shape(const pugi::xml_node &node) {
 }
 
 inline SvgShape build_poly_shape(
-    const pugi::xml_node &node,
+    const XmlNode &node,
     bool closed
 ) {
   SvgShape shape;
   shape.contours.push_back(
       SvgContour{
-          .points = parse_points(node.attribute("points").value()),
+          .points = parse_points(xml_attribute_value(node, "points")),
           .closed = closed,
       }
   );
   return shape;
 }
 
-inline SvgShape build_path_shape(const pugi::xml_node &node) {
-  SvgPathParser parser(node.attribute("d").value());
+inline SvgShape build_path_shape(const XmlNode &node) {
+  SvgPathParser parser(std::string(xml_attribute_value(node, "d")));
   SvgShape shape;
   shape.contours = parser.parse();
   return shape;
 }
 
-inline SvgShape build_shape(const pugi::xml_node &node) {
-  const std::string name = node.name();
+inline SvgShape build_shape(const XmlNode &node) {
+  const std::string &name = node.name;
   if (name == "path") {
     return build_path_shape(node);
   }
@@ -1796,8 +1816,7 @@ inline void append_fill_batches(
   }
 
   const glm::vec4 color = state.fill *
-                          glm::vec4(1.0f, 1.0f, 1.0f,
-                                    state.opacity * state.fill_opacity);
+                          glm::vec4(1.0f, 1.0f, 1.0f, state.opacity * state.fill_opacity);
   if (color.a <= 0.0f) {
     return;
   }
@@ -1824,8 +1843,7 @@ inline void append_stroke_batches(
   }
 
   const glm::vec4 color = state.stroke *
-                          glm::vec4(1.0f, 1.0f, 1.0f,
-                                    state.opacity * state.stroke_opacity);
+                          glm::vec4(1.0f, 1.0f, 1.0f, state.opacity * state.stroke_opacity);
   if (color.a <= 0.0f) {
     return;
   }
@@ -1845,11 +1863,11 @@ inline void append_stroke_batches(
 }
 
 inline void compile_node(
-    const pugi::xml_node &node,
+    const XmlNode &node,
     const SvgStyleState &inherited,
     std::vector<SvgTriangleBatch> &batches
 ) {
-  const std::string name = node.name();
+  const std::string &name = node.name;
   if (name.empty()) {
     return;
   }
@@ -1871,8 +1889,8 @@ inline void compile_node(
   SvgStyleState state = inherited;
   apply_presentation_attributes(node, state);
 
-  if (node.attribute("transform")) {
-    state.transform = inherited.transform * parse_transform(node.attribute("transform").value());
+  if (has_xml_attribute(node, "transform")) {
+    state.transform = inherited.transform * parse_transform(xml_attribute_value(node, "transform"));
   }
 
   if (!state.visible) {
@@ -1880,8 +1898,8 @@ inline void compile_node(
   }
 
   if (name == "svg" || name == "g") {
-    for (const pugi::xml_node &child : node.children()) {
-      compile_node(child, state, batches);
+    for (const auto &child : node.children) {
+      compile_node(*child, state, batches);
     }
     return;
   }
@@ -1892,28 +1910,27 @@ inline void compile_node(
   append_stroke_batches(shape, state, batches);
 }
 
-inline SvgDocumentMetrics parse_document_metrics(const pugi::xml_node &root) {
-  ASTRA_ENSURE(std::string(root.name()) != "svg", "Expected SVG root node");
+inline SvgDocumentMetrics parse_document_metrics(const XmlNode &root) {
+  ASTRA_ENSURE(root.name != "svg", "Expected SVG root node");
 
   SvgDocumentMetrics metrics;
   std::optional<std::array<float, 4u>> view_box;
 
-  if (root.attribute("viewBox")) {
-    const auto values = parse_number_list(root.attribute("viewBox").value());
+  if (has_xml_attribute(root, "viewBox")) {
+    const auto values = parse_number_list(xml_attribute_value(root, "viewBox"));
     ASTRA_ENSURE(values.size() != 4u, "Invalid SVG viewBox");
     view_box = std::array<float, 4u>{values[0u], values[1u], values[2u], values[3u]};
   }
 
-  if (root.attribute("width")) {
-    metrics.width = parse_svg_length(root.attribute("width").value(), "svg width");
+  if (has_xml_attribute(root, "width")) {
+    metrics.width = parse_svg_length(xml_attribute_value(root, "width"), "svg width");
   }
-  if (root.attribute("height")) {
-    metrics.height = parse_svg_length(root.attribute("height").value(), "svg height");
+  if (has_xml_attribute(root, "height")) {
+    metrics.height = parse_svg_length(xml_attribute_value(root, "height"), "svg height");
   }
 
   if (view_box.has_value()) {
-    ASTRA_ENSURE((*view_box)[2u] <= 0.0f || (*view_box)[3u] <= 0.0f,
-                 "Invalid SVG viewBox dimensions");
+    ASTRA_ENSURE((*view_box)[2u] <= 0.0f || (*view_box)[3u] <= 0.0f, "Invalid SVG viewBox dimensions");
 
     if (metrics.width <= 0.0f) {
       metrics.width = (*view_box)[2u];
@@ -1929,35 +1946,27 @@ inline SvgDocumentMetrics parse_document_metrics(const pugi::xml_node &root) {
         make_translation(-(*view_box)[0u], -(*view_box)[1u]);
   }
 
-  ASTRA_ENSURE(metrics.width <= 0.0f || metrics.height <= 0.0f,
-               "SVG root must define width/height or viewBox");
+  ASTRA_ENSURE(metrics.width <= 0.0f || metrics.height <= 0.0f, "SVG root must define width/height or viewBox");
   return metrics;
 }
 
 inline SvgDocumentData compile_svg_string(std::string_view xml_text) {
-  pugi::xml_document document;
-  const std::string xml(xml_text);
-  const pugi::xml_parse_result result = document.load_string(xml.c_str());
-  ASTRA_ENSURE(!result, "Failed to parse SVG XML: ", result.description());
-
-  const pugi::xml_node root = document.document_element();
-  ASTRA_ENSURE(!root, "SVG document is empty");
+  const XmlNode root = xml_detail::parse_document(xml_text);
 
   SvgDocumentMetrics metrics = parse_document_metrics(root);
   SvgStyleState root_state;
   root_state.transform = metrics.root_transform;
   apply_presentation_attributes(root, root_state);
-  if (root.attribute("transform")) {
-    root_state.transform =
-        root_state.transform * parse_transform(root.attribute("transform").value());
+  if (has_xml_attribute(root, "transform")) {
+    root_state.transform = root_state.transform * parse_transform(xml_attribute_value(root, "transform"));
   }
 
   SvgDocumentData compiled;
   compiled.width = metrics.width;
   compiled.height = metrics.height;
 
-  for (const pugi::xml_node &child : root.children()) {
-    compile_node(child, root_state, compiled.batches);
+  for (const auto &child : root.children) {
+    compile_node(*child, root_state, compiled.batches);
   }
 
   return compiled;
