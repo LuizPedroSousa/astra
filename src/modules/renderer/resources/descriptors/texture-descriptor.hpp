@@ -24,20 +24,19 @@ public:
   Texture2DDescriptor(
       const ResourceDescriptorID &id, Ref<Path> path,
       bool flip_image_on_loading = false,
-      std::unordered_map<TextureParameter, TextureValue> parameters = {});
+      std::unordered_map<TextureParameter, TextureValue> parameters = {}
+  );
 
   Texture2DDescriptor(
       const ResourceDescriptorID &id, uint32_t width, uint32_t height,
       std::unordered_map<TextureParameter, TextureValue> parameters,
-      bool bitmap, TextureFormat format, unsigned char *buffer);
+      bool bitmap, TextureFormat format, unsigned char *buffer
+  );
 
   static Ref<Texture2DDescriptor>
-  create(const ResourceDescriptorID &id, Ref<Path> path,
-         bool flip_image_on_loading = false,
-         std::unordered_map<TextureParameter, TextureValue> parameters = {});
+  create(const ResourceDescriptorID &id, Ref<Path> path, bool flip_image_on_loading = false, std::unordered_map<TextureParameter, TextureValue> parameters = {});
 
-  static Ref<Texture2DDescriptor> create(const ResourceDescriptorID &id,
-                                         TextureConfig config);
+  static Ref<Texture2DDescriptor> create(const ResourceDescriptorID &id, TextureConfig config);
 
   RESOURCE_DESCRIPTOR_PARAMS;
 
@@ -56,13 +55,11 @@ public:
 
 struct Texture3DDescriptor {
 public:
-  Texture3DDescriptor(const ResourceDescriptorID &id,
-                      const std::vector<Ref<Path>> &face_paths)
+  Texture3DDescriptor(const ResourceDescriptorID &id, const std::vector<Ref<Path>> &face_paths)
       : RESOURCE_DESCRIPTOR_INIT(), face_paths(face_paths) {}
 
   static Ref<Texture3DDescriptor>
-  create(const ResourceDescriptorID &id,
-         const std::vector<Ref<Path>> &face_paths);
+  create(const ResourceDescriptorID &id, const std::vector<Ref<Path>> &face_paths);
 
   RESOURCE_DESCRIPTOR_PARAMS;
 
