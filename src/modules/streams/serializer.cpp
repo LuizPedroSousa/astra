@@ -3,7 +3,6 @@
 #include "filesystem"
 #include "fstream"
 #include "managers/project-manager.hpp"
-#include "json/json.h"
 
 namespace astralix {
 
