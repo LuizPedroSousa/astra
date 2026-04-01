@@ -59,6 +59,27 @@ std::string lowercase_copy(std::string_view text) {
   return normalized;
 }
 
+std::string join_aliases(const std::vector<std::string> &aliases) {
+  std::string joined;
+
+  for (size_t index = 0u; index < aliases.size(); ++index) {
+    if (index > 0u) {
+      joined += ", ";
+    }
+    joined += aliases[index];
+  }
+
+  return joined;
+}
+
+std::string format_command_label(const ConsoleManager::CommandInfo &command) {
+  if (command.aliases.empty()) {
+    return command.name;
+  }
+
+  return command.name + " (aliases: " + join_aliases(command.aliases) + ")";
+}
+
 bool starts_with_case_insensitive(
     std::string_view text, std::string_view prefix
 ) {
@@ -160,23 +181,113 @@ ConsoleManager::ConsoleManager() {
   register_builtin_commands();
 }
 
-void ConsoleManager::register_command(std::string name, std::string description, CommandHandler handler) {
+void ConsoleManager::register_command(
+    std::string name,
+    std::string description,
+    CommandHandler handler,
+    std::vector<std::string> aliases
+) {
   const std::string normalized = normalize_command_name(name);
   if (normalized.empty()) {
     return;
   }
 
+  if (const auto alias_it = m_command_aliases.find(normalized);
+      alias_it != m_command_aliases.end()) {
+    if (auto command_it = m_commands.find(alias_it->second);
+        command_it != m_commands.end()) {
+      auto &existing_aliases = command_it->second.aliases;
+      existing_aliases.erase(
+          std::remove(
+              existing_aliases.begin(), existing_aliases.end(), normalized
+          ),
+          existing_aliases.end()
+      );
+    }
+
+    m_command_aliases.erase(alias_it);
+  }
+
+  if (const auto existing_it = m_commands.find(normalized);
+      existing_it != m_commands.end()) {
+    for (const std::string &alias : existing_it->second.aliases) {
+      m_command_aliases.erase(alias);
+    }
+  }
+
+  std::vector<std::string> normalized_aliases;
+  normalized_aliases.reserve(aliases.size());
+
+  for (std::string &alias : aliases) {
+    std::string normalized_alias = normalize_command_name(alias);
+    if (normalized_alias.empty() || normalized_alias == normalized) {
+      continue;
+    }
+
+    if (const auto command_it = m_commands.find(normalized_alias);
+        command_it != m_commands.end() && command_it->first != normalized) {
+      continue;
+    }
+
+    if (std::find(
+            normalized_aliases.begin(),
+            normalized_aliases.end(),
+            normalized_alias
+        ) != normalized_aliases.end()) {
+      continue;
+    }
+
+    if (const auto alias_it = m_command_aliases.find(normalized_alias);
+        alias_it != m_command_aliases.end() && alias_it->second != normalized) {
+      if (auto command_it = m_commands.find(alias_it->second);
+          command_it != m_commands.end()) {
+        auto &existing_aliases = command_it->second.aliases;
+        existing_aliases.erase(
+            std::remove(
+                existing_aliases.begin(),
+                existing_aliases.end(),
+                normalized_alias
+            ),
+            existing_aliases.end()
+        );
+      }
+    }
+
+    m_command_aliases.insert_or_assign(normalized_alias, normalized);
+    normalized_aliases.push_back(std::move(normalized_alias));
+  }
+
   m_commands.insert_or_assign(
-      normalized, RegisteredCommand{.name = std::move(normalized), .description = std::move(description), .handler = std::move(handler)}
+      normalized,
+      RegisteredCommand{
+          .name = normalized,
+          .description = std::move(description),
+          .aliases = std::move(normalized_aliases),
+          .handler = std::move(handler),
+      }
   );
 }
 
 void ConsoleManager::unregister_command(std::string_view name) {
-  m_commands.erase(normalize_command_name(name));
+  const auto normalized = resolve_registered_command_name(name);
+  if (!normalized.has_value()) {
+    return;
+  }
+
+  const auto command_it = m_commands.find(*normalized);
+  if (command_it == m_commands.end()) {
+    return;
+  }
+
+  for (const std::string &alias : command_it->second.aliases) {
+    m_command_aliases.erase(alias);
+  }
+
+  m_commands.erase(command_it);
 }
 
 bool ConsoleManager::has_command(std::string_view name) const {
-  return m_commands.contains(normalize_command_name(name));
+  return resolve_registered_command_name(name).has_value();
 }
 
 std::vector<ConsoleManager::CommandInfo> ConsoleManager::commands() const {
@@ -187,6 +298,7 @@ std::vector<ConsoleManager::CommandInfo> ConsoleManager::commands() const {
     infos.push_back(CommandInfo{
         .name = command.name,
         .description = command.description,
+        .aliases = command.aliases,
     });
   }
 
@@ -217,7 +329,16 @@ ConsoleCommandResult ConsoleManager::execute(std::string line) {
   }
 
   const std::string normalized_name = normalize_command_name(tokens.front());
-  const auto command_it = m_commands.find(normalized_name);
+  const auto resolved_name = resolve_registered_command_name(normalized_name);
+  if (!resolved_name.has_value()) {
+    result.executed = true;
+    result.success = false;
+    result.lines.push_back("unknown command: " + tokens.front());
+    append_output(result.lines.front(), LogLevel::ERROR);
+    return result;
+  }
+
+  const auto command_it = m_commands.find(*resolved_name);
   if (command_it == m_commands.end()) {
     result.executed = true;
     result.success = false;
@@ -317,6 +438,7 @@ std::vector<std::string> ConsoleManager::tokenize(std::string_view line) const {
 
 void ConsoleManager::reset_for_testing() {
   m_open = false;
+  m_captures_input = false;
   m_entries_version = 0u;
   m_next_entry_id = 1u;
   m_max_entries = 500u;
@@ -324,6 +446,7 @@ void ConsoleManager::reset_for_testing() {
   m_entries.clear();
   m_history.clear();
   m_commands.clear();
+  m_command_aliases.clear();
   register_builtin_commands();
 }
 
@@ -357,13 +480,35 @@ std::string ConsoleManager::trim(std::string_view text) {
   return std::string(text.substr(begin, end - begin));
 }
 
+std::optional<std::string> ConsoleManager::resolve_registered_command_name(
+    std::string_view name
+) const {
+  const std::string normalized = normalize_command_name(name);
+  if (normalized.empty()) {
+    return std::nullopt;
+  }
+
+  if (m_commands.contains(normalized)) {
+    return normalized;
+  }
+
+  const auto alias_it = m_command_aliases.find(normalized);
+  if (alias_it == m_command_aliases.end()) {
+    return std::nullopt;
+  }
+
+  return alias_it->second;
+}
+
 void ConsoleManager::register_builtin_commands() {
   register_command(
       "help", "List available console commands.", [this](const ConsoleCommandInvocation &) {
         ConsoleCommandResult result;
         result.success = true;
         for (const CommandInfo &command : commands()) {
-          result.lines.push_back(command.name + " - " + command.description);
+          result.lines.push_back(
+              format_command_label(command) + " - " + command.description
+          );
         }
         if (result.lines.empty()) {
           result.lines.push_back("no commands registered");
@@ -450,11 +595,21 @@ std::vector<std::string> build_console_command_suggestions(
       normalize_suggestion_text(command_query);
 
   std::map<std::string, SuggestionHistoryStats> history_stats;
-  std::map<std::string, bool> known_commands;
+  std::map<std::string, std::string> known_commands;
   for (const auto &command : commands) {
-    const std::string normalized = normalize_suggestion_text(command.name);
-    if (!normalized.empty()) {
-      known_commands[normalized] = true;
+    const std::string normalized_name =
+        normalize_suggestion_text(command.name);
+    if (normalized_name.empty()) {
+      continue;
+    }
+
+    known_commands[normalized_name] = normalized_name;
+    for (const std::string &alias : command.aliases) {
+      const std::string normalized_alias =
+          normalize_suggestion_text(alias);
+      if (!normalized_alias.empty()) {
+        known_commands[normalized_alias] = normalized_name;
+      }
     }
   }
 
@@ -466,11 +621,12 @@ std::vector<std::string> build_console_command_suggestions(
 
     const std::string normalized =
         normalize_suggestion_text(first_history_token(candidate));
-    if (!known_commands.contains(normalized)) {
+    const auto known_it = known_commands.find(normalized);
+    if (known_it == known_commands.end()) {
       continue;
     }
 
-    auto &stats = history_stats[normalized];
+    auto &stats = history_stats[known_it->second];
     stats.use_count += 1u;
     stats.last_seen_index = index;
     stats.frecency +=
@@ -487,16 +643,31 @@ std::vector<std::string> build_console_command_suggestions(
   };
 
   std::map<std::string, RankedSuggestion> candidates;
-  auto register_candidate = [&](std::string_view display_text) {
-    const std::string display = trim_copy(display_text);
+  for (const auto &command : commands) {
+    const std::string display = trim_copy(command.name);
     if (display.empty()) {
-      return;
+      continue;
     }
 
     const std::string normalized = normalize_suggestion_text(display);
-    const auto bucket = match_suggestion_bucket(normalized_query, normalized);
-    if (!bucket.has_value()) {
-      return;
+    std::optional<SuggestionBucket> best_bucket =
+        match_suggestion_bucket(normalized_query, normalized);
+
+    for (const std::string &alias : command.aliases) {
+      const auto alias_bucket = match_suggestion_bucket(
+          normalized_query, normalize_suggestion_text(alias)
+      );
+      if (!alias_bucket.has_value()) {
+        continue;
+      }
+
+      if (!best_bucket.has_value() || *alias_bucket < *best_bucket) {
+        best_bucket = alias_bucket;
+      }
+    }
+
+    if (!best_bucket.has_value()) {
+      continue;
     }
 
     auto [it, inserted] = candidates.try_emplace(
@@ -504,13 +675,13 @@ std::vector<std::string> build_console_command_suggestions(
         RankedSuggestion{
             .display = display,
             .normalized = normalized,
-            .bucket = *bucket,
+            .bucket = *best_bucket,
         }
     );
 
-    if (inserted || *bucket < it->second.bucket) {
+    if (inserted || *best_bucket < it->second.bucket) {
       it->second.display = display;
-      it->second.bucket = *bucket;
+      it->second.bucket = *best_bucket;
     }
 
     const auto stats_it = history_stats.find(normalized);
@@ -519,10 +690,6 @@ std::vector<std::string> build_console_command_suggestions(
       it->second.use_count = stats_it->second.use_count;
       it->second.last_seen_index = stats_it->second.last_seen_index;
     }
-  };
-
-  for (const auto &command : commands) {
-    register_candidate(command.name);
   }
 
   std::vector<RankedSuggestion> ranked;

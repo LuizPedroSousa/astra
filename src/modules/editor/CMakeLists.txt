@@ -1,5 +1,6 @@
 set(EDITOR_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/builtin-plugins.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/builtin-editor-commands.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/editor-selection-store.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/layouts/layout-registry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/panels/panel-registry.cpp
@@ -14,6 +15,7 @@ set(EDITOR_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/component-descriptors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/inspector-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/chart-refresh.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/refresh.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/snapshot.cpp
@@ -32,6 +34,8 @@ set(EDITOR_SRC
 
 set(EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/builtin-plugins.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/commands/builtin-editor-commands.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/editor-gizmo-store.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/editor-selection-store.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/editor-theme.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/layouts/layout-node.hpp
@@ -48,6 +52,7 @@ set(EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/scene-hierarchy-panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/viewport/gizmo-math.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/viewport/viewport-panel-controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/workspaces/workspace-definition.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/workspaces/workspace-registry.hpp

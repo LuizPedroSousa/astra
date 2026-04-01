@@ -42,14 +42,18 @@ glm::vec4 secondary_background_for_entry(const ConsoleEntry &entry);
 glm::vec4 secondary_border_for_entry(const ConsoleEntry &entry);
 std::string primary_text_for_entry(const ConsoleEntry &entry);
 std::string secondary_text_for_entry(const ConsoleEntry &entry);
+ResourceDescriptorID disclosure_indicator_texture(bool expandable, bool expanded);
 
 ConsoleDensityStyleContraints density_style_constraints(float density);
 
 glm::vec4 severity_accent_color(ConsolePanelController::SeverityFilter filter);
-ConsolePanelController::SeverityFilter severity_filter_from_index(size_t index);
 bool matches_severity_filter(
     const ConsoleEntry &entry,
-    ConsolePanelController::SeverityFilter filter
+    bool filter_all,
+    bool filter_info,
+    bool filter_warning,
+    bool filter_error,
+    bool filter_debug
 );
 bool matches_source_filter(
     const ConsoleEntry &entry,
@@ -57,6 +61,5 @@ bool matches_source_filter(
     bool show_command_entries,
     bool show_output_entries
 );
-std::string disclosure_indicator(bool expandable, bool expanded);
 
 } // namespace astralix::editor::console_panel

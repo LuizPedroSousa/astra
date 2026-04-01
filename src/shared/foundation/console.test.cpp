@@ -106,6 +106,36 @@ TEST_F(LoggerConsoleTest, ConsoleExecutesCommandsAndKeepsBoundedHistory) {
   EXPECT_EQ(history[1], "echo second");
 }
 
+TEST_F(LoggerConsoleTest, CommandAliasesShareSingleCanonicalRegistration) {
+  auto &console = ConsoleManager::get();
+  console.register_command(
+      "selection",
+      "Inspect selection.",
+      [](const ConsoleCommandInvocation &invocation) {
+        ConsoleCommandResult result;
+        result.success = true;
+        result.lines.push_back(invocation.name);
+        return result;
+      },
+      {"sel"}
+  );
+
+  ASSERT_TRUE(console.has_command("selection"));
+  ASSERT_TRUE(console.has_command("sel"));
+
+  const auto commands = console.commands();
+  ASSERT_EQ(commands.size(), 3u);
+  EXPECT_EQ(commands[2].name, "selection");
+  ASSERT_EQ(commands[2].aliases.size(), 1u);
+  EXPECT_EQ(commands[2].aliases[0], "sel");
+
+  const auto result = console.execute("sel");
+  ASSERT_TRUE(result.executed);
+  EXPECT_TRUE(result.success);
+  ASSERT_EQ(result.lines.size(), 1u);
+  EXPECT_EQ(result.lines[0], "selection");
+}
+
 TEST_F(LoggerConsoleTest, UnknownAndClearCommandsProduceExpectedBufferState) {
   auto &console = ConsoleManager::get();
 
@@ -147,6 +177,26 @@ TEST_F(LoggerConsoleTest, CommandSuggestionsRankByMatchBucketAndSessionFrecency)
   EXPECT_EQ(suggestions[0], "help");
   EXPECT_EQ(suggestions[1], "hello_world");
   EXPECT_EQ(suggestions[2], "hide_errors");
+}
+
+TEST_F(LoggerConsoleTest, CommandSuggestionsMatchAliasesWithoutDuplicatingEntries) {
+  const std::vector<ConsoleManager::CommandInfo> commands{
+      {.name = "selection",
+       .description = "Inspect selection.",
+       .aliases = {"sel"}},
+      {.name = "stats", .description = "Print stats."},
+  };
+  const std::deque<std::string> history{
+      "sel cube",
+      "stats",
+      "selection sphere",
+  };
+
+  const auto suggestions =
+      build_console_command_suggestions("sel", commands, history, 5u);
+
+  ASSERT_EQ(suggestions.size(), 1u);
+  EXPECT_EQ(suggestions[0], "selection");
 }
 
 TEST_F(LoggerConsoleTest, EmptyCommandQueryReturnsCommandsOnlyRankedByHistory) {

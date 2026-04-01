@@ -3,6 +3,9 @@
 #include "editor-theme.hpp"
 #include "entry-presentation.hpp"
 
+#include <functional>
+#include <string>
+
 namespace astralix::editor {
 namespace panel = console_panel;
 
@@ -10,32 +13,66 @@ using namespace ui::dsl;
 using namespace ui::dsl::styles;
 
 namespace {
-StyleBuilder icon_button_style(const ConsolePanelTheme &theme) {
-  return width(px(36.0f))
-      .height(px(36.0f))
-      .padding(9.0f)
-      .radius(12.0f)
-      .background(theme.panel_background)
-      .border(1.0f, theme.panel_border)
-      .hover(state().background(theme.handle))
-      .pressed(state().background(k_theme.bunker_1000))
-      .focused(state().border(2.0f, theme.accent));
-}
-
 StyleBuilder utility_toggle_style(
     const ConsolePanelTheme &theme,
     float radius_value
 ) {
   return accent_color(theme.accent)
-      .control_gap(10.0f)
-      .control_indicator_size(16.0f)
-      .padding_xy(12.0f, 9.0f)
+      .control_gap(8.0f)
+      .control_indicator_size(14.0f)
+      .padding_xy(10.0f, 8.0f)
       .radius(radius_value)
-      .background(theme.handle)
-      .border(1.0f, theme.panel_border)
-      .hover(state().background(theme.panel_background))
+      .background(theme_alpha(theme.handle, 0.76f))
+      .border(1.0f, theme_alpha(theme.panel_border, 0.72f))
+      .hover(state().background(theme.handle))
       .pressed(state().background(k_theme.bunker_1000))
       .focused(state().border(2.0f, theme.accent));
+}
+
+StyleBuilder filter_chip_style(const ConsolePanelTheme &theme) {
+  return StyleBuilder{}
+      .flex_row()
+      .items_center()
+      .gap(8.0f)
+      .padding_xy(10.0f, 7.0f)
+      .radius(999.0f)
+      .background(theme_alpha(theme.handle, 0.72f))
+      .border(1.0f, theme_alpha(theme.panel_border, 0.70f))
+      .cursor_pointer()
+      .hover(state().background(theme.handle))
+      .pressed(state().background(k_theme.bunker_1000))
+      .focused(state().border(2.0f, theme.accent));
+}
+
+StyleBuilder filter_popover_style(
+    const ConsolePanelTheme &theme,
+    float width_value
+) {
+  return StyleBuilder{}
+      .column()
+      .items_start()
+      .gap(8.0f)
+      .width(px(width_value))
+      .padding(10.0f)
+      .background(theme_alpha(theme.handle, 0.96f))
+      .border(1.0f, theme_alpha(theme.panel_border, 0.82f))
+      .radius(12.0f);
+}
+
+StyleBuilder filter_popup_option_style(
+    const ConsolePanelTheme &theme,
+    const glm::vec4 &accent
+) {
+  return fill_x()
+      .control_gap(10.0f)
+      .control_indicator_size(14.0f)
+      .padding_xy(10.0f, 8.0f)
+      .radius(10.0f)
+      .background(theme_alpha(theme.panel_background, 0.72f))
+      .border(1.0f, theme_alpha(theme.panel_border, 0.76f))
+      .accent_color(accent)
+      .hover(state().background(theme.handle))
+      .focused(state().border(2.0f, accent));
 }
 
 StyleBuilder log_scroll_style(const ConsolePanelTheme &theme) {
@@ -79,7 +116,7 @@ StyleBuilder prompt_chip_style(const ConsolePanelTheme &theme) {
       .justify_center()
       .width(px(42.0f))
       .height(px(46.0f))
-      .radius(14.0f)
+      .radius(0.0f)
       .background(theme.prompt_background)
       .border(1.0f, theme.accent_pressed);
 }
@@ -88,7 +125,7 @@ StyleBuilder command_input_style(const ConsolePanelTheme &theme) {
   return flex(1.0f)
       .height(px(46.0f))
       .padding_xy(14.0f, 11.0f)
-      .radius(14.0f)
+      .radius(0.0f)
       .background(theme.panel_background)
       .border(1.0f, theme.panel_border)
       .text_color(theme.text_primary)
@@ -103,12 +140,19 @@ StyleBuilder command_input_style(const ConsolePanelTheme &theme) {
       });
 }
 
+StyleBuilder command_input_pair_style() {
+  return flex(1.0f)
+      .items_center()
+      .gap(0.0f)
+      .radius(14.0f)
+      .overflow_hidden();
+}
+
 NodeSpec section_label(
     const char *text_value,
-    const char *name,
     const glm::vec4 &text_muted
 ) {
-  return text(text_value, name).style(font_size(12.5f).text_color(text_muted));
+  return text(text_value).style(font_size(11.5f).text_color(text_muted));
 }
 
 } // namespace
@@ -116,45 +160,41 @@ NodeSpec section_label(
 ui::dsl::NodeSpec ConsolePanelController::build() {
   const ConsolePanelTheme theme;
 
-  auto build_filter_card =
-      [&](const char *card_name,
-          const char *label_name,
-          const char *label_text,
-          float width_value,
-          NodeSpec control) -> NodeSpec {
-    return column(card_name)
-        .style(
-            width(px(width_value))
-                .max_width(max_content())
-                .gap(8.0f)
-                .border(2.0f, theme.panel_border)
-                .padding(12.0f)
-                .radius(16.0f)
-                .items_start()
-        )
+  auto build_filter_chip =
+      [&](const char *label_text,
+          const char *summary_text,
+          ui::UINodeId &trigger_node,
+          ui::UINodeId &summary_node,
+          const std::function<void()> &on_click) -> NodeSpec {
+    return pressable()
+        .bind(trigger_node)
+        .style(filter_chip_style(theme))
+        .on_click(on_click)
         .children(
-            section_label(label_text, label_name, theme.text_muted),
-            std::move(control)
+            text(label_text)
+                .style(font_size(11.0f).text_color(theme.text_muted)),
+            text(summary_text)
+                .bind(summary_node)
+                .style(font_size(12.5f).text_color(theme.text_primary)),
+            text("v")
+                .style(font_size(10.5f).text_color(theme.text_muted))
         );
   };
 
   auto build_header = [&]() -> NodeSpec {
-    return row("console_header")
+    return ui::dsl::row()
         .style(fill_x().items_center().gap(12.0f))
         .children(
-            column("console_header_copy")
+            ui::dsl::column()
                 .style(items_start().gap(2.0f))
                 .children(
-                    text("Console", "console_title")
+                    text("Console")
                         .style(font_size(20.0f).text_color(theme.text_primary)),
-                    text(
-                        "Operator workbench for logs, commands, and runtime output",
-                        "console_subtitle"
-                    )
+                    text("Operator workbench for logs, commands, and runtime output")
                         .style(font_size(13.0f).text_color(theme.text_muted))
                 ),
-            spacer("console_spacer"),
-            row("console_hint_pill")
+            spacer(),
+            ui::dsl::row()
                 .style(
                     items_center()
                         .padding_xy(12.0f, 8.0f)
@@ -165,204 +205,255 @@ ui::dsl::NodeSpec ConsolePanelController::build() {
                 .children(
                     text(
                         "Ctrl+R commands | Up-Down history | Inline history | "
-                        "Enter accept+run | Tab accept",
-                        "console_hint"
+                        "Enter accept+run | Tab accept"
                     )
                         .style(font_size(12.5f).text_color(theme.text_muted))
-                ),
-            icon_button(
-                "icons::adjust",
-                [this]() { toggle_filters_expanded(); },
-                "console_filters_toggle"
-            )
-                .style(icon_button_style(theme))
-        );
-  };
-
-  auto build_filters = [&]() -> NodeSpec {
-    auto source_control =
-        chip_group(
-            {"Logs", "Commands", "Output"},
-            {source_filter_enabled(0u),
-             source_filter_enabled(1u),
-             source_filter_enabled(2u)},
-            "console_sources"
-        )
-            .bind(m_source_filters_node)
-            .style(
-                accent_color(theme.accent)
-                    .radius(8.0f)
-                    .cursor_pointer()
-                    .control_gap(6.0f)
-            )
-            .on_chip_toggle(
-                [this](size_t index, const std::string &, bool enabled) {
-                  set_source_filter_enabled(index, enabled);
-                }
-            );
-
-    auto severity_control =
-        segmented_control(
-            {"All", "Info", "Warn", "Error", "Debug"},
-            severity_filter_index(),
-            "console_severity"
-        )
-            .bind(m_severity_node)
-            .style(
-                cursor_pointer()
-                    .radius(8.0f)
-            )
-            .on_select([this](size_t index, const std::string &) {
-              set_severity_filter_index(index);
-            });
-
-    auto density_control = slider(density(), 0.0f, 1.0f, "console_density")
-                               .step(0.1f)
-                               .style(
-                                   accent_color(theme.accent)
-                                       .slider_track_thickness(7.0f)
-                                       .slider_thumb_radius(8.0f)
-                                       .padding_xy(6.0f, 8.0f)
-                               )
-                               .on_value_change([this](float value) {
-                                 set_density(value);
-                               });
-
-    return column("console_settings")
-        .bind(m_filters_row_node)
-        .style(fill_x().gap(10.0f))
-        .children(
-            row("console_utility_row")
-                .style(fill_x().items_center().gap(10.0f))
-                .children(
-                    checkbox(
-                        "Follow tail", follow_tail(), "console_follow_tail"
-                    )
-                        .style(utility_toggle_style(theme, 12.0f))
-                        .on_toggle([this](bool checked) {
-                          set_follow_tail(checked);
-                        }),
-                    checkbox(
-                        "Expand details",
-                        expand_all_details(),
-                        "console_expand_all_details"
-                    )
-                        .style(utility_toggle_style(theme, 12.0f))
-                        .on_toggle([this](bool checked) {
-                          set_expand_all_details(checked);
-                        }),
-                    spacer("console_settings_spacer"),
-                    text("Workbench filters", "console_settings_meta")
-                        .style(font_size(12.5f).text_color(theme.text_muted))
-                ),
-            row("console_filter_row")
-                .style(
-                    fill_x()
-                        .items_center()
-                        .justify_start()
-                        .gap(8.0f)
-                )
-                .children(
-                    build_filter_card(
-                        "console_source_card",
-                        "console_source_label",
-                        "Source",
-                        340.0f,
-                        std::move(source_control)
-                    ),
-                    build_filter_card(
-                        "console_severity_card",
-                        "console_severity_label",
-                        "Severity",
-                        360.0f,
-                        std::move(severity_control)
-                    ),
-                    build_filter_card(
-                        "console_density_card",
-                        "console_density_label",
-                        "Density",
-                        280.0f,
-                        std::move(density_control)
-                    )
                 )
         );
   };
 
-  auto build_divider = [&]() -> NodeSpec {
-    return column("divider")
-        .style(
-            fill_x()
-                .height(px(2.0f))
-                .background(theme.handle * 1.5f)
-        );
-  };
+  auto density_control = slider(density(), 0.0f, 1.0f)
+                             .bind(m_density_node)
+                             .step(0.1f)
+                             .style(
+                                 width(px(132.0f))
+                                     .accent_color(theme.accent)
+                                     .slider_track_thickness(5.0f)
+                                     .slider_thumb_radius(6.0f)
+                             )
+                             .on_value_change([this](float value) {
+                               set_density(value);
+                             });
+
+  auto filter_toolbar = ui::dsl::row()
+                            .bind(m_filters_row_node)
+                            .style(fill_x().items_center().gap(8.0f))
+                            .children(
+                                checkbox("Follow tail", follow_tail())
+                                    .bind(m_follow_tail_toggle_node)
+                                    .style(utility_toggle_style(theme, 12.0f))
+                                    .on_toggle([this](bool checked) { set_follow_tail(checked); }),
+                                checkbox("Expand details", expand_all_details())
+                                    .bind(m_expand_details_toggle_node)
+                                    .style(utility_toggle_style(theme, 12.0f))
+                                    .on_toggle(
+                                        [this](bool checked) { set_expand_all_details(checked); }
+                                    ),
+                                spacer(),
+                                build_filter_chip(
+                                    "Source",
+                                    "All sources",
+                                    m_source_chip_trigger_node,
+                                    m_source_chip_summary_node,
+                                    [this]() { toggle_source_filter_popover(); }
+                                ),
+                                build_filter_chip(
+                                    "Severity",
+                                    "All severities",
+                                    m_severity_chip_trigger_node,
+                                    m_severity_chip_summary_node,
+                                    [this]() { toggle_severity_filter_popover(); }
+                                ),
+                                ui::dsl::row()
+                                    .style(items_center().gap(8.0f))
+                                    .children(
+                                        text("Density")
+                                            .style(font_size(11.5f).text_color(theme.text_muted)),
+                                        std::move(density_control)
+                                    )
+                            );
+
+  auto source_popover = popover()
+                            .bind(m_source_popover_node)
+                            .style(filter_popover_style(theme, 192.0f))
+                            .children(
+                                section_label(
+                                    "Source", theme.text_muted
+                                ),
+                                checkbox("Logs", source_filter_enabled(0u))
+                                    .bind(m_source_filter_option_nodes[0])
+                                    .style(
+                                        filter_popup_option_style(
+                                            theme, theme.accent
+                                        )
+                                    )
+                                    .on_toggle([this](bool checked) {
+                                      set_source_filter_enabled(0u, checked);
+                                    }),
+                                checkbox("Commands", source_filter_enabled(1u))
+                                    .bind(m_source_filter_option_nodes[1])
+                                    .style(
+                                        filter_popup_option_style(
+                                            theme, theme.accent
+                                        )
+                                    )
+                                    .on_toggle([this](bool checked) {
+                                      set_source_filter_enabled(1u, checked);
+                                    }),
+                                checkbox("Output", source_filter_enabled(2u))
+                                    .bind(m_source_filter_option_nodes[2])
+                                    .style(
+                                        filter_popup_option_style(
+                                            theme, theme.accent
+                                        )
+                                    )
+                                    .on_toggle([this](bool checked) {
+                                      set_source_filter_enabled(2u, checked);
+                                    })
+                            );
+
+  auto severity_popover = popover()
+                              .bind(m_severity_popover_node)
+                              .style(filter_popover_style(theme, 192.0f))
+                              .children(
+                                  section_label(
+                                      "Severity", theme.text_muted
+                                  ),
+                                  checkbox("All", severity_filter_enabled(0u))
+                                      .bind(m_severity_filter_option_nodes[0])
+                                      .style(
+                                          filter_popup_option_style(
+                                              theme,
+                                              panel::severity_accent_color(
+                                                  SeverityFilter::All
+                                              )
+                                          )
+                                      )
+                                      .on_toggle([this](bool) {
+                                        toggle_severity_all();
+                                      }),
+                                  checkbox("Info", severity_filter_enabled(1u))
+                                      .bind(m_severity_filter_option_nodes[1])
+                                      .style(
+                                          filter_popup_option_style(
+                                              theme,
+                                              panel::severity_accent_color(
+                                                  SeverityFilter::Info
+                                              )
+                                          )
+                                      )
+                                      .on_toggle([this](bool) {
+                                        toggle_severity_option(1u);
+                                      }),
+                                  checkbox("Warn", severity_filter_enabled(2u))
+                                      .bind(m_severity_filter_option_nodes[2])
+                                      .style(
+                                          filter_popup_option_style(
+                                              theme,
+                                              panel::severity_accent_color(
+                                                  SeverityFilter::Warning
+                                              )
+                                          )
+                                      )
+                                      .on_toggle([this](bool) {
+                                        toggle_severity_option(2u);
+                                      }),
+                                  checkbox("Error", severity_filter_enabled(3u))
+                                      .bind(m_severity_filter_option_nodes[3])
+                                      .style(
+                                          filter_popup_option_style(
+                                              theme,
+                                              panel::severity_accent_color(
+                                                  SeverityFilter::Error
+                                              )
+                                          )
+                                      )
+                                      .on_toggle([this](bool) {
+                                        toggle_severity_option(3u);
+                                      }),
+                                  checkbox("Debug", severity_filter_enabled(4u))
+                                      .bind(m_severity_filter_option_nodes[4])
+                                      .style(
+                                          filter_popup_option_style(
+                                              theme,
+                                              panel::severity_accent_color(
+                                                  SeverityFilter::Debug
+                                              )
+                                          )
+                                      )
+                                      .on_toggle([this](bool) {
+                                        toggle_severity_option(4u);
+                                      })
+                              );
 
   auto build_log_view = [&]() -> NodeSpec {
-    return scroll_view("console_log_scroll")
+    return scroll_view()
         .bind(m_log_scroll_node)
         .style(log_scroll_style(theme));
   };
 
   auto build_command_dock = [&]() -> NodeSpec {
-    return column("console_command_dock")
+    return ui::dsl::column()
         .style(command_dock_style(theme))
         .children(
-            row("console_command_meta")
+            ui::dsl::row()
                 .style(fill_x().items_center())
                 .children(
-                    text("Command", "console_command_title")
+                    text("Command")
                         .style(font_size(13.0f).text_color(theme.text_primary)),
-                    spacer("console_command_meta_spacer")
+                    spacer()
                 ),
-            row("console_command_row")
-                .style(fill_x().items_center().gap(10.0f))
+            ui::dsl::row()
+                .style(
+                    fill_x()
+                        .items_center()
+                        .gap(0.0f)
+                )
                 .children(
-                    row("console_prompt_chip")
-                        .style(prompt_chip_style(theme))
+                    ui::dsl::row()
+                        .style(command_input_pair_style())
                         .children(
-                            text(">", "console_prompt_text")
-                                .style(
-                                    font_size(20.0f)
-                                        .text_color(theme.prompt_text)
-                                        .raw([theme](ui::UIStyle &style) {
-                                          style.font_id = theme.mono_font;
-                                        })
+                            ui::dsl::row()
+                                .style(prompt_chip_style(theme))
+                                .children(
+                                    text(">")
+                                        .style(
+                                            font_size(20.0f)
+                                                .text_color(theme.prompt_text)
+                                                .raw([theme](ui::UIStyle &style) {
+                                                  style.font_id =
+                                                      theme.mono_font;
+                                                })
+                                        )
+                                ),
+                            combobox(
+                                {}, "Run a command or accept a command suggestion"
+                            )
+                                .bind(m_input_node)
+                                .style(command_input_style(theme))
+                                .on_focus([this]() { set_input_capture(true); })
+                                .on_blur([this]() { set_input_capture(false); })
+                                .on_change([this](const std::string &value) {
+                                  set_input_value(value);
+                                })
+                                .on_select(
+                                    [this](size_t, const std::string &value) {
+                                      accept_suggestion(value);
+                                    }
                                 )
-                        ),
-                    combobox(
-                        {},
-                        "Run a command or accept a command suggestion",
-                        "console_input"
-                    )
-                        .bind(m_input_node)
-                        .style(command_input_style(theme))
-                        .on_change([this](const std::string &value) {
-                          set_input_value(value);
-                        })
-                        .on_select([this](size_t, const std::string &value) {
-                          accept_suggestion(value);
-                        })
-                        .on_submit([this](const std::string &value) {
-                          submit_command(value);
-                        })
+                                .on_submit([this](const std::string &value) {
+                                  submit_command(value);
+                                })
+                        )
                 )
         );
   };
 
-  return column("console_root")
+  return ui::dsl::column()
       .bind(m_root_node)
       .style(
           fill()
-              .padding(14.0f)
-              .gap(14.0f)
+              .padding(12.0f)
+              .gap(12.0f)
               .background(theme.panel_background)
       )
       .children(
           build_header(),
-          build_filters(),
-          build_divider().bind(m_filters_divider_node),
+          std::move(filter_toolbar),
           build_log_view(),
-          build_command_dock()
+          build_command_dock(),
+          std::move(source_popover),
+          std::move(severity_popover)
       );
 }
 

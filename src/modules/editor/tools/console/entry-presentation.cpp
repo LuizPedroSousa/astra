@@ -271,36 +271,27 @@ glm::vec4 severity_accent_color(ConsolePanelController::SeverityFilter filter) {
   }
 }
 
-ConsolePanelController::SeverityFilter severity_filter_from_index(size_t index) {
-  switch (index) {
-    case 1u:
-      return ConsolePanelController::SeverityFilter::Info;
-    case 2u:
-      return ConsolePanelController::SeverityFilter::Warning;
-    case 3u:
-      return ConsolePanelController::SeverityFilter::Error;
-    case 4u:
-      return ConsolePanelController::SeverityFilter::Debug;
-    case 0u:
-    default:
-      return ConsolePanelController::SeverityFilter::All;
-  }
-}
-
 bool matches_severity_filter(
     const ConsoleEntry &entry,
-    ConsolePanelController::SeverityFilter filter
+    bool filter_all,
+    bool filter_info,
+    bool filter_warning,
+    bool filter_error,
+    bool filter_debug
 ) {
-  switch (filter) {
-    case ConsolePanelController::SeverityFilter::Info:
-      return entry.level == LogLevel::INFO;
-    case ConsolePanelController::SeverityFilter::Warning:
-      return entry.level == LogLevel::WARNING;
-    case ConsolePanelController::SeverityFilter::Error:
-      return entry.level == LogLevel::ERROR;
-    case ConsolePanelController::SeverityFilter::Debug:
-      return entry.level == LogLevel::DEBUG;
-    case ConsolePanelController::SeverityFilter::All:
+  if (filter_all) {
+    return true;
+  }
+
+  switch (entry.level) {
+    case LogLevel::INFO:
+      return filter_info;
+    case LogLevel::WARNING:
+      return filter_warning;
+    case LogLevel::ERROR:
+      return filter_error;
+    case LogLevel::DEBUG:
+      return filter_debug;
     default:
       return true;
   }
@@ -324,12 +315,13 @@ bool matches_source_filter(
   }
 }
 
-std::string disclosure_indicator(bool expandable, bool expanded) {
+ResourceDescriptorID disclosure_indicator_texture(bool expandable, bool expanded) {
   if (!expandable) {
     return {};
   }
 
-  return expanded ? "v" : ">";
+  return expanded ? ResourceDescriptorID{"icons::right_arrow_down"}
+                  : ResourceDescriptorID{"icons::right_arrow"};
 }
 
 } // namespace astralix::editor::console_panel

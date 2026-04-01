@@ -52,6 +52,7 @@ public:
   struct CommandInfo {
     std::string name;
     std::string description;
+    std::vector<std::string> aliases;
   };
 
   static ConsoleManager &get() {
@@ -62,11 +63,24 @@ public:
   ConsoleManager(const ConsoleManager &) = delete;
   ConsoleManager &operator=(const ConsoleManager &) = delete;
 
-  void set_open(bool open) { m_open = open; }
+  void set_open(bool open) {
+    m_open = open;
+    if (!m_open) {
+      m_captures_input = false;
+    }
+  }
   bool is_open() const { return m_open; }
-  bool captures_input() const { return m_open; }
+  void set_captures_input(bool captures_input) {
+    m_captures_input = m_open && captures_input;
+  }
+  bool captures_input() const { return m_captures_input; }
 
-  void register_command(std::string name, std::string description, CommandHandler handler);
+  void register_command(
+      std::string name,
+      std::string description,
+      CommandHandler handler,
+      std::vector<std::string> aliases = {}
+  );
   void unregister_command(std::string_view name);
   bool has_command(std::string_view name) const;
   std::vector<CommandInfo> commands() const;
@@ -96,6 +110,7 @@ private:
   struct RegisteredCommand {
     std::string name;
     std::string description;
+    std::vector<std::string> aliases;
     CommandHandler handler;
   };
 
@@ -103,6 +118,9 @@ private:
 
   static std::string normalize_command_name(std::string_view name);
   static std::string trim(std::string_view text);
+  std::optional<std::string> resolve_registered_command_name(
+      std::string_view name
+  ) const;
 
   void register_builtin_commands();
   void append_log_entry(const Logger::Log &log);
@@ -111,6 +129,7 @@ private:
   void trim_history_to_capacity();
 
   bool m_open = false;
+  bool m_captures_input = false;
   uint64_t m_entries_version = 0u;
   uint64_t m_next_entry_id = 1u;
   size_t m_max_entries = 500u;
@@ -119,6 +138,7 @@ private:
   std::deque<ConsoleEntry> m_entries;
   std::deque<std::string> m_history;
   std::map<std::string, RegisteredCommand> m_commands;
+  std::map<std::string, std::string> m_command_aliases;
 };
 
 std::vector<std::string> build_console_command_suggestions(
