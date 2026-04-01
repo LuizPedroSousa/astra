@@ -8,9 +8,10 @@
 
 namespace astralix::editor::scene_hierarchy_panel {
 
-ui::dsl::NodeSpec build_summary_card(
+ui::dsl::NodeSpec build_toolbar(
     ui::UINodeId &entity_count_node,
     ui::UINodeId &scene_name_node,
+    ui::UINodeId &selection_line_node,
     ui::UINodeId &selection_text_node,
     ui::UINodeId &create_button_node,
     std::function<void()> on_create_click,

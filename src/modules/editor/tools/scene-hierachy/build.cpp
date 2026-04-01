@@ -12,77 +12,83 @@ using namespace ui::dsl::styles;
 
 namespace scene_hierarchy_panel {
 
-ui::dsl::NodeSpec build_summary_card(
+ui::dsl::NodeSpec build_toolbar(
     ui::UINodeId &entity_count_node,
     ui::UINodeId &scene_name_node,
+    ui::UINodeId &selection_line_node,
     ui::UINodeId &selection_text_node,
     ui::UINodeId &create_button_node,
     std::function<void()> on_create_click,
     const SceneHierarchyPanelTheme &theme
 ) {
-  auto summary_header = row("scene_hierarchy_summary_header")
-                            .style(fill_x().items_center().gap(12.0f));
-  summary_header.child(
-      column("scene_hierarchy_heading")
-          .style(items_start().gap(3.0f))
-          .children(
-              text("Scene Hierarchy", "scene_hierarchy_title")
-                  .style(font_size(18.0f).text_color(theme.text_primary)),
-              text(
-                  "Flat world listing for the active scene.",
-                  "scene_hierarchy_copy"
-              )
-                  .style(font_size(12.5f).text_color(theme.text_muted))
-          )
+  auto title_row = ui::dsl::row().style(fill_x().items_center().gap(8.0f));
+  title_row.child(
+      text("No active scene")
+          .bind(scene_name_node)
+          .style(font_size(16.0f).text_color(theme.text_primary))
   );
-  summary_header.child(spacer("scene_hierarchy_summary_spacer"));
-  auto summary_actions =
-      row("scene_hierarchy_summary_actions").style(items_center().gap(10.0f));
-  summary_actions.child(
-      text("0 entities", "scene_hierarchy_count")
+  title_row.child(spacer());
+  title_row.child(
+      text("0 entities")
           .bind(entity_count_node)
           .style(
-              font_size(12.0f)
-                  .text_color(theme.accent)
-                  .padding_xy(12.0f, 8.0f)
-                  .background(theme.accent_soft)
-                  .border(1.0f, theme.accent)
+              font_size(11.0f)
+                  .text_color(theme.text_muted)
+                  .padding_xy(8.0f, 3.0f)
+                  .background(theme_alpha(theme.card_background, 0.56f))
+                  .border(1.0f, theme_alpha(theme.card_border, 0.42f))
                   .radius(999.0f)
           )
   );
-  summary_actions.child(
-      button("Create", std::move(on_create_click), "scene_hierarchy_create_button")
+  title_row.child(
+      button("+", std::move(on_create_click))
           .bind(create_button_node)
           .style(
-              background(theme.accent_soft)
-                  .border(1.0f, theme.accent)
-                  .radius(999.0f)
-                  .padding_xy(14.0f, 8.0f)
-                  .hover(state().background(theme.accent))
-                  .pressed(state().background(theme.panel_background))
+              items_center()
+                  .justify_center()
+                  .width(px(28.0f))
+                  .height(px(28.0f))
+                  .font_size(18.0f)
+                  .padding(0.0f)
+                  .radius(8.0f)
+                  .background(theme.accent_soft)
+                  .border(1.0f, theme_alpha(theme.accent, 0.52f))
+                  .text_color(theme.accent)
+                  .hover(
+                      state()
+                          .background(theme_alpha(theme.accent, 0.24f))
+                          .border(1.0f, theme.accent)
+                  )
+                  .pressed(state().background(theme_alpha(theme.accent, 0.32f)))
+                  .focused(state().border(2.0f, theme.accent))
           )
   );
-  summary_header.child(
-      std::move(summary_actions)
-  );
 
-  return column("scene_hierarchy_summary_card")
-      .style(
-          fill_x()
-              .padding(16.0f)
-              .gap(10.0f)
-              .radius(18.0f)
-              .background(theme.panel_background)
-              .border(1.0f, theme.panel_border)
-      )
+  return ui::dsl::column()
+      .style(fill_x().gap(6.0f))
       .children(
-          std::move(summary_header),
-          text("No active scene", "scene_hierarchy_scene_name")
-              .bind(scene_name_node)
-              .style(font_size(15.0f).text_color(theme.text_primary)),
-          text("Selected: none", "scene_hierarchy_selection")
-              .bind(selection_text_node)
-              .style(font_size(12.5f).text_color(theme.text_muted))
+          std::move(title_row),
+          ui::dsl::row()
+              .bind(selection_line_node)
+              .style(fill_x().items_center().gap(6.0f))
+              .visible(false)
+              .children(
+                  text("Selected")
+                      .style(
+                          font_size(11.0f)
+                              .text_color(theme_alpha(theme.text_muted, 0.72f))
+                      ),
+                  text("none")
+                      .bind(selection_text_node)
+                      .style(
+                          font_size(11.0f)
+                              .text_color(theme.text_muted)
+                              .padding_xy(6.0f, 2.0f)
+                              .background(theme_alpha(theme.card_background, 0.42f))
+                              .border(1.0f, theme_alpha(theme.card_border, 0.32f))
+                              .radius(4.0f)
+                      )
+              )
       );
 }
 
@@ -91,11 +97,7 @@ ui::dsl::NodeSpec build_search_input(
     std::function<void(const std::string &)> on_change,
     const SceneHierarchyPanelTheme &theme
 ) {
-  return text_input(
-             {},
-             "Search entities by name, tag, or id",
-             "scene_hierarchy_search"
-  )
+  return text_input({}, "Search by name, type, scope, or id")
       .bind(search_input_node)
       .select_all_on_focus(true)
       .on_change(std::move(on_change))
@@ -112,22 +114,29 @@ build_scroll_region(
     std::function<void(const ui::UIPointerButtonEvent &)> on_secondary_click,
     const SceneHierarchyPanelTheme &theme
 ) {
-  return scroll_view("scene_hierarchy_scroll")
+  return scroll_view()
       .bind(scroll_node)
       .on_secondary_click(std::move(on_secondary_click))
       .style(
           fill_x()
               .flex()
-              .gap(14.0f)
+              .min_height(px(0.0f))
+              .overflow_hidden()
+              .gap(2.0f)
+              .scrollbar_auto()
+              .raw([theme](ui::UIStyle &style) {
+                static_cast<void>(theme);
+                style.scroll_mode = ui::ScrollMode::Vertical;
+                style.scrollbar_thickness = 8.0f;
+              })
       );
 }
 
 ui::dsl::NodeSpec build_menu_popover(
     ui::UINodeId &popover_node,
-    std::string name,
     const SceneHierarchyPanelTheme &theme
 ) {
-  return popover(std::move(name))
+  return popover()
       .bind(popover_node)
       .style(
           items_start()
@@ -146,7 +155,7 @@ ui::dsl::NodeSpec build_empty_state(
     ui::UINodeId &empty_body_node,
     const SceneHierarchyPanelTheme &theme
 ) {
-  return column("scene_hierarchy_empty_state")
+  return ui::dsl::column()
       .bind(empty_state_node)
       .style(
           fill()
@@ -160,13 +169,10 @@ ui::dsl::NodeSpec build_empty_state(
       )
       .visible(false)
       .children(
-          text("No active scene", "scene_hierarchy_empty_title")
+          text("No active scene")
               .bind(empty_title_node)
               .style(font_size(18.0f).text_color(theme.text_primary)),
-          text(
-              "Scene entities appear here when SceneManager exposes an active world.",
-              "scene_hierarchy_empty_body"
-          )
+          text("Scene entities appear here when SceneManager exposes an active world.")
               .bind(empty_body_node)
               .style(font_size(13.0f).text_color(theme.text_muted))
       );
@@ -178,16 +184,13 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
   const SceneHierarchyPanelTheme theme;
 
   auto create_menu = scene_hierarchy_panel::build_menu_popover(
-      m_create_menu_node,
-      "scene_hierarchy_create_menu",
-      theme
+      m_create_menu_node, theme
   );
 
   create_menu.children(
       menu_item(
           "Create Empty",
-          [this]() { create_empty_entity(); },
-          "scene_hierarchy_create_empty"
+          [this]() { create_empty_entity(); }
       )
           .on_hover([this]() {
             if (m_document == nullptr) {
@@ -196,7 +199,7 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
 
             m_document->close_popovers_from_depth(1u);
           }),
-      menu_separator("scene_hierarchy_create_menu_separator"),
+      menu_separator(),
       submenu_item(
           "3D Object",
           [this]() {
@@ -210,8 +213,7 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
                 ui::UIPopupPlacement::RightStart,
                 1u
             );
-          },
-          "scene_hierarchy_create_3d_trigger"
+          }
       )
           .bind(m_create_3d_trigger_node),
       submenu_item(
@@ -227,16 +229,13 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
                 ui::UIPopupPlacement::RightStart,
                 1u
             );
-          },
-          "scene_hierarchy_create_light_trigger"
+          }
       )
           .bind(m_create_light_trigger_node)
   );
 
   auto create_3d_menu = scene_hierarchy_panel::build_menu_popover(
-      m_create_3d_menu_node,
-      "scene_hierarchy_create_3d_menu",
-      theme
+      m_create_3d_menu_node, theme
   );
 
   create_3d_menu.children(
@@ -258,9 +257,7 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
   );
 
   auto create_light_menu = scene_hierarchy_panel::build_menu_popover(
-      m_create_light_menu_node,
-      "scene_hierarchy_create_light_menu",
-      theme
+      m_create_light_menu_node, theme
   );
   create_light_menu.children(
       menu_item("Directional", [this]() {
@@ -278,9 +275,7 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
   );
 
   auto row_menu = scene_hierarchy_panel::build_menu_popover(
-      m_row_menu_node,
-      "scene_hierarchy_row_menu",
-      theme
+      m_row_menu_node, theme
   );
   row_menu.children(
       submenu_item(
@@ -291,18 +286,15 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
                   m_row_add_component_menu_node,
                   m_row_add_component_trigger_node,
                   ui::UIPopupPlacement::RightStart,
-                  1u
+                1u
               );
             }
-          },
-          "scene_hierarchy_row_add_component_trigger"
+          }
       )
           .bind(m_row_add_component_trigger_node),
-      menu_separator("scene_hierarchy_row_menu_separator"),
+      menu_separator(),
       menu_item(
-          "Delete",
-          [this]() { delete_context_entity(); },
-          "scene_hierarchy_row_delete"
+          "Delete", [this]() { delete_context_entity(); }
       )
           .on_hover([this]() {
             if (m_document != nullptr) {
@@ -312,17 +304,15 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
   );
 
   auto row_add_component_menu = scene_hierarchy_panel::build_menu_popover(
-      m_row_add_component_menu_node,
-      "scene_hierarchy_row_add_component_menu",
-      theme
+      m_row_add_component_menu_node, theme
   );
   row_add_component_menu.children(
-      column("scene_hierarchy_row_add_component_container")
+      ui::dsl::column()
           .bind(m_row_add_component_container_node)
           .style(fill_x().items_start().gap(4.0f))
   );
 
-  return column("scene_hierarchy_root")
+  return ui::dsl::column()
       .style(
           fill()
               .background(theme.shell_background)
@@ -330,9 +320,10 @@ ui::dsl::NodeSpec SceneHierarchyPanelController::build() {
               .gap(12.0f)
       )
       .children(
-          scene_hierarchy_panel::build_summary_card(
+          scene_hierarchy_panel::build_toolbar(
               m_entity_count_node,
               m_scene_name_node,
+              m_selection_line_node,
               m_selection_text_node,
               m_create_button_node,
               [this]() { open_create_menu_anchored(); },
