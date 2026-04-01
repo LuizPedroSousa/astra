@@ -14,12 +14,8 @@ TEST(UIFoundationsTest, RenderImageViewDocumentAndDslStoreRendererExportKeys) {
 
   mount(
       *document,
-      column("root").children(
-          render_image_view(
-              RenderImageResource::ShadowMap,
-              RenderImageAspect::Depth,
-              "viewport"
-          )
+      column().children(
+          render_image_view(RenderImageResource::ShadowMap, RenderImageAspect::Depth)
               .bind(viewport)
       )
   );
@@ -36,6 +32,20 @@ TEST(UIFoundationsTest, RenderImageViewDocumentAndDslStoreRendererExportKeys) {
       viewport_node->render_image_key->aspect,
       RenderImageAspect::Depth
   );
+}
+
+TEST(UIFoundationsTest, ImageNodesKeepArbitraryImageResourceIds) {
+  using namespace dsl;
+
+  auto document = UIDocument::create();
+  UINodeId icon = k_invalid_node_id;
+
+  mount(*document, column().children(image("svg::icons::close").bind(icon)));
+
+  const auto *icon_node = document->node(icon);
+  ASSERT_NE(icon_node, nullptr);
+  EXPECT_EQ(icon_node->type, NodeType::Image);
+  EXPECT_EQ(icon_node->texture_id, "svg::icons::close");
 }
 
 } // namespace

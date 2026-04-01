@@ -1,6 +1,7 @@
 #include "layout/widgets/content/image.hpp"
 
 #include "layout/common.hpp"
+#include "resources/svg.hpp"
 #include "resources/texture.hpp"
 
 #include <utility>
@@ -11,13 +12,21 @@ glm::vec2 measure_image_size(const UIDocument::UINode &node) {
   auto texture = resource_manager()->get_by_descriptor_id<Texture2D>(
       node.texture_id
   );
-  if (texture == nullptr) {
+  if (texture != nullptr) {
+    return glm::vec2(
+        static_cast<float>(texture->width()),
+        static_cast<float>(texture->height())
+    );
+  }
+
+  auto svg = resource_manager()->get_by_descriptor_id<Svg>(node.texture_id);
+  if (svg == nullptr) {
     return glm::vec2(0.0f);
   }
 
   return glm::vec2(
-      static_cast<float>(texture->width()),
-      static_cast<float>(texture->height())
+      svg->width(),
+      svg->height()
   );
 }
 
@@ -34,7 +43,9 @@ void append_image_node_commands(
   }
 
   UIDrawCommand command;
-  command.type = DrawCommandType::Image;
+  command.type = resource_manager()->get_by_descriptor_id<Svg>(node.texture_id) != nullptr
+                     ? DrawCommandType::SvgImage
+                     : DrawCommandType::Image;
   command.node_id = node_id;
   command.rect = content_bounds;
   apply_content_clip(command, node);
