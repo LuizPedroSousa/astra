@@ -67,6 +67,7 @@ find_package(glfw3 CONFIG REQUIRED)
 find_package(X11 REQUIRED)
 
 if(ASTRA_ENABLE_TESTS)
+  include(${CMAKE_SOURCE_DIR}/src/modules/streams/serialization-formats.cmake)
   set(GTest_DIR "${VCPKG_INSTALLED_ROOT}/share/gtest")
 
   enable_testing()
@@ -100,7 +101,23 @@ if(ASTRA_ENABLE_TESTS)
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/transform-system/*.test.hpp)
   set(TEST_SUPPORT_SRC
       ${CMAKE_SOURCE_DIR}/src/shared/ecs/guid.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/context-proxy.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/serialization-context.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/serializer.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/adapters/file/file-stream-reader.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/adapters/file/file-stream-writer.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/adapters/json/json-serialization-context.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/adapters/yaml/yaml-serialization-context.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/adapters/toml/toml-serialization-context.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/streams/adapters/xml/xml-serialization-context.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/project/managers/project-manager.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/project/project.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/scene.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/axmesh-serializer.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/scene-serializer.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/renderer/managers/scene-manager.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/window/clipboard.cpp
+      ${CMAKE_SOURCE_DIR}/tests/project-serializer-stub.cpp
       ${CMAKE_SOURCE_DIR}/tests/model-stub.cpp
       ${CMAKE_SOURCE_DIR}/tests/ui-layout-renderer-stub.cpp
       ${UI_DOCUMENT_SUPPORT_SRC}
@@ -114,6 +131,7 @@ if(ASTRA_ENABLE_TESTS)
   target_include_directories(
     archetype_ecs_tests PRIVATE ${CMAKE_SOURCE_DIR}/src/shared/ecs
                                 ${CMAKE_SOURCE_DIR}/src/shared/events
+                                ${CMAKE_SOURCE_DIR}/src/shared/allocators
                                 ${CMAKE_SOURCE_DIR}/src/shared/foundation
                                 ${CMAKE_SOURCE_DIR}/src/modules/editor
                                 ${CMAKE_SOURCE_DIR}/src/modules/streams
@@ -191,6 +209,9 @@ if(ASTRA_ENABLE_TESTS)
                                 GTest::gmock_main)
   target_include_directories(
     archetype_ecs_tests PRIVATE ${ASTRALIX_ENGINE_GENERATED_DIR})
+  astralix_streams_enable_serialization_formats(
+    archetype_ecs_tests
+    FORMATS Json Yaml Toml Xml)
 
   include(GoogleTest)
   gtest_discover_tests(archetype_ecs_tests)

@@ -19,9 +19,11 @@
 #include "astralix/modules/renderer/resources/mesh.hpp"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <managers/window-manager.hpp>
 #include <resources/mesh.hpp>
+#include <string_view>
 #include <string>
 #include <vector>
 
@@ -77,16 +79,17 @@ scene::CameraController make_camera_controller(glm::vec3 front) {
 
 } // namespace
 
-Arena::Arena() : Scene("arena") {}
+Arena::Arena() : Scene("sandbox.arena") {}
 
-void Arena::start() {
+void Arena::setup() {
+  register_console_commands(*this);
+}
+
+void Arena::build_default_world() {
   auto camera = spawn_entity("camera");
   const glm::vec3 camera_position = camera_local_position + arena_offset;
   const glm::vec3 camera_target = camera_local_target + arena_offset;
   auto camera_component = make_camera(camera_position, camera_target);
-  m_spawn_cube_requests = 0u;
-
-  register_console_commands(*this);
 
   camera.emplace<scene::SceneEntity>();
   camera.emplace<rendering::MainCamera>();
@@ -125,6 +128,42 @@ void Arena::start() {
   });
 }
 
+void Arena::after_world_ready() {
+  constexpr std::string_view spawned_cube_prefix = "ui_spawned_cube_";
+
+  m_spawn_cube_requests = 0u;
+  m_should_reset_scene = false;
+  m_spawned_cube_count = 0u;
+
+  world().each<scene::SceneEntity>([&](EntityID entity_id, scene::SceneEntity &) {
+    auto entity = world().entity(entity_id);
+    const std::string name(entity.name());
+
+    if (!name.starts_with(spawned_cube_prefix)) {
+      return;
+    }
+
+    const std::string suffix(name.substr(spawned_cube_prefix.size()));
+    if (suffix.empty()) {
+      m_spawned_cube_count = std::max(m_spawned_cube_count, 1u);
+      return;
+    }
+
+    uint32_t restored_index = 0u;
+    const char *suffix_begin = suffix.data();
+    const char *suffix_end = suffix_begin + suffix.size();
+    auto parse_result =
+        std::from_chars(suffix_begin, suffix_end, restored_index);
+
+    if (parse_result.ec == std::errc{} && parse_result.ptr == suffix_end) {
+      const auto restored_count = restored_index + 1u;
+      m_spawned_cube_count = std::max(m_spawned_cube_count, restored_count);
+    } else {
+      m_spawned_cube_count = std::max(m_spawned_cube_count, 1u);
+    }
+  });
+}
+
 void Arena::update() {
   auto &scene_world = world();
   auto &console_manager = ConsoleManager::get();
@@ -135,21 +174,9 @@ void Arena::update() {
   }
 
   if (m_should_reset_scene) {
-    std::vector<EntityID> entity_ids;
-    entity_ids.reserve(scene_world.count<scene::SceneEntity>());
-
-    scene_world.each<scene::SceneEntity>(
-        [&](EntityID entity_id, scene::SceneEntity &) {
-          entity_ids.push_back(entity_id);
-        }
-    );
-
-    for (EntityID entity_id : entity_ids) {
-      scene_world.destroy(entity_id);
-    }
-
-    start();
-    m_should_reset_scene = false;
+    scene_world = ecs::World();
+    build_default_world();
+    after_world_ready();
     return;
   }
 

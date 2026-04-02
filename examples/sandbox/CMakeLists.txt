@@ -9,7 +9,7 @@ option(ASTRA_EDITOR "Enable editor builtins in the sandbox example" ON)
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 
 # list(APPEND CMAKE_PREFIX_PATH "${ASTRA_INSTALL}" "${VCPKG_ROOT}")
-set(ASTRALIX_STREAMS_FORMATS Yaml Json)
+set(ASTRALIX_STREAMS_FORMATS Yaml Xml Json)
 if(CMAKE_VERSION VERSION_LESS 3.12)
   find_package(PythonInterp 3 REQUIRED)
   set(SANDBOX_PYTHON_EXECUTABLE "${PYTHON_EXECUTABLE}")
@@ -86,6 +86,7 @@ file(GLOB_RECURSE SANDBOX_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp)
 
 set(SANDBOX_COMMON_SRC ${SANDBOX_SRC})
 list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/main\\.cpp$")
+list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/scene_serialization_smoke\\.cpp$")
 
 add_library(sandbox-app STATIC ${SANDBOX_COMMON_SRC} ${SANDBOX_HEADERS})
 target_include_directories(sandbox-app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)

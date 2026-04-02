@@ -1,0 +1,17 @@
+{
+  "scene": {
+    "version": 1,
+    "id": "render-benchmark",
+    "type": "sandbox.render_benchmark"
+  },
+  "entities": [
+    {
+      "active": true,
+      "id": "115861337826182436",
+      "name": "editor_workspace_shell",
+      "tags": [
+        "SceneEntity"
+      ]
+    }
+  ]
+}

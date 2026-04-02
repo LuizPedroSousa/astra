@@ -1,6 +1,6 @@
 #include "astralix/modules/application/application.hpp"
 #include "scenes/arena/arena.hpp"
-// #include "scenes/render_benchmark/render_benchmark.hpp"
+#include "scenes/render_benchmark/render_benchmark.hpp"
 #ifdef ASTRA_EDITOR
 #include "astralix/modules/editor/builtin-plugins.hpp"
 #endif
@@ -37,8 +37,10 @@ int main(int argc, char **argv) {
     });
 
     astralix::ProjectManager::get()->add_project(project);
-    astralix::SceneManager::get()->add_scene<Arena>();
-    // astralix::SceneManager::get()->add_scene<RenderBenchmark>();
+    astralix::SceneManager::get()->register_scene_type<Arena>("sandbox.arena");
+    astralix::SceneManager::get()->register_scene_type<RenderBenchmark>(
+        "sandbox.render_benchmark"
+    );
 
     app->start();
     app->run();

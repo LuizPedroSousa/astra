@@ -11,7 +11,6 @@ class Arena : public Scene {
 public:
   Arena();
 
-  void start() override;
   void update() override;
   void request_spawn_cube(uint32_t count = 1u) {
     m_spawn_cube_requests += count;
@@ -19,6 +18,9 @@ public:
   void request_reset_scene() { m_should_reset_scene = true; }
 
 private:
+  void setup() override;
+  void build_default_world() override;
+  void after_world_ready() override;
   void spawn();
   void spawn_arena_cube(std::string name, glm::vec3 position, glm::vec3 scale, physics::RigidBodyMode mode, float mass = 1.0f, glm::vec3 rotation_axis = glm::vec3(0.0f), float rotation_degrees = 0.0f);
 
