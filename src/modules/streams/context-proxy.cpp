@@ -21,6 +21,10 @@ void ContextProxy::operator=(Ref<SerializationContext> ctx) {
 
 size_t ContextProxy::size() { return m_serialization_ctx->size(); };
 
+std::vector<std::string> ContextProxy::object_keys() {
+  return m_serialization_ctx->object_keys();
+}
+
 SerializationTypeKind ContextProxy::kind() {
   return m_serialization_ctx->kind();
 };

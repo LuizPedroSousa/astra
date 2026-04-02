@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace astralix {
 
@@ -62,6 +63,7 @@ public:
   SerializationTypeKind kind();
 
   size_t size();
+  std::vector<std::string> object_keys();
 
 private:
   Scope<SerializationContext> m_serialization_ctx;

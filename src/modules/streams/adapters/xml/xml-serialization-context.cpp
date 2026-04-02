@@ -372,6 +372,39 @@ const std::string *current_scalar_value(
   return &node->text;
 }
 
+std::vector<std::string>
+current_object_keys(const Node *node,
+                    const std::optional<std::string> &attribute_name) {
+  std::vector<std::string> keys;
+
+  if (attribute_name.has_value() ||
+      node_kind(node, attribute_name) != SerializationTypeKind::Object) {
+    return keys;
+  }
+
+  keys.reserve(node->attributes.size() + node->children.size());
+
+  for (const auto &attribute : node->attributes) {
+    keys.push_back("@" + attribute.name);
+  }
+
+  for (const auto &child : node->children) {
+    bool exists = false;
+    for (const auto &key : keys) {
+      if (key == child->name) {
+        exists = true;
+        break;
+      }
+    }
+
+    if (!exists) {
+      keys.push_back(child->name);
+    }
+  }
+
+  return keys;
+}
+
 std::string *current_scalar_value(
     Node *node, const std::optional<std::string> &attribute_name) {
   if (node == nullptr) {
@@ -857,6 +890,10 @@ std::vector<std::any> XmlSerializationContext::as_array() {
   }
 
   return items;
+}
+
+std::vector<std::string> XmlSerializationContext::object_keys() {
+  return current_object_keys(m_current, m_attribute_name);
 }
 
 SerializationTypeKind XmlSerializationContext::kind() {
