@@ -7,9 +7,12 @@
 #include "serialization-context.hpp"
 #include "serializers/project-serializer.hpp"
 #include "targets/render-target.hpp"
+#include <filesystem>
 #include <glm/ext/vector_float3.hpp>
 #include <map>
+#include <optional>
 #include <string>
+#include <string_view>
 
 namespace astralix {
 
@@ -18,7 +21,7 @@ class ProjectSerializer;
 #define RESOURCE_INIT_PARAMS const ResourceHandle &id
 
 struct ProjectSerializationConfig {
-  SerializationFormat format;
+  SerializationFormat format = SerializationFormat::Json;
 
   SerializationFormat formatFromString(const std::string &format) {
     static const std::map<std::string, SerializationFormat> formats = {
@@ -40,6 +43,17 @@ struct ProjectResourceConfig {
   std::string directory;
 };
 
+struct ProjectSceneEntryConfig {
+  std::string id;
+  std::string type;
+  std::string path;
+};
+
+struct ProjectScenesConfig {
+  std::string startup;
+  std::vector<ProjectSceneEntryConfig> entries;
+};
+
 struct WindowConfig {
   WindowID id;
   std::string title;
@@ -48,8 +62,10 @@ struct WindowConfig {
   int width;
 };
 
-enum SystemType { Physics,
-                  Render };
+enum SystemType {
+  Physics,
+  Render
+};
 
 struct PhysicsSystemConfig {
   std::string backend;
@@ -101,6 +117,7 @@ struct ProjectConfig {
 
   ProjectResourceConfig resources;
   ProjectSerializationConfig serialization;
+  ProjectScenesConfig scenes;
 };
 
 class Project {
@@ -109,8 +126,14 @@ public:
 
   static Ref<Project> create(ProjectConfig config);
   ProjectConfig &get_config() { return m_config; }
+  const ProjectConfig &get_config() const { return m_config; }
   void save(ElasticArena &arena);
   void load(ElasticArena &arena);
+  std::filesystem::path manifest_path() const;
+  std::filesystem::path resolve_path(
+      const std::filesystem::path &relative_path
+  ) const;
+  const ProjectSceneEntryConfig *find_scene_entry(std::string_view id) const;
   Project(ProjectConfig config);
 
 private:

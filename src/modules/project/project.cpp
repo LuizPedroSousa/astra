@@ -15,6 +15,26 @@ namespace astralix {
 Project::Project(ProjectConfig config)
     : m_config(config), m_project_id(ProjectID()) {}
 
+std::filesystem::path Project::manifest_path() const {
+  return resolve_path(m_config.manifest);
+}
+
+std::filesystem::path
+Project::resolve_path(const std::filesystem::path &relative_path) const {
+  return std::filesystem::path(m_config.directory) / relative_path;
+}
+
+const ProjectSceneEntryConfig *
+Project::find_scene_entry(std::string_view id) const {
+  for (const auto &entry : m_config.scenes.entries) {
+    if (entry.id == id) {
+      return &entry;
+    }
+  }
+
+  return nullptr;
+}
+
 Ref<Project> Project::create(ProjectConfig config) {
 
   auto project = create_ref<Project>(config);
@@ -22,13 +42,13 @@ Ref<Project> Project::create(ProjectConfig config) {
   ASTRA_ENSURE(config.directory.empty(), "Project path must be defined");
 
   project->m_serializer = create_scope<ProjectSerializer>(
-      project, SerializationContext::create(config.serialization.format));
+      project, SerializationContext::create(config.serialization.format)
+  );
 
   ResourceManager::init();
   PathManager::init();
 
-  auto manifest_path =
-      std::filesystem::path(config.directory) / config.manifest;
+  const auto manifest_path = project->manifest_path();
 
   if (std::filesystem::exists(manifest_path)) {
     auto stream = FileStreamReader(manifest_path);
@@ -50,8 +70,9 @@ void Project::save(ElasticArena &arena) {
 
   auto buffer = ctx->to_buffer(arena);
 
-  auto path = std::filesystem::path(m_config.directory)
-                  .append("project" + ctx->extension());
+  auto path = manifest_path();
+  (void)buffer;
+  (void)path;
 
   // FileStreamWriter writer(path, std::move(buffer));
 
@@ -59,6 +80,7 @@ void Project::save(ElasticArena &arena) {
 }
 
 void Project::load(ElasticArena &arena) {
+  (void)arena;
   // auto ctx = m_serializer->get_ctx();
 
   // auto path = std::filesystem::path(m_config.directory)

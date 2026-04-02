@@ -9,13 +9,7 @@
 namespace astralix {
 
 void SceneSystem::start() {
-  auto scene = SceneManager::get()->get_active_scene();
-
-  if (scene != nullptr) {
-    if (!scene->load() || scene->world().empty()) {
-      scene->start();
-    }
-  }
+  (void)SceneManager::get()->get_active_scene();
 }
 
 void SceneSystem::fixed_update(double fixed_dt) {

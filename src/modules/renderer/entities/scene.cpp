@@ -3,7 +3,9 @@
 #include "adapters/file/file-stream-reader.hpp"
 #include "adapters/file/file-stream-writer.hpp"
 #include "arena.hpp"
+#include "assert.hpp"
 #include "managers/project-manager.hpp"
+#include "project.hpp"
 #include "serializers/scene-serializer.hpp"
 #include "stream-buffer.hpp"
 #include <cstring>
@@ -12,14 +14,13 @@
 namespace astralix {
 namespace {
 
-std::filesystem::path scene_path(const Scene &scene,
-                                 const SerializationContext &ctx) {
+std::filesystem::path scene_path(const Scene &scene, const SerializationContext &ctx) {
+  (void)ctx;
   auto project = active_project();
-  const std::filesystem::path base_directory =
-      project != nullptr ? std::filesystem::path(project->get_config().directory)
-                         : std::filesystem::current_path();
+  ASTRA_ENSURE(project == nullptr, "Cannot resolve scene path without an active project");
+  ASTRA_ENSURE(scene.get_scene_path().empty(), "Scene path is not configured for scene ", scene.get_type());
 
-  return base_directory / "scenes" / (scene.get_name() + ctx.extension());
+  return project->resolve_path(scene.get_scene_path());
 }
 
 Scope<StreamBuffer> copy_to_stream_buffer(ElasticArena::Block *block) {
@@ -30,7 +31,26 @@ Scope<StreamBuffer> copy_to_stream_buffer(ElasticArena::Block *block) {
 
 } // namespace
 
-Scene::Scene(std::string name) : m_name(name), m_serializer() {}
+Scene::Scene(std::string type) : m_scene_type(std::move(type)), m_serializer() {}
+
+void Scene::bind_to_manifest_entry(const ProjectSceneEntryConfig &entry) {
+  ASTRA_ENSURE(entry.id.empty(), "Scene manifest id is required");
+  ASTRA_ENSURE(entry.type.empty(), "Scene manifest type is required");
+  ASTRA_ENSURE(entry.path.empty(), "Scene manifest path is required");
+  ASTRA_ENSURE(m_scene_type != entry.type, "Scene type mismatch. Runtime type: ", m_scene_type, ", manifest type: ", entry.type);
+
+  m_scene_id = entry.id;
+  m_scene_path = entry.path;
+}
+
+void Scene::ensure_setup() {
+  if (m_setup_complete) {
+    return;
+  }
+
+  setup();
+  m_setup_complete = true;
+}
 
 void Scene::serialize() { return m_serializer->serialize(); }
 
@@ -74,6 +94,7 @@ bool Scene::load() {
   reader.read();
   ctx->from_buffer(reader.get_buffer());
   m_serializer->deserialize();
+  mark_world_ready(true);
   return true;
 }
 } // namespace astralix

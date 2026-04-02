@@ -83,15 +83,13 @@ inline ComponentType component_type_from_string(std::string_view name) {
 }
 
 template <typename T>
-inline void append_snapshot_if_present(ecs::EntityRef entity,
-                                       std::vector<ComponentSnapshot> &out) {
+inline void append_snapshot_if_present(ecs::EntityRef entity, std::vector<ComponentSnapshot> &out) {
   if (auto *component = entity.get<T>(); component != nullptr) {
     out.push_back(snapshot_component(*component));
   }
 }
 
-inline void apply_component_snapshot(ecs::EntityRef entity,
-                                     const ComponentSnapshot &snapshot) {
+inline void apply_component_snapshot(ecs::EntityRef entity, const ComponentSnapshot &snapshot) {
   const auto &fields = snapshot.fields;
 
   switch (component_type_from_string(snapshot.name)) {
