@@ -112,8 +112,10 @@ if(ASTRA_ENABLE_TESTS)
       ${CMAKE_SOURCE_DIR}/src/modules/streams/adapters/xml/xml-serialization-context.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/project/managers/project-manager.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/project/project.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/derived-override.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/scene.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/axmesh-serializer.cpp
+      ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/derived-override-serializer.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/scene-serializer.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/renderer/managers/scene-manager.cpp
       ${CMAKE_SOURCE_DIR}/src/modules/window/clipboard.cpp

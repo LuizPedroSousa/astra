@@ -8,6 +8,6 @@ using namespace astralix;
 
 RenderBenchmark::RenderBenchmark() : Scene("sandbox.render_benchmark") {}
 
-void RenderBenchmark::build_default_world() {}
+void RenderBenchmark::build_source_world() {}
 
-void RenderBenchmark::update() {}
+void RenderBenchmark::update_runtime() {}
