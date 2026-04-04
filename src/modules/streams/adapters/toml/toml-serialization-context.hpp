@@ -65,6 +65,7 @@ public:
   bool as_bool() override;
 
   std::vector<std::any> as_array() override;
+  std::vector<std::string> object_keys() override;
 
   SerializationTypeKind kind() override;
 

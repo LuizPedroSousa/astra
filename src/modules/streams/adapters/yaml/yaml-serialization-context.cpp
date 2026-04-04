@@ -123,6 +123,21 @@ size_t current_size(const Node *node) {
   }
 }
 
+std::vector<std::string> current_object_keys(const Node *node) {
+  std::vector<std::string> keys;
+
+  if (node == nullptr || node->kind != NodeKind::Map) {
+    return keys;
+  }
+
+  keys.reserve(node->map_items.size());
+  for (const auto &entry : node->map_items) {
+    keys.push_back(entry.key);
+  }
+
+  return keys;
+}
+
 std::string trim_copy(std::string_view value) {
   size_t start = 0;
   while (start < value.size() &&
@@ -963,6 +978,10 @@ std::vector<std::any> YamlSerializationContext::as_array() {
   }
 
   return items;
+}
+
+std::vector<std::string> YamlSerializationContext::object_keys() {
+  return current_object_keys(m_current);
 }
 
 SerializationTypeKind YamlSerializationContext::kind() {

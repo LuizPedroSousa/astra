@@ -1,0 +1,2248 @@
+{
+  "scene": {
+    "version": 1,
+    "kind": "preview",
+    "id": "arena",
+    "type": "sandbox.arena"
+  },
+  "build": {
+    "source_revision": 1203,
+    "built_at_utc": "2026-04-04T06:49:25.655Z"
+  },
+  "entities": [
+    {
+      "active": true,
+      "id": "8244983123996329122",
+      "name": "Point Light",
+      "tags": [
+        "SceneEntity"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -15.6614056,
+              "y": 0,
+              "z": -18.3682289
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "point",
+            "color": {
+              "x": 0.5,
+              "y": 1,
+              "z": 1
+            },
+            "intensity": 1,
+            "casts_shadows": true
+          }
+        },
+        {
+          "type": "PointLightAttenuation",
+          "fields": {
+            "constant": 1,
+            "linear": 0.0450000018,
+            "quadratic": 0.00749999983
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "12386973763059365484",
+      "name": "Point Light",
+      "tags": [
+        "SceneEntity"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -15.3645649,
+              "y": 0,
+              "z": 19.7356682
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "point",
+            "color": {
+              "x": 1,
+              "y": 1,
+              "z": 0.5
+            },
+            "intensity": 1,
+            "casts_shadows": true
+          }
+        },
+        {
+          "type": "PointLightAttenuation",
+          "fields": {
+            "constant": 1,
+            "linear": 0.0450000018,
+            "quadratic": 0.00749999983
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "5010605258808540181",
+      "name": "Point Light",
+      "tags": [
+        "SceneEntity"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 17.0778923,
+              "y": 0,
+              "z": -18.4698925
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "point",
+            "color": {
+              "x": 1,
+              "y": 1,
+              "z": 0
+            },
+            "intensity": 1,
+            "casts_shadows": true
+          }
+        },
+        {
+          "type": "PointLightAttenuation",
+          "fields": {
+            "constant": 1,
+            "linear": 0.0450000018,
+            "quadratic": 0.00749999983
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "2686034457030071246",
+      "name": "Point Light",
+      "tags": [
+        "SceneEntity"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 16.9701195,
+              "y": 0,
+              "z": 17.7545242
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "point",
+            "color": {
+              "x": 1,
+              "y": 0.5,
+              "z": 1
+            },
+            "intensity": 1,
+            "casts_shadows": true
+          }
+        },
+        {
+          "type": "PointLightAttenuation",
+          "fields": {
+            "constant": 1,
+            "linear": 0.0450000018,
+            "quadratic": 0.00749999983
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "6309506047162603191",
+      "name": "camera",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "MainCamera"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "camera"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -34.7867241,
+              "y": 56.9382019,
+              "z": 0.415627331
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Camera",
+          "fields": {
+            "up": {
+              "x": 0,
+              "y": 1,
+              "z": 0
+            },
+            "front": {
+              "x": 0.553325713,
+              "y": -0.832937539,
+              "z": -0.00676055951
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "direction": {
+              "x": 0.553325713,
+              "y": -0.832937539,
+              "z": -0.00676055951
+            },
+            "fov_degrees": 45,
+            "near_plane": 0.100000001,
+            "far_plane": 100,
+            "orthographic_scale": 10,
+            "orthographic": false
+          }
+        },
+        {
+          "type": "CameraController",
+          "fields": {
+            "mode": "free",
+            "yaw": -0.700007677,
+            "pitch": -56.4016876,
+            "speed": 8,
+            "sensitivity": 0.100000001,
+            "orbit_distance": 5,
+            "third_person_distance": 5,
+            "third_person_offset": {
+              "x": 0,
+              "y": 2,
+              "z": -5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "6374242263935915683",
+      "name": "directional_light",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "directional_light"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -8,
+              "y": 13,
+              "z": -6
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "directional",
+            "color": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "intensity": 1,
+            "casts_shadows": true
+          }
+        },
+        {
+          "type": "DirectionalShadowSettings",
+          "fields": {
+            "ortho_extent": 28,
+            "near_plane": 0.5,
+            "far_plane": 80
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "11663672104425675330",
+      "name": "skybox",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "skybox"
+          }
+        },
+        {
+          "type": "SkyboxBinding",
+          "fields": {
+            "cubemap": "cubemaps::skybox",
+            "shader": "shaders::skybox"
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "3576559330998360590",
+      "name": "arena_floor",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "arena_floor"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 0.75,
+              "z": 0
+            },
+            "scale": {
+              "x": 14,
+              "y": 0.5,
+              "z": 14
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 7,
+              "y": 0.25,
+              "z": 7
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "8074636696455031432",
+      "name": "arena_wall_north",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "arena_wall_north"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 3,
+              "z": -7.25
+            },
+            "scale": {
+              "x": 14,
+              "y": 4,
+              "z": 0.5
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 7,
+              "y": 2,
+              "z": 0.25
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "5435842584502632110",
+      "name": "arena_wall_south",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "arena_wall_south"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 3,
+              "z": 7.25
+            },
+            "scale": {
+              "x": 14,
+              "y": 4,
+              "z": 0.5
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 7,
+              "y": 2,
+              "z": 0.25
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "15524220993580293130",
+      "name": "arena_wall_west",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "arena_wall_west"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -7.25,
+              "y": 3,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 4,
+              "z": 14
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.25,
+              "y": 2,
+              "z": 7
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "8285875818316589104",
+      "name": "arena_wall_east",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "arena_wall_east"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 7.25,
+              "y": 3,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 4,
+              "z": 14
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.25,
+              "y": 2,
+              "z": 7
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "13948272560200656346",
+      "name": "outer_floor",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "outer_floor"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 0.25,
+              "z": 0
+            },
+            "scale": {
+              "x": 40,
+              "y": 0.5,
+              "z": 40
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 20,
+              "y": 0.25,
+              "z": 20
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "1998899459354679060",
+      "name": "outer_wall_north",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "outer_wall_north"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 3.75,
+              "z": -19.4477577
+            },
+            "scale": {
+              "x": 40,
+              "y": 15,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 20,
+              "y": 7.5,
+              "z": 0.5
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "1032138786740708138",
+      "name": "outer_wall_south",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "outer_wall_south"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 3.75,
+              "z": 19.4829407
+            },
+            "scale": {
+              "x": 40,
+              "y": 15,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 20,
+              "y": 7.5,
+              "z": 0.5
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "17071139828380805054",
+      "name": "outer_wall_west",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "outer_wall_west"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -20.5953903,
+              "y": 3.75,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 15,
+              "z": 40
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.5,
+              "y": 7.5,
+              "z": 20
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "8794584133554840940",
+      "name": "outer_wall_east",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "outer_wall_east"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 20.5,
+              "y": 3.75,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 15,
+              "z": 40
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.5,
+              "y": 7.5,
+              "z": 20
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "3833410668834105528",
+      "name": "arena_ramp_left",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "arena_ramp_left"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -3.75,
+              "y": 1.89999998,
+              "z": -1.5
+            },
+            "scale": {
+              "x": 4,
+              "y": 0.5,
+              "z": 2.5
+            },
+            "rotation": {
+              "w": 0.976296008,
+              "x": 0,
+              "y": 0,
+              "z": -0.21643962
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 2,
+              "y": 0.25,
+              "z": 1.25
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "7578115320117153773",
+      "name": "arena_ramp_right",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "arena_ramp_right"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 3.5,
+              "y": 1.89999998,
+              "z": 2.5
+            },
+            "scale": {
+              "x": 3.5,
+              "y": 0.5,
+              "z": 2
+            },
+            "rotation": {
+              "w": 0.981627285,
+              "x": 0,
+              "y": 0,
+              "z": 0.190809026
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "static",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 1.75,
+              "y": 0.25,
+              "z": 1
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "10382990795411602626",
+      "name": "drop_cube_left_0",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "drop_cube_left_0"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -2.63075924,
+              "y": 5.41731167,
+              "z": -12.5265636
+            },
+            "scale": {
+              "x": 0.800000012,
+              "y": 0.800000012,
+              "z": 0.800000012
+            },
+            "rotation": {
+              "w": 0.995468438,
+              "x": 0.0764744505,
+              "y": 0.0443656631,
+              "z": -0.0350130759
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.400000006,
+              "y": 0.400000006,
+              "z": 0.400000006
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "10382991894923230837",
+      "name": "drop_cube_left_1",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "drop_cube_left_1"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -2.15756106,
+              "y": 6.8727479,
+              "z": -12.1604109
+            },
+            "scale": {
+              "x": 0.800000012,
+              "y": 0.800000012,
+              "z": 0.800000012
+            },
+            "rotation": {
+              "w": 0.968594849,
+              "x": 0.0905236825,
+              "y": 0.229555264,
+              "z": -0.0305625834
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.400000006,
+              "y": 0.400000006,
+              "z": 0.400000006
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "10382988596388346204",
+      "name": "drop_cube_left_2",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "drop_cube_left_2"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -1.88476026,
+              "y": 8.41499233,
+              "z": -12.6821012
+            },
+            "scale": {
+              "x": 0.800000012,
+              "y": 0.800000012,
+              "z": 0.800000012
+            },
+            "rotation": {
+              "w": 0.995148957,
+              "x": 0.0782861933,
+              "y": 0.0478286967,
+              "z": -0.0355280116
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1.20000005
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.400000006,
+              "y": 0.400000006,
+              "z": 0.400000006
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "16470911772348445283",
+      "name": "stack_cube_center_0",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "stack_cube_center_0"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0.287197918,
+              "y": 2.63402843,
+              "z": -6.24962759
+            },
+            "scale": {
+              "x": 0.899999976,
+              "y": 0.899999976,
+              "z": 0.899999976
+            },
+            "rotation": {
+              "w": 0.757404208,
+              "x": -0.390758097,
+              "y": -0.52229315,
+              "z": -0.0292722657
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.449999988,
+              "y": 0.449999988,
+              "z": 0.449999988
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "16470910672836817072",
+      "name": "stack_cube_center_1",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "stack_cube_center_1"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0.29189977,
+              "y": 3.915411,
+              "z": -6.27277088
+            },
+            "scale": {
+              "x": 0.899999976,
+              "y": 0.899999976,
+              "z": 0.899999976
+            },
+            "rotation": {
+              "w": 0.752074778,
+              "x": -0.400499463,
+              "y": -0.522792459,
+              "z": -0.0259213205
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.449999988,
+              "y": 0.449999988,
+              "z": 0.449999988
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "16470913971371701705",
+      "name": "stack_cube_center_2",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "stack_cube_center_2"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0.911187708,
+              "y": 5.50261354,
+              "z": -6.27394581
+            },
+            "scale": {
+              "x": 0.899999976,
+              "y": 0.899999976,
+              "z": 0.899999976
+            },
+            "rotation": {
+              "w": -0.0380992182,
+              "x": -0.21761854,
+              "y": -0.824035525,
+              "z": -0.521685719
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.449999988,
+              "y": 0.449999988,
+              "z": 0.449999988
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "16470912871860073494",
+      "name": "stack_cube_center_3",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "stack_cube_center_3"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 1.54911387,
+              "y": 2.60111046,
+              "z": -5.89489651
+            },
+            "scale": {
+              "x": 0.899999976,
+              "y": 0.899999976,
+              "z": 0.899999976
+            },
+            "rotation": {
+              "w": 0.786223173,
+              "x": -0.39081794,
+              "y": -0.478176862,
+              "z": -0.0214782953
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.449999988,
+              "y": 0.449999988,
+              "z": 0.449999988
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "16470916170394958127",
+      "name": "stack_cube_center_4",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "stack_cube_center_4"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 1.56088424,
+              "y": 3.86957884,
+              "z": -5.92897463
+            },
+            "scale": {
+              "x": 0.899999976,
+              "y": 0.899999976,
+              "z": 0.899999976
+            },
+            "rotation": {
+              "w": 0.794163644,
+              "x": -0.392447382,
+              "y": -0.463535964,
+              "z": -0.0205835812
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 1
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.449999988,
+              "y": 0.449999988,
+              "z": 0.449999988
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "18353641159351328806",
+      "name": "drop_cube_right_heavy",
+      "tags": [
+        "SceneEntity",
+        "DerivedEntity",
+        "Renderable",
+        "ShadowCaster"
+      ],
+      "components": [
+        {
+          "type": "MetaEntityOwner",
+          "fields": {
+            "generator_id": "sandbox.arena",
+            "stable_key": "drop_cube_right_heavy"
+          }
+        },
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 6.00615644,
+              "y": 7.41341639,
+              "z": -10.9319477
+            },
+            "scale": {
+              "x": 1.14999998,
+              "y": 1.14999998,
+              "z": 1.14999998
+            },
+            "rotation": {
+              "w": 0.997381985,
+              "x": 0.0548030734,
+              "y": 0.0404951759,
+              "z": -0.0242102593
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "MeshSet",
+          "fields": {
+            "asset": {
+              "path": "src/scenes/arena/preview-meshes/548a5382e264571c.axmesh"
+            }
+          }
+        },
+        {
+          "type": "MaterialSlots",
+          "fields": {
+            "material_0": "materials::wood"
+          }
+        },
+        {
+          "type": "ShaderBinding",
+          "fields": {
+            "shader": "shaders::deffered"
+          }
+        },
+        {
+          "type": "RigidBody",
+          "fields": {
+            "mode": "dynamic",
+            "gravity": 0.5,
+            "velocity": 2,
+            "acceleration": 2,
+            "drag": 0,
+            "mass": 2.5
+          }
+        },
+        {
+          "type": "BoxCollider",
+          "fields": {
+            "half_extents": {
+              "x": 0.574999988,
+              "y": 0.574999988,
+              "z": 0.574999988
+            },
+            "center": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

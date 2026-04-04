@@ -6,6 +6,26 @@
     },
     "serialization": {
       "format": "json"
+    },
+    "scenes": {
+      "startup": "arena",
+      "startup_target": "source",
+      "entries": [
+        {
+          "id": "arena",
+          "type": "sandbox.arena",
+          "source_path": "src/scenes/arena/arena.axscene",
+          "preview_path": "src/scenes/arena/arena.preview.axscene",
+          "runtime_path": "src/scenes/arena/arena.runtime.axscene"
+        },
+        {
+          "id": "render-benchmark",
+          "type": "sandbox.render_benchmark",
+          "source_path": "src/scenes/render_benchmark/render_benchmark.axscene",
+          "preview_path": "src/scenes/render_benchmark/render_benchmark.preview.axscene",
+          "runtime_path": "src/scenes/render_benchmark/render_benchmark.runtime.axscene"
+        }
+      ]
     }
   },
   "windows": [

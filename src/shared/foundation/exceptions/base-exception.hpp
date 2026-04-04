@@ -13,6 +13,10 @@ public:
   const char *what() const noexcept override {
     return m_formatted_message.c_str();
   }
+  const std::string &message() const noexcept { return m_message; }
+  const char *file() const noexcept { return m_file; }
+  const char *function() const noexcept { return m_function; }
+  int line() const noexcept { return m_line; }
 
 private:
   std::string m_message;

@@ -7,6 +7,7 @@
 
 #include <any>
 #include <string>
+#include <vector>
 
 namespace astralix {
 
@@ -44,6 +45,7 @@ public:
   virtual float as_float() = 0;
   virtual bool as_bool() = 0;
   virtual std::vector<std::any> as_array() = 0;
+  virtual std::vector<std::string> object_keys() = 0;
 
   virtual bool is_string() = 0;
   virtual bool is_int() = 0;

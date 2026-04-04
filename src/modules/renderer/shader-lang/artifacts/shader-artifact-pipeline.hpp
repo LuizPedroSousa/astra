@@ -7,8 +7,7 @@ namespace astralix {
 class ShaderArtifactPipeline {
 public:
   ShaderArtifactPlan
-  build_plan(const std::vector<ShaderArtifactInput> &inputs,
-             const ShaderArtifactBuildOptions &options = {});
+  build_plan(const std::vector<ShaderArtifactInput> &inputs, const ShaderArtifactBuildOptions &options = {});
 };
 
 } // namespace astralix

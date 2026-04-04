@@ -20,6 +20,9 @@ set(EDITOR_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/snapshot.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/timing.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/helpers.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/scene-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/actions.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.cpp
@@ -49,6 +52,9 @@ set(EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/inspector-panel-controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/build.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/build.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/helpers.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/scene-panel-controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/scene-hierarchy-panel-controller.hpp

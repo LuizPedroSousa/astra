@@ -1,5 +1,6 @@
 #include "scene-system.hpp"
 #include "console.hpp"
+#include "log.hpp"
 #include "managers/scene-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "systems/camera-system/camera-controller-system.hpp"
@@ -9,13 +10,7 @@
 namespace astralix {
 
 void SceneSystem::start() {
-  auto scene = SceneManager::get()->get_active_scene();
-
-  if (scene != nullptr) {
-    if (!scene->load() || scene->world().empty()) {
-      scene->start();
-    }
-  }
+  (void)SceneManager::get()->get_active_scene();
 }
 
 void SceneSystem::fixed_update(double fixed_dt) {
@@ -27,6 +22,8 @@ void SceneSystem::pre_update(double dt) {
 };
 
 void SceneSystem::update(double dt) {
+  (void)SceneManager::get()->flush_pending_active_scene_state();
+
   auto scene = SceneManager::get()->get_active_scene();
 
   if (scene == nullptr) {

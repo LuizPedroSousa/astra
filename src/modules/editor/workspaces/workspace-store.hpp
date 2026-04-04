@@ -11,7 +11,7 @@
 
 namespace astralix::editor {
 
-inline constexpr int k_workspace_snapshot_version = 4;
+inline constexpr int k_workspace_snapshot_version = 1;
 
 struct WorkspacePanelState {
   std::string provider_id;
@@ -54,19 +54,15 @@ private:
 
   std::optional<Ref<SerializationContext>>
   read_context_file(const std::filesystem::path &path) const;
-  void write_context_file(const std::filesystem::path &path,
-                          Ref<SerializationContext> ctx) const;
+  void write_context_file(const std::filesystem::path &path, Ref<SerializationContext> ctx) const;
 
-  void write_session(Ref<SerializationContext> ctx,
-                     std::string_view workspace_id) const;
+  void write_session(Ref<SerializationContext> ctx, std::string_view workspace_id) const;
   std::optional<std::string> read_session(Ref<SerializationContext> ctx) const;
 
-  void write_snapshot(Ref<SerializationContext> ctx,
-                      const WorkspaceSnapshot &snapshot) const;
+  void write_snapshot(Ref<SerializationContext> ctx, const WorkspaceSnapshot &snapshot) const;
   WorkspaceSnapshot read_snapshot(Ref<SerializationContext> ctx) const;
 
-  void write_layout_node(Ref<SerializationContext> ctx,
-                         const LayoutNode &node) const;
+  void write_layout_node(Ref<SerializationContext> ctx, const LayoutNode &node) const;
   LayoutNode read_layout_node(ContextProxy ctx) const;
 
   Ref<Project> m_project = nullptr;

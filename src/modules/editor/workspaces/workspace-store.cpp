@@ -3,27 +3,11 @@
 #include "adapters/file/file-stream-reader.hpp"
 #include "adapters/file/file-stream-writer.hpp"
 #include "assert.hpp"
-#include "exceptions/base-exception.hpp"
 #include "serialization-context-readers.hpp"
 #include "stream-buffer.hpp"
-#include <cstring>
 
 namespace astralix::editor {
 namespace {
-
-Scope<StreamBuffer> copy_to_stream_buffer(ElasticArena::Block *block) {
-  auto buffer = create_scope<StreamBuffer>(block->size);
-  std::memcpy(buffer->data(), block->data, block->size);
-  return buffer;
-}
-
-Scope<StreamBuffer> buffer_from_string(std::string_view text) {
-  auto buffer = create_scope<StreamBuffer>(text.size());
-  if (!text.empty()) {
-    std::memcpy(buffer->data(), text.data(), text.size());
-  }
-  return buffer;
-}
 
 void write_panel_frame(Ref<SerializationContext> ctx, const WorkspacePanelFrame &frame) {
   (*ctx)["x"] = frame.x;
@@ -124,11 +108,7 @@ WorkspaceStore::load_snapshot(std::string_view workspace_id) const {
     return std::nullopt;
   }
 
-  try {
-    return read_snapshot(*ctx);
-  } catch (const BaseException &) {
-    return std::nullopt;
-  }
+  return read_snapshot(*ctx);
 }
 
 void WorkspaceStore::save_snapshot(const WorkspaceSnapshot &snapshot) {
@@ -153,13 +133,9 @@ WorkspaceStore::decode_panel_state(std::string_view state_blob) const {
     return std::nullopt;
   }
 
-  try {
-    return SerializationContext::create(
-        storage_format(), buffer_from_string(state_blob)
-    );
-  } catch (const BaseException &) {
-    return std::nullopt;
-  }
+  return SerializationContext::create(
+      storage_format(), stream_buffer_from_string(state_blob)
+  );
 }
 
 std::filesystem::path WorkspaceStore::editor_root() const {
@@ -192,13 +168,9 @@ WorkspaceStore::read_context_file(const std::filesystem::path &path) const {
     return std::nullopt;
   }
 
-  try {
-    auto reader = FileStreamReader(path);
-    reader.read();
-    return SerializationContext::create(storage_format(), reader.get_buffer());
-  } catch (const BaseException &) {
-    return std::nullopt;
-  }
+  auto reader = FileStreamReader(path);
+  reader.read();
+  return SerializationContext::create(storage_format(), reader.get_buffer());
 }
 
 void WorkspaceStore::write_context_file(const std::filesystem::path &path, Ref<SerializationContext> ctx) const {
@@ -206,7 +178,7 @@ void WorkspaceStore::write_context_file(const std::filesystem::path &path, Ref<S
 
   ElasticArena arena(KB(128));
   auto *block = ctx->to_buffer(arena);
-  auto writer = FileStreamWriter(path, copy_to_stream_buffer(block));
+  auto writer = FileStreamWriter(path, clone_stream_buffer(block));
   writer.write();
 }
 

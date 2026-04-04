@@ -6,10 +6,8 @@
 
 using namespace astralix;
 
-RenderBenchmark::RenderBenchmark() : Scene("render_benchmark") {}
+RenderBenchmark::RenderBenchmark() : Scene("sandbox.render_benchmark") {}
 
-void RenderBenchmark::start() {
-}
+void RenderBenchmark::build_source_world() {}
 
-void RenderBenchmark::update() {
-}
+void RenderBenchmark::update_runtime() {}

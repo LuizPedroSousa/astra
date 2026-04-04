@@ -1,7 +1,10 @@
 #include "console.hpp"
 
+#include "exceptions/base-exception.hpp"
+
 #include <algorithm>
 #include <cctype>
+#include <exception>
 #include <iterator>
 #include <optional>
 #include <utility>
@@ -70,6 +73,61 @@ std::string join_aliases(const std::vector<std::string> &aliases) {
   }
 
   return joined;
+}
+
+std::string strip_ansi_escape_sequences(std::string_view text) {
+  std::string sanitized;
+  sanitized.reserve(text.size());
+
+  for (size_t index = 0u; index < text.size(); ++index) {
+    const char character = text[index];
+    if (character != '\x1b') {
+      sanitized.push_back(character);
+      continue;
+    }
+
+    if (index + 1u >= text.size() || text[index + 1u] != '[') {
+      continue;
+    }
+
+    index += 2u;
+    while (index < text.size()) {
+      const unsigned char escape_char =
+          static_cast<unsigned char>(text[index]);
+      if (escape_char >= 0x40u && escape_char <= 0x7eu) {
+        break;
+      }
+      ++index;
+    }
+  }
+
+  return sanitized;
+}
+
+std::vector<std::string> split_console_output_lines(std::string_view message) {
+  std::vector<std::string> lines;
+  size_t line_start = 0u;
+
+  while (line_start <= message.size()) {
+    const size_t line_end = message.find('\n', line_start);
+    const size_t segment_end =
+        line_end == std::string_view::npos ? message.size() : line_end;
+    std::string line = strip_ansi_escape_sequences(
+        message.substr(line_start, segment_end - line_start)
+    );
+    line = trim_copy(line);
+    if (!line.empty()) {
+      lines.push_back(std::move(line));
+    }
+
+    if (line_end == std::string_view::npos) {
+      break;
+    }
+
+    line_start = line_end + 1u;
+  }
+
+  return lines;
 }
 
 std::string format_command_label(const ConsoleManager::CommandInfo &command) {
@@ -354,7 +412,18 @@ ConsoleCommandResult ConsoleManager::execute(std::string line) {
           std::vector<std::string>(std::make_move_iterator(tokens.begin() + 1u), std::make_move_iterator(tokens.end())),
   };
 
-  result = command_it->second.handler(invocation);
+  try {
+    result = command_it->second.handler(invocation);
+  } catch (const BaseException &error) {
+    result.success = false;
+    result.lines.push_back(error.message());
+  } catch (const std::exception &error) {
+    result.success = false;
+    result.lines.push_back(error.what());
+  } catch (...) {
+    result.success = false;
+    result.lines.push_back("unknown command error");
+  }
   result.executed = true;
 
   if (result.clear_entries) {
@@ -372,12 +441,9 @@ ConsoleCommandResult ConsoleManager::execute(std::string line) {
 }
 
 void ConsoleManager::append_output(std::string message, LogLevel level) {
-  const std::string trimmed_message = trim(message);
-  if (trimmed_message.empty()) {
-    return;
+  for (std::string &line : split_console_output_lines(message)) {
+    append_entry(make_output_entry(std::move(line), level));
   }
-
-  append_entry(make_output_entry(trimmed_message, level));
 }
 
 void ConsoleManager::clear_entries() {

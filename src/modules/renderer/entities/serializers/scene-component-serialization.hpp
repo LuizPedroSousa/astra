@@ -20,6 +20,10 @@ namespace astralix::serialization {
 
 enum class ComponentType {
   SceneEntity,
+  EditorOnly,
+  GeneratorSpec,
+  DerivedEntity,
+  MetaEntityOwner,
   Renderable,
   MainCamera,
   ShadowCaster,
@@ -48,6 +52,10 @@ enum class ComponentType {
 inline ComponentType component_type_from_string(std::string_view name) {
   static const std::pair<std::string_view, ComponentType> mapping[] = {
       {"SceneEntity", ComponentType::SceneEntity},
+      {"EditorOnly", ComponentType::EditorOnly},
+      {"GeneratorSpec", ComponentType::GeneratorSpec},
+      {"DerivedEntity", ComponentType::DerivedEntity},
+      {"MetaEntityOwner", ComponentType::MetaEntityOwner},
       {"Renderable", ComponentType::Renderable},
       {"MainCamera", ComponentType::MainCamera},
       {"ShadowCaster", ComponentType::ShadowCaster},
@@ -83,20 +91,34 @@ inline ComponentType component_type_from_string(std::string_view name) {
 }
 
 template <typename T>
-inline void append_snapshot_if_present(ecs::EntityRef entity,
-                                       std::vector<ComponentSnapshot> &out) {
+inline void append_snapshot_if_present(ecs::EntityRef entity, std::vector<ComponentSnapshot> &out) {
   if (auto *component = entity.get<T>(); component != nullptr) {
     out.push_back(snapshot_component(*component));
   }
 }
 
-inline void apply_component_snapshot(ecs::EntityRef entity,
-                                     const ComponentSnapshot &snapshot) {
+inline void apply_component_snapshot(ecs::EntityRef entity, const ComponentSnapshot &snapshot) {
   const auto &fields = snapshot.fields;
 
   switch (component_type_from_string(snapshot.name)) {
     case ComponentType::SceneEntity:
       apply_scene_entity_snapshot(entity);
+      break;
+
+    case ComponentType::EditorOnly:
+      apply_editor_only_snapshot(entity);
+      break;
+
+    case ComponentType::GeneratorSpec:
+      apply_generator_spec_snapshot(entity);
+      break;
+
+    case ComponentType::DerivedEntity:
+      apply_derived_entity_snapshot(entity);
+      break;
+
+    case ComponentType::MetaEntityOwner:
+      apply_meta_entity_owner_snapshot(entity, fields);
       break;
 
     case ComponentType::Renderable:

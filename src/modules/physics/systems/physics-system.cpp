@@ -43,6 +43,24 @@ void toggle_physics_simulation() { g_simulate = !g_simulate; }
 
 namespace {
 
+void clear_registered_actors(
+    std::unordered_map<EntityID, PxRigidActor *> &actors
+) {
+  if (g_scene == nullptr) {
+    actors.clear();
+    return;
+  }
+
+  for (auto &[_, actor] : actors) {
+    if (actor != nullptr) {
+      g_scene->removeActor(*actor);
+      actor->release();
+    }
+  }
+
+  actors.clear();
+}
+
 PxTransform to_px_transform(const scene::Transform &transform) {
   return PxTransform(GlmVec3ToPxVec3(transform.position),
                      GlmQuatToPxQuat(transform.rotation));
@@ -171,9 +189,31 @@ void PhysicsSystem::fixed_update(double fixed_dt) {
     return;
   }
 
+  (void)SceneManager::get()->flush_pending_active_scene_state();
+
   auto active_scene = SceneManager::get()->get_active_scene();
   if (active_scene == nullptr) {
+    clear_registered_actors(m_actors);
+    m_registered_scene = nullptr;
+    m_registered_scene_revision = 0u;
     return;
+  }
+
+  if (active_scene->get_session_kind() != SceneSessionKind::Preview &&
+      active_scene->get_session_kind() != SceneSessionKind::Runtime) {
+    clear_registered_actors(m_actors);
+    m_registered_scene = nullptr;
+    m_registered_scene_revision = 0u;
+    return;
+  }
+
+  if (m_registered_scene != active_scene ||
+      m_registered_scene_revision != active_scene->get_session_revision()) {
+    // Preview and runtime worlds can reuse the same entity ids, so actors
+    // must be rebuilt whenever the active scene instance changes or is reset.
+    clear_registered_actors(m_actors);
+    m_registered_scene = active_scene;
+    m_registered_scene_revision = active_scene->get_session_revision();
   }
 
   auto &world = active_scene->world();
@@ -224,7 +264,7 @@ void PhysicsSystem::fixed_update(double fixed_dt) {
     set_actor_pose(actor, to_px_transform(*transform));
   }
 
-  if (!g_simulate || m_actors.empty()) {
+  if (!g_simulate || !active_scene->is_playing() || m_actors.empty()) {
     return;
   }
 
@@ -301,5 +341,7 @@ PhysicsSystem::~PhysicsSystem() {
     g_foundation->release();
     g_foundation = nullptr;
   }
+
+  m_registered_scene = nullptr;
 }
 } // namespace astralix

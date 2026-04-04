@@ -6,11 +6,11 @@
 #include "editor-selection-store.hpp"
 #include "editor-theme.hpp"
 #include "layouts/layout-registry.hpp"
+#include "log.hpp"
 #include "managers/project-manager.hpp"
 #include "managers/scene-manager.hpp"
 #include "managers/system-manager.hpp"
 #include "managers/window-manager.hpp"
-#include "log.hpp"
 #include "panels/panel-registry.hpp"
 #include "systems/render-system/render-system.hpp"
 #include "systems/render-system/scene-selection.hpp"
@@ -27,9 +27,48 @@
 namespace astralix::editor {
 namespace {
 
+constexpr std::string_view k_workspace_shell_root_name =
+    "editor_workspace_shell";
+
 const WorkspaceShellTheme &workspace_shell_theme() {
   static const WorkspaceShellTheme theme{};
   return theme;
+}
+
+void configure_workspace_ui_root(
+    rendering::UIRoot &root,
+    const Ref<ui::UIDocument> &document,
+    const ResourceDescriptorID &default_font_id,
+    float default_font_size
+) {
+  root.document = document;
+  root.default_font_id = default_font_id;
+  root.default_font_size = default_font_size;
+  root.sort_order = 200;
+}
+
+std::optional<EntityID> find_workspace_shell_root_entity(ecs::World &world) {
+  std::optional<EntityID> root_entity_id;
+  std::vector<EntityID> duplicate_roots;
+
+  world.each<rendering::UIRoot>([&](EntityID entity_id, rendering::UIRoot &) {
+    if (world.entity(entity_id).name() != k_workspace_shell_root_name) {
+      return;
+    }
+
+    if (!root_entity_id.has_value()) {
+      root_entity_id = entity_id;
+      return;
+    }
+
+    duplicate_roots.push_back(entity_id);
+  });
+
+  for (EntityID duplicate_root_id : duplicate_roots) {
+    world.destroy(duplicate_root_id);
+  }
+
+  return root_entity_id;
 }
 
 ui::dsl::StyleBuilder panel_close_button_style() {
@@ -237,6 +276,40 @@ bool layout_is_pre_inspector_studio_root(const LayoutNode &node) {
          layout_is_leaf(runtime_console.second.get(), "console");
 }
 
+bool migrate_studio_scene_panel_layout(LayoutNode &node) {
+  switch (node.kind) {
+    case LayoutNodeKind::Split:
+      return (node.first != nullptr &&
+              migrate_studio_scene_panel_layout(*node.first)) ||
+             (node.second != nullptr &&
+              migrate_studio_scene_panel_layout(*node.second));
+
+    case LayoutNodeKind::Tabs: {
+      const auto runtime_it =
+          std::find(node.tabs.begin(), node.tabs.end(), "runtime");
+      if (runtime_it == node.tabs.end() ||
+          std::find(node.tabs.begin(), node.tabs.end(), "scene") !=
+              node.tabs.end()) {
+        return false;
+      }
+
+      node.tabs.insert(runtime_it, "scene");
+      node.active_tab_id = "scene";
+      return true;
+    }
+
+    case LayoutNodeKind::Leaf:
+      if (node.panel_instance_id != "runtime") {
+        return false;
+      }
+
+      node = LayoutNode::tabs_node({"scene", "runtime"}, "scene");
+      return true;
+  }
+
+  return false;
+}
+
 std::vector<std::string> ordered_shell_panel_ids(
     const WorkspaceDefinition *workspace,
     const std::optional<WorkspaceSnapshot> &snapshot,
@@ -366,6 +439,12 @@ void WorkspaceShellSystem::pre_update(double) {
 }
 
 void WorkspaceShellSystem::update(double dt) {
+  if (auto scene_manager = SceneManager::get(); scene_manager != nullptr) {
+    (void)scene_manager->flush_pending_active_scene_state();
+  }
+
+  ensure_scene_root();
+
   if (!m_active_snapshot.has_value()) {
     editor_gizmo_store()->clear_interaction();
     clear_gizmo_drag_state();
@@ -428,14 +507,24 @@ void WorkspaceShellSystem::ensure_scene_root() {
     return;
   }
 
-  if (m_root_entity_id.has_value() && m_scene->world().contains(*m_root_entity_id)) {
+  auto &scene_world = m_scene->world();
+  if (auto existing_root_entity_id = find_workspace_shell_root_entity(scene_world);
+      existing_root_entity_id.has_value()) {
+    m_root_entity_id = *existing_root_entity_id;
+
+    if (auto *root = scene_world.get<rendering::UIRoot>(*m_root_entity_id);
+        root != nullptr) {
+      configure_workspace_ui_root(
+          *root, m_document, m_default_font_id, m_default_font_size
+      );
+    }
+
     return;
   }
 
-  auto root = m_scene->spawn_entity("editor_workspace_shell");
-  root.emplace<scene::SceneEntity>();
+  auto root = m_scene->spawn_entity(std::string(k_workspace_shell_root_name));
   root.emplace<rendering::UIRoot>(rendering::UIRoot{
-      .document = nullptr,
+      .document = m_document,
       .default_font_id = m_default_font_id,
       .default_font_size = m_default_font_size,
       .sort_order = 200,
@@ -537,12 +626,14 @@ void WorkspaceShellSystem::activate_workspace(std::string workspace_id) {
       );
 
       if (layout_is_missing_workspace_panel) {
-        const bool can_restore_layout =
-            workspace_id != "studio" ||
-            (m_active_snapshot->version < k_workspace_snapshot_version &&
-             layout_is_pre_inspector_studio_root(m_active_snapshot->root));
-
-        if (can_restore_layout) {
+        if (workspace_id == "studio" &&
+            m_active_snapshot->version < k_workspace_snapshot_version) {
+          if (layout_is_pre_inspector_studio_root(m_active_snapshot->root)) {
+            m_active_snapshot->root = layout->root;
+          } else if (!layout_contains_panel_slot(m_active_snapshot->root, "scene")) {
+            (void)migrate_studio_scene_panel_layout(m_active_snapshot->root);
+          }
+        } else if (workspace_id != "studio") {
           m_active_snapshot->root = layout->root;
         }
       }
@@ -590,10 +681,9 @@ void WorkspaceShellSystem::rebuild_workspace_document() {
   if (m_scene != nullptr && m_root_entity_id.has_value()) {
     if (auto *root = m_scene->world().get<rendering::UIRoot>(*m_root_entity_id);
         root != nullptr) {
-      root->document = m_document;
-      root->default_font_id = m_default_font_id;
-      root->default_font_size = m_default_font_size;
-      root->sort_order = 200;
+      configure_workspace_ui_root(
+          *root, m_document, m_default_font_id, m_default_font_size
+      );
     }
   }
 
@@ -979,6 +1069,7 @@ void WorkspaceShellSystem::update_gizmo_interaction() {
     }
 
     transform->dirty = true;
+    scene->world().touch();
     return;
   }
 
@@ -1217,7 +1308,9 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_shell() {
                       ),
                   workspace_row,
                   spacer(),
-                  panel_row
+                  ui::dsl::row()
+                      .style(items_center().gap(10.0f).shrink(0.0f))
+                      .child(std::move(panel_row))
               ),
           ui::dsl::view()
               .style(
@@ -1325,10 +1418,16 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_floating_shell() {
                                   )
                           ),
                       spacer(),
-                      build_panel_close_button([this]() { set_shell_visible(false); })
+                      ui::dsl::row()
+                          .style(items_center().gap(8.0f).shrink(0.0f))
+                          .children(
+                              build_panel_close_button(
+                                  [this]() { set_shell_visible(false); }
+                              )
+                          )
                   ),
               workspace_row,
-              panel_row
+              std::move(panel_row)
           )
   );
 
@@ -1385,27 +1484,23 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_layout_node(
 
       auto first = ui::dsl::view()
                        .bind(runtime.first)
-                       .style(fill_y().shrink().raw(
-                           [axis = node.split_axis,
-                            ratio = node.split_ratio,
-                            first_minimum](ui::UIStyle &style) {
-                             style.min_width =
-                                 ui::UILength::pixels(first_minimum.width);
-                             style.min_height =
-                                 ui::UILength::pixels(first_minimum.height);
-                             if (axis == ui::FlexDirection::Row) {
-                               style.width = ui::UILength::percent(
-                                   std::clamp(ratio, 0.1f, 0.9f)
-                               );
-                               style.height = ui::UILength::percent(1.0f);
-                             } else {
-                               style.height = ui::UILength::percent(
-                                   std::clamp(ratio, 0.1f, 0.9f)
-                               );
-                               style.width = ui::UILength::percent(1.0f);
-                             }
-                           }
-      ));
+                       .style(fill_y().shrink().raw([axis = node.split_axis, ratio = node.split_ratio, first_minimum](ui::UIStyle &style) {
+                         style.min_width =
+                             ui::UILength::pixels(first_minimum.width);
+                         style.min_height =
+                             ui::UILength::pixels(first_minimum.height);
+                         if (axis == ui::FlexDirection::Row) {
+                           style.width = ui::UILength::percent(
+                               std::clamp(ratio, 0.1f, 0.9f)
+                           );
+                           style.height = ui::UILength::percent(1.0f);
+                         } else {
+                           style.height = ui::UILength::percent(
+                               std::clamp(ratio, 0.1f, 0.9f)
+                           );
+                           style.width = ui::UILength::percent(1.0f);
+                         }
+                       }));
       first.child(build_layout_node(*node.first, path + "/0"));
 
       auto second = ui::dsl::view()
@@ -2473,9 +2568,7 @@ WorkspaceShellSystem::build_floating_panel_buttons() {
                     )
                     .border(1.0f, open ? theme.accent : theme.panel_border)
                     .text_color(open ? theme.text_primary : theme.text_muted)
-                    .hover(ui::dsl::styles::state().background(
-                        theme.panel_raised_background
-                    ))
+                    .hover(ui::dsl::styles::state().background(theme.panel_raised_background))
                     .pressed(
                         ui::dsl::styles::state().background(theme.accent_soft)
                     )

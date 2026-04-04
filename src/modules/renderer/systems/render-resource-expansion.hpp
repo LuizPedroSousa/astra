@@ -4,6 +4,7 @@
 #include "components/model.hpp"
 #include "components/render-resource-request.hpp"
 #include "components/tags.hpp"
+#include "log.hpp"
 #include "world.hpp"
 #include <vector>
 
@@ -34,17 +35,20 @@ inline void expand_render_resource_requests(ecs::World &world) {
 
     if (!request_copy.shader_id.empty()) {
       entity.emplace<ShaderBinding>(
-          ShaderBinding{.shader = request_copy.shader_id});
+          ShaderBinding{.shader = request_copy.shader_id}
+      );
     }
 
     if (!request_copy.material_ids.empty()) {
       entity.emplace<MaterialSlots>(
-          MaterialSlots{.materials = request_copy.material_ids});
+          MaterialSlots{.materials = request_copy.material_ids}
+      );
     }
 
     if (!request_copy.textures.empty()) {
       entity.emplace<TextureBindings>(
-          TextureBindings{.bindings = request_copy.textures});
+          TextureBindings{.bindings = request_copy.textures}
+      );
     }
 
     if (request_copy.renderable) {
