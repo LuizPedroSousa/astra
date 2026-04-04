@@ -346,22 +346,26 @@ void serialize_entities_to_context(
   ctx["scene"]["id"] = scene.get_scene_id();
   ctx["scene"]["type"] = scene.get_type();
 
-  if (serializer.get_artifact_kind() == SceneArtifactKind::Source) {
-    serialize_derived_state(ctx, scene.get_derived_state());
-  } else if (serializer.get_artifact_kind() == SceneArtifactKind::Preview) {
-    if (const auto &preview_info = scene.get_preview_build_info();
-        preview_info.has_value()) {
-      ctx["build"]["source_revision"] =
-          static_cast<int>(preview_info->source_revision);
-      ctx["build"]["built_at_utc"] = preview_info->built_at_utc;
-    }
-  } else if (serializer.get_artifact_kind() == SceneArtifactKind::Runtime) {
-    if (const auto &runtime_info = scene.get_runtime_promotion_info();
-        runtime_info.has_value()) {
-      ctx["build"]["promoted_from_preview_revision"] =
-          static_cast<int>(runtime_info->promoted_from_preview_revision);
-      ctx["build"]["promoted_at_utc"] = runtime_info->promoted_at_utc;
-    }
+  switch (serializer.get_artifact_kind()) {
+    case SceneArtifactKind::Source:
+      serialize_derived_state(ctx, scene.get_derived_state());
+      break;
+    case SceneArtifactKind::Preview:
+      if (const auto &preview_info = scene.get_preview_build_info();
+          preview_info.has_value()) {
+        ctx["build"]["source_revision"] =
+            static_cast<int>(preview_info->source_revision);
+        ctx["build"]["built_at_utc"] = preview_info->built_at_utc;
+      }
+      break;
+    case SceneArtifactKind::Runtime:
+      if (const auto &runtime_info = scene.get_runtime_promotion_info();
+          runtime_info.has_value()) {
+        ctx["build"]["promoted_from_preview_revision"] =
+            static_cast<int>(runtime_info->promoted_from_preview_revision);
+        ctx["build"]["promoted_at_utc"] = runtime_info->promoted_at_utc;
+      }
+      break;
   }
 
   std::vector<SerializedEntityData> serialized_entities;
