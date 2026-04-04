@@ -24,7 +24,7 @@ public:
         m_listeners.emplace(listener_id, std::move(listener));
     ASTRA_ENSURE(!emplaced_listener.second,
 
-                    "Error creating new Listener!");
+                 "Error creating new Listener!");
     auto type = E::get_static_type();
 
     auto it = m_event_listeners.find(type);
@@ -39,22 +39,21 @@ public:
 
     auto emplaced_event = m_event_listeners.emplace(type, listeners);
 
-    ASTRA_ENSURE(!emplaced_event.second,
-                    "Error creating new Event Listener!");
+    ASTRA_ENSURE(!emplaced_event.second, "Error creating new Event Listener!");
   }
 
   // L -> listener
   // E -> an event
   // F -> callback function deduced by the compiler
-  template <typename L, typename E, typename F> void attach(F callback) {
+  template <typename L, typename E, typename F>
+  void attach(F callback) {
     auto typed_callback = [callback](Event *event) {
       // Ensure the event is of the expected type
       E *typed_event = static_cast<E *>(event);
       if (typed_event) {
         callback(typed_event);
       } else {
-        ASTRA_EXCEPTION("Event type mismatch! Expected: " +
-                                  std::string(typeid(E).name()));
+        ASTRA_EXCEPTION("Event type mismatch! Expected: " + std::string(typeid(E).name()));
       }
     };
 
@@ -64,7 +63,7 @@ public:
         m_listeners.emplace(listener_id, std::move(listener));
     ASTRA_ENSURE(!emplaced_listener.second,
 
-                    "Error creating new Listener!");
+                 "Error creating new Listener!");
     auto type = E::get_static_type();
 
     auto it = m_event_listeners.find(type);
@@ -79,11 +78,11 @@ public:
 
     auto emplaced_event = m_event_listeners.emplace(type, listeners);
 
-    ASTRA_ENSURE(!emplaced_event.second,
-                    "Error creating new Event Listener!");
+    ASTRA_ENSURE(!emplaced_event.second, "Error creating new Event Listener!");
   }
 
-  template <typename E> void dispatch(E *event) {
+  template <typename E>
+  void dispatch(E *event) {
     auto type = event->get_event_type();
 
     auto it = m_event_listeners.find(type);
@@ -99,7 +98,8 @@ public:
     }
   }
 
-  template <typename E> void dispatch(EventType type, E *event) {
+  template <typename E>
+  void dispatch(EventType type, E *event) {
     auto it = m_event_listeners.find(type);
 
     if (it != m_event_listeners.end()) {

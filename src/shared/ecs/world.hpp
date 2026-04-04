@@ -294,6 +294,7 @@ public:
 
     if (auto *existing = get<T>(entity_id); existing != nullptr) {
       *existing = std::move(component);
+      touch();
       return *existing;
     }
 
@@ -306,6 +307,7 @@ public:
       column.data.push_back(std::move(component));
     });
 
+    touch();
     return *get<T>(entity_id);
   }
 
@@ -319,6 +321,7 @@ public:
     Signature new_signature = record->signature;
     new_signature.reset(component_type_id<T>());
     migrate_entity(entity_id, new_signature, [](detail::ArchetypeStorage &) {});
+    touch();
   }
 
   template <typename... Ts, typename Fn>
@@ -378,6 +381,7 @@ public:
 
   size_t size() const { return m_entity_records.size(); }
   bool empty() const { return m_entity_records.empty(); }
+  uint64_t revision() const { return m_revision; }
 
   std::string_view name(EntityID entity_id) const {
     return require_name(entity_id);
@@ -386,6 +390,7 @@ public:
   void set_name(EntityID entity_id, std::string name) {
     require_record(entity_id);
     m_entity_names[entity_id] = std::move(name);
+    touch();
   }
 
   bool active(EntityID entity_id) const {
@@ -394,9 +399,11 @@ public:
 
   void set_active(EntityID entity_id, bool active) {
     require_record(entity_id).active = active;
+    touch();
   }
 
   CommandBuffer commands() { return CommandBuffer(this); }
+  void touch() { ++m_revision; }
 
 private:
   EntityRecord *find_record(EntityID entity_id) {
@@ -514,6 +521,7 @@ private:
                                             .active = active,
                                         });
     m_entity_names.emplace(entity_id, std::move(name));
+    touch();
 
     return EntityRef(this, entity_id);
   }
@@ -541,6 +549,7 @@ private:
   std::unordered_map<Signature, size_t, SignatureHash> m_archetype_lookup;
   std::unordered_map<EntityID, EntityRecord> m_entity_records;
   std::unordered_map<EntityID, std::string> m_entity_names;
+  uint64_t m_revision = 0u;
 
   friend class EntityRef;
   friend class CommandBuffer;
@@ -576,6 +585,7 @@ inline void World::destroy(EntityID entity_id) {
 
   m_entity_records.erase(entity_id);
   m_entity_names.erase(entity_id);
+  touch();
 }
 
 inline EntityID EntityRef::id() const {

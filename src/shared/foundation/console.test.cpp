@@ -1,4 +1,5 @@
 #include "console.hpp"
+#include "assert.hpp"
 #include "log.hpp"
 
 #include <gtest/gtest.h>
@@ -155,6 +156,46 @@ TEST_F(LoggerConsoleTest, UnknownAndClearCommandsProduceExpectedBufferState) {
   ASSERT_TRUE(result.executed);
   EXPECT_TRUE(result.success);
   EXPECT_TRUE(console.entries().empty());
+}
+
+TEST_F(LoggerConsoleTest, CommandHandlerExceptionsBecomeConsoleErrors) {
+  auto &console = ConsoleManager::get();
+  console.register_command(
+      "explode",
+      "Throw a command exception.",
+      [](const ConsoleCommandInvocation &) -> ConsoleCommandResult {
+        ASTRA_EXCEPTION("explode failed");
+      }
+  );
+
+  const auto result = console.execute("explode");
+  ASSERT_TRUE(result.executed);
+  EXPECT_FALSE(result.success);
+  ASSERT_EQ(result.lines.size(), 1u);
+  EXPECT_EQ(result.lines[0], "explode failed");
+
+  const auto &entries = console.entries();
+  ASSERT_EQ(entries.size(), 2u);
+  EXPECT_EQ(entries.front().source, ConsoleEntrySource::Command);
+  EXPECT_EQ(entries.back().source, ConsoleEntrySource::Output);
+  EXPECT_EQ(entries.back().level, LogLevel::ERROR);
+  EXPECT_EQ(entries.back().message, "explode failed");
+}
+
+TEST_F(LoggerConsoleTest, OutputSanitizesAnsiAndSplitsLines) {
+  auto &console = ConsoleManager::get();
+  console.append_output(
+      std::string(BOLD) + RED + "first" + RESET + "\n\n" + CYAN + "second" +
+          RESET,
+      LogLevel::ERROR
+  );
+
+  const auto &entries = console.entries();
+  ASSERT_EQ(entries.size(), 2u);
+  EXPECT_EQ(entries[0].message, "first");
+  EXPECT_EQ(entries[1].message, "second");
+  EXPECT_EQ(entries[0].level, LogLevel::ERROR);
+  EXPECT_EQ(entries[1].level, LogLevel::ERROR);
 }
 
 TEST_F(LoggerConsoleTest, CommandSuggestionsRankByMatchBucketAndSessionFrecency) {
