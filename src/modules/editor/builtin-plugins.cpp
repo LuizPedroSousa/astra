@@ -10,6 +10,7 @@
 #include "tools/console/console-panel-controller.hpp"
 #include "tools/inspector/inspector-panel-controller.hpp"
 #include "tools/runtime/runtime-panel-controller.hpp"
+#include "tools/scene/scene-panel-controller.hpp"
 #include "tools/scene-hierachy/scene-hierarchy-panel-controller.hpp"
 #include "tools/viewport/viewport-panel-controller.hpp"
 #include "workspaces/workspace-registry.hpp"
@@ -48,6 +49,14 @@ void register_builtin_panels() {
       .minimum_size = ConsolePanelController::kMinimumSize,
       .singleton = true,
       .factory = [] { return create_scope<ConsolePanelController>(); },
+  });
+
+  panel_registry()->register_provider({
+      .id = "editor.scene",
+      .title = "Scene",
+      .minimum_size = ScenePanelController::kMinimumSize,
+      .singleton = true,
+      .factory = [] { return create_scope<ScenePanelController>(); },
   });
 
   panel_registry()->register_provider({
@@ -93,10 +102,10 @@ void register_builtin_layouts() {
                   ui::FlexDirection::Column,
                   0.44f,
                   LayoutNode::leaf("inspector"),
-                  LayoutNode::split(
-                      ui::FlexDirection::Column,
-                      0.42f,
-                      LayoutNode::leaf("runtime"),
+              LayoutNode::split(
+                  ui::FlexDirection::Column,
+                  0.42f,
+                      LayoutNode::tabs_node({"scene", "runtime"}, "scene"),
                       LayoutNode::leaf("console")
                   )
               )
@@ -119,107 +128,128 @@ void register_builtin_layouts() {
 void register_builtin_workspaces() {
   ensure_registries();
 
-  workspace_registry()->register_workspace({
-      .id = "studio",
-      .title = "Studio",
-      .layout_id = "studio.v1",
-      .panels = {
-          PanelInstanceSpec{
-              .instance_id = "scene_hierarchy",
-              .provider_id = "editor.scene-hierarchy",
-              .title = "Scene Hierarchy",
+  workspace_registry()->register_workspace(
+      {
+          .id = "studio",
+          .title = "Studio",
+          .layout_id = "studio.v1",
+          .panels = {
+              PanelInstanceSpec{
+                  .instance_id = "scene_hierarchy",
+                  .provider_id = "editor.scene-hierarchy",
+                  .title = "Scene Hierarchy",
+              },
+              PanelInstanceSpec{
+                  .instance_id = "viewport",
+                  .provider_id = "editor.viewport",
+                  .title = "Viewport",
+              },
+              PanelInstanceSpec{
+                  .instance_id = "scene",
+                  .provider_id = "editor.scene",
+                  .title = "Scene",
+              },
+              PanelInstanceSpec{
+                  .instance_id = "runtime",
+                  .provider_id = "editor.runtime",
+                  .title = "Runtime",
+              },
+              PanelInstanceSpec{
+                  .instance_id = "inspector",
+                  .provider_id = "editor.inspector",
+                  .title = "Inspector",
+              },
+              PanelInstanceSpec{
+                  .instance_id = "console",
+                  .provider_id = "editor.console",
+                  .title = "Console",
+              },
           },
-          PanelInstanceSpec{
-              .instance_id = "viewport",
-              .provider_id = "editor.viewport",
-              .title = "Viewport",
-          },
-          PanelInstanceSpec{
-              .instance_id = "runtime",
-              .provider_id = "editor.runtime",
-              .title = "Runtime",
-          },
-          PanelInstanceSpec{
-              .instance_id = "inspector",
-              .provider_id = "editor.inspector",
-              .title = "Inspector",
-          },
-          PanelInstanceSpec{
-              .instance_id = "console",
-              .provider_id = "editor.console",
-              .title = "Console",
-          },
-      },
-  });
+      }
+  );
 
-  workspace_registry()->register_workspace({
-      .id = "tools",
-      .title = "Tools",
-      .layout_id = "tools.v1",
-      .presentation = WorkspacePresentation::FloatingPanels,
-      .panels = {
-          PanelInstanceSpec{
-              .instance_id = "scene_hierarchy",
-              .provider_id = "editor.scene-hierarchy",
-              .title = "Scene Hierarchy",
-              .floating_frame =
-                  WorkspacePanelFrame{
-                      .x = 48.0f,
-                      .y = 112.0f,
-                      .width = 360.0f,
-                      .height = 520.0f,
-                  },
+  workspace_registry()->register_workspace(
+      {
+          .id = "tools",
+          .title = "Tools",
+          .layout_id = "tools.v1",
+          .presentation = WorkspacePresentation::FloatingPanels,
+          .panels = {
+              PanelInstanceSpec{
+                  .instance_id = "scene_hierarchy",
+                  .provider_id = "editor.scene-hierarchy",
+                  .title = "Scene Hierarchy",
+                  .floating_frame =
+                      WorkspacePanelFrame{
+                          .x = 48.0f,
+                          .y = 112.0f,
+                          .width = 360.0f,
+                          .height = 520.0f,
+                      },
+              },
+              PanelInstanceSpec{
+                  .instance_id = "viewport",
+                  .provider_id = "editor.viewport",
+                  .title = "Viewport",
+                  .floating_frame =
+                      WorkspacePanelFrame{
+                          .x = 208.0f,
+                          .y = 112.0f,
+                          .width = 1120.0f,
+                          .height = 640.0f,
+                      },
+              },
+              PanelInstanceSpec{
+                  .instance_id = "scene",
+                  .provider_id = "editor.scene",
+                  .title = "Scene",
+                  .floating_frame =
+                      WorkspacePanelFrame{
+                          .x = 48.0f,
+                          .y = 112.0f,
+                          .width = 460.0f,
+                          .height = 360.0f,
+                      },
+              },
+              PanelInstanceSpec{
+                  .instance_id = "runtime",
+                  .provider_id = "editor.runtime",
+                  .title = "Runtime",
+                  .floating_frame =
+                      WorkspacePanelFrame{
+                          .x = 528.0f,
+                          .y = 112.0f,
+                          .width = 560.0f,
+                          .height = 280.0f,
+                      },
+              },
+              PanelInstanceSpec{
+                  .instance_id = "inspector",
+                  .provider_id = "editor.inspector",
+                  .title = "Inspector",
+                  .floating_frame =
+                      WorkspacePanelFrame{
+                          .x = 640.0f,
+                          .y = 112.0f,
+                          .width = 400.0f,
+                          .height = 520.0f,
+                      },
+              },
+              PanelInstanceSpec{
+                  .instance_id = "console",
+                  .provider_id = "editor.console",
+                  .title = "Console",
+                  .floating_frame =
+                      WorkspacePanelFrame{
+                          .x = 208.0f,
+                          .y = 196.0f,
+                          .width = 960.0f,
+                          .height = 320.0f,
+                      },
+              },
           },
-          PanelInstanceSpec{
-              .instance_id = "viewport",
-              .provider_id = "editor.viewport",
-              .title = "Viewport",
-              .floating_frame =
-                  WorkspacePanelFrame{
-                      .x = 208.0f,
-                      .y = 112.0f,
-                      .width = 1120.0f,
-                      .height = 640.0f,
-                  },
-          },
-          PanelInstanceSpec{
-              .instance_id = "runtime",
-              .provider_id = "editor.runtime",
-              .title = "Runtime",
-              .floating_frame =
-                  WorkspacePanelFrame{
-                      .x = 48.0f,
-                      .y = 112.0f,
-                      .width = 560.0f,
-                      .height = 280.0f,
-                  },
-          },
-          PanelInstanceSpec{
-              .instance_id = "inspector",
-              .provider_id = "editor.inspector",
-              .title = "Inspector",
-              .floating_frame =
-                  WorkspacePanelFrame{
-                      .x = 640.0f,
-                      .y = 112.0f,
-                      .width = 400.0f,
-                      .height = 520.0f,
-                  },
-          },
-          PanelInstanceSpec{
-              .instance_id = "console",
-              .provider_id = "editor.console",
-              .title = "Console",
-              .floating_frame =
-                  WorkspacePanelFrame{
-                      .x = 208.0f,
-                      .y = 196.0f,
-                      .width = 960.0f,
-                      .height = 320.0f,
-                  },
-          },
-      },
-  });
+      }
+  );
 }
 
 void register_workspace_shell_plugin(WorkspaceShellSystemConfig config) {

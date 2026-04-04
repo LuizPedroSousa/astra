@@ -13,6 +13,11 @@ using namespace ui::dsl;
 using namespace ui::dsl::styles;
 
 namespace {
+inline constexpr float k_console_shell_radius = 16.0f;
+inline constexpr float k_console_surface_radius = 18.0f;
+inline constexpr float k_console_popover_radius = 12.0f;
+inline constexpr float k_console_input_pair_radius = 14.0f;
+
 StyleBuilder utility_toggle_style(
     const ConsolePanelTheme &theme,
     float radius_value
@@ -56,7 +61,7 @@ StyleBuilder filter_popover_style(
       .padding(10.0f)
       .background(theme_alpha(theme.handle, 0.96f))
       .border(1.0f, theme_alpha(theme.panel_border, 0.82f))
-      .radius(12.0f);
+      .radius(k_console_popover_radius);
 }
 
 StyleBuilder filter_popup_option_style(
@@ -80,7 +85,7 @@ StyleBuilder log_scroll_style(const ConsolePanelTheme &theme) {
       .flex(1.0f)
       .padding(14.0f)
       .gap(10.0f)
-      .radius(18.0f)
+      .radius(k_console_surface_radius)
       .border(1.0f, theme.panel_border)
       .background(theme.panel_background)
       .scroll_both()
@@ -106,7 +111,7 @@ StyleBuilder command_dock_style(const ConsolePanelTheme &theme) {
   return fill_x()
       .padding(14.0f)
       .gap(10.0f)
-      .radius(18.0f)
+      .radius(k_console_surface_radius)
       .background(theme.panel_background)
       .border(1.0f, theme.panel_border);
 }
@@ -144,7 +149,7 @@ StyleBuilder command_input_pair_style() {
   return flex(1.0f)
       .items_center()
       .gap(0.0f)
-      .radius(14.0f)
+      .radius(k_console_input_pair_radius)
       .overflow_hidden();
 }
 
@@ -445,6 +450,7 @@ ui::dsl::NodeSpec ConsolePanelController::build() {
           fill()
               .padding(12.0f)
               .gap(12.0f)
+              .radius(k_console_shell_radius)
               .background(theme.panel_background)
       )
       .children(

@@ -693,6 +693,7 @@ ConsoleCommandResult handle_transform_command(
 
   if (action == "reset") {
     *transform = astralix::scene::Transform{};
+    selection->scene->world().touch();
     return success_result({"transform reset"});
   }
 
@@ -704,6 +705,7 @@ ConsoleCommandResult handle_transform_command(
 
     transform->position = *position;
     transform->dirty = true;
+    selection->scene->world().touch();
     return success_result({"position: " + format_vec3(transform->position)});
   }
 
@@ -715,6 +717,7 @@ ConsoleCommandResult handle_transform_command(
 
     transform->position += *delta;
     transform->dirty = true;
+    selection->scene->world().touch();
     return success_result({"position: " + format_vec3(transform->position)});
   }
 
@@ -738,6 +741,7 @@ ConsoleCommandResult handle_transform_command(
 
     transform->scale = scale;
     transform->dirty = true;
+    selection->scene->world().touch();
     return success_result({"scale: " + format_vec3(transform->scale)});
   }
 
@@ -749,6 +753,7 @@ ConsoleCommandResult handle_transform_command(
 
     transform->rotation = glm::quat(glm::radians(*euler_degrees));
     transform->dirty = true;
+    selection->scene->world().touch();
     return success_result({"rotation: " + format_vec3(*euler_degrees)});
   }
 

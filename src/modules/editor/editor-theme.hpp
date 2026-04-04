@@ -141,6 +141,21 @@ struct SceneHierarchyPanelTheme {
   glm::vec4 subdued_soft = theme_alpha(k_theme.bunker_900, 0.96f);
 };
 
+struct ScenePanelTheme {
+  glm::vec4 shell_background = theme_alpha(k_theme.bunker_1000, 0.98f);
+  glm::vec4 panel_background = theme_alpha(k_theme.bunker_950, 0.98f);
+  glm::vec4 panel_raised_background = theme_alpha(k_theme.bunker_900, 0.96f);
+  glm::vec4 panel_border = k_theme.bunker_800;
+  glm::vec4 card_background = theme_alpha(k_theme.bunker_900, 0.92f);
+  glm::vec4 card_border = k_theme.bunker_700;
+  glm::vec4 accent = k_theme.sunset_500;
+  glm::vec4 accent_soft = theme_alpha(k_theme.sunset_950, 0.94f);
+  glm::vec4 text_primary = k_theme.bunker_50;
+  glm::vec4 text_muted = k_theme.bunker_300;
+  glm::vec4 success = k_theme.success;
+  glm::vec4 success_soft = k_theme.success_soft;
+};
+
 struct InspectorPanelTheme {
   glm::vec4 shell_background = theme_alpha(k_theme.bunker_1000, 0.98f);
   glm::vec4 panel_background = theme_alpha(k_theme.bunker_950, 0.98f);

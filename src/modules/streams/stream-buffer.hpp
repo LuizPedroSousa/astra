@@ -5,6 +5,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <string_view>
 
 namespace astralix {
 
@@ -49,6 +50,15 @@ private:
 clone_stream_buffer(ElasticArena::Block *block) {
   auto buffer = create_scope<StreamBuffer>(block->size);
   std::memcpy(buffer->data(), block->data, block->size);
+  return buffer;
+}
+
+[[nodiscard]] inline Scope<StreamBuffer>
+stream_buffer_from_string(std::string_view text) {
+  auto buffer = create_scope<StreamBuffer>(text.size());
+  if (!text.empty()) {
+    std::memcpy(buffer->data(), text.data(), text.size());
+  }
   return buffer;
 }
 
