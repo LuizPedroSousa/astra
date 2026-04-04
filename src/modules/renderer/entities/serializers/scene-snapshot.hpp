@@ -14,6 +14,10 @@ collect_entity_component_snapshots(ecs::EntityRef entity) {
   }
 
   append_snapshot_if_present<scene::SceneEntity>(entity, components);
+  append_snapshot_if_present<scene::EditorOnly>(entity, components);
+  append_snapshot_if_present<scene::GeneratorSpec>(entity, components);
+  append_snapshot_if_present<scene::DerivedEntity>(entity, components);
+  append_snapshot_if_present<scene::MetaEntityOwner>(entity, components);
   append_snapshot_if_present<scene::Transform>(entity, components);
   append_snapshot_if_present<rendering::Camera>(entity, components);
   append_snapshot_if_present<scene::CameraController>(entity, components);

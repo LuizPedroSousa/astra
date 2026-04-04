@@ -46,11 +46,20 @@ struct ProjectResourceConfig {
 struct ProjectSceneEntryConfig {
   std::string id;
   std::string type;
-  std::string path;
+  std::string source_path;
+  std::string preview_path;
+  std::string runtime_path;
+};
+
+enum class SceneStartupTarget {
+  Source,
+  Preview,
+  Runtime,
 };
 
 struct ProjectScenesConfig {
   std::string startup;
+  SceneStartupTarget startup_target = SceneStartupTarget::Source;
   std::vector<ProjectSceneEntryConfig> entries;
 };
 

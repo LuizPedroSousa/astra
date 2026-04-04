@@ -1,17 +1,23 @@
 #include "scene-serializer.hpp"
+
 #include "assert.hpp"
 #include "axmesh-serializer.hpp"
 #include "components/serialization/mesh.hpp"
 #include "context-proxy.hpp"
 #include "entities/scene.hpp"
+#include "entities/serializers/component-snapshot-context.hpp"
+#include "entities/serializers/derived-override-serializer.hpp"
+#include "fnv1a.hpp"
 #include "log.hpp"
 #include "managers/project-manager.hpp"
 #include "scene-snapshot.hpp"
-#include "string"
+
+#include <algorithm>
 #include <bit>
 #include <cstdint>
 #include <filesystem>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <string_view>
 #include <vector>
@@ -20,6 +26,35 @@ namespace astralix {
 namespace {
 
 constexpr int k_scene_version = 1;
+
+std::string scene_artifact_kind_to_string(SceneArtifactKind kind) {
+  switch (kind) {
+    case SceneArtifactKind::Source:
+      return "source";
+    case SceneArtifactKind::Preview:
+      return "preview";
+    case SceneArtifactKind::Runtime:
+      return "runtime";
+    default:
+      ASTRA_EXCEPTION("Unknown scene artifact kind");
+  }
+}
+
+SceneArtifactKind scene_artifact_kind_from_string(const std::string &kind) {
+  if (kind == "source") {
+    return SceneArtifactKind::Source;
+  }
+
+  if (kind == "preview") {
+    return SceneArtifactKind::Preview;
+  }
+
+  if (kind == "runtime") {
+    return SceneArtifactKind::Runtime;
+  }
+
+  ASTRA_EXCEPTION("Unknown scene artifact kind: ", kind);
+}
 
 SerializationFormat scene_serialization_format() {
   auto project = active_project();
@@ -31,16 +66,30 @@ void reset_context(Ref<SerializationContext> &ctx) {
   ctx = SerializationContext::create(scene_serialization_format());
 }
 
-std::filesystem::path scene_absolute_path(const Scene &scene) {
+std::filesystem::path scene_absolute_path(
+    const Scene &scene, SceneArtifactKind artifact_kind
+) {
   auto project = active_project();
   ASTRA_ENSURE(project == nullptr, "Cannot resolve scene path without an active project");
-  ASTRA_ENSURE(scene.get_scene_path().empty(), "Scene path is not configured for scene ", scene.get_type());
 
-  return project->resolve_path(scene.get_scene_path());
+  switch (artifact_kind) {
+    case SceneArtifactKind::Source:
+      return project->resolve_path(scene.get_source_scene_path());
+    case SceneArtifactKind::Preview:
+      return project->resolve_path(scene.get_preview_scene_path());
+    case SceneArtifactKind::Runtime:
+      return project->resolve_path(scene.get_runtime_scene_path());
+  }
+
+  ASTRA_EXCEPTION("Unknown scene artifact kind");
 }
 
-std::filesystem::path generated_mesh_directory(const Scene &scene) {
-  return scene_absolute_path(scene).parent_path() / "meshes";
+std::filesystem::path generated_mesh_directory(
+    const Scene &scene, SceneArtifactKind artifact_kind
+) {
+  const auto parent = scene_absolute_path(scene, artifact_kind).parent_path();
+  return artifact_kind == SceneArtifactKind::Preview ? parent / "preview-meshes"
+                                                     : parent / "meshes";
 }
 
 std::string project_relative_path(const std::filesystem::path &path) {
@@ -53,59 +102,54 @@ std::string project_relative_path(const std::filesystem::path &path) {
       .generic_string();
 }
 
-void fnv1a_update(uint64_t &hash, const void *data, size_t size) {
-  const auto *bytes = static_cast<const uint8_t *>(data);
-  for (size_t index = 0; index < size; ++index) {
-    hash ^= static_cast<uint64_t>(bytes[index]);
-    hash *= 1099511628211ull;
-  }
-}
-
-template <typename T>
-void fnv1a_update_value(uint64_t &hash, const T &value) {
-  fnv1a_update(hash, &value, sizeof(value));
-}
-
-void fnv1a_update_float(uint64_t &hash, float value) {
-  const uint32_t bits = std::bit_cast<uint32_t>(value);
-  fnv1a_update_value(hash, bits);
-}
-
 std::string hash_mesh_set(const std::vector<Mesh> &meshes) {
-  uint64_t hash = 1469598103934665603ull;
-  fnv1a_update_value(hash, static_cast<uint64_t>(meshes.size()));
+  constexpr uint64_t k_mesh_set_hash_offset_basis = 1469598103934665603ull;
+
+  uint64_t hash = k_mesh_set_hash_offset_basis;
+  hash = fnv1a64_append_value(hash, static_cast<uint64_t>(meshes.size()));
 
   for (const auto &mesh : meshes) {
-    fnv1a_update_value(hash, static_cast<int>(mesh.draw_type));
-    fnv1a_update_value(hash, static_cast<uint64_t>(mesh.vertices.size()));
-    fnv1a_update_value(hash, static_cast<uint64_t>(mesh.indices.size()));
+    hash = fnv1a64_append_value(hash, static_cast<int>(mesh.draw_type));
+    hash = fnv1a64_append_value(hash, static_cast<uint64_t>(mesh.vertices.size()));
+    hash = fnv1a64_append_value(hash, static_cast<uint64_t>(mesh.indices.size()));
 
     for (const auto &vertex : mesh.vertices) {
-      fnv1a_update_float(hash, vertex.position.x);
-      fnv1a_update_float(hash, vertex.position.y);
-      fnv1a_update_float(hash, vertex.position.z);
-      fnv1a_update_float(hash, vertex.normal.x);
-      fnv1a_update_float(hash, vertex.normal.y);
-      fnv1a_update_float(hash, vertex.normal.z);
-      fnv1a_update_float(hash, vertex.texture_coordinates.x);
-      fnv1a_update_float(hash, vertex.texture_coordinates.y);
-      fnv1a_update_float(hash, vertex.tangent.x);
-      fnv1a_update_float(hash, vertex.tangent.y);
-      fnv1a_update_float(hash, vertex.tangent.z);
+      hash = fnv1a64_append_value(
+          hash, std::bit_cast<uint32_t>(vertex.position.x)
+      );
+      hash = fnv1a64_append_value(
+          hash, std::bit_cast<uint32_t>(vertex.position.y)
+      );
+      hash = fnv1a64_append_value(
+          hash, std::bit_cast<uint32_t>(vertex.position.z)
+      );
+      hash = fnv1a64_append_value(hash, std::bit_cast<uint32_t>(vertex.normal.x));
+      hash = fnv1a64_append_value(hash, std::bit_cast<uint32_t>(vertex.normal.y));
+      hash = fnv1a64_append_value(hash, std::bit_cast<uint32_t>(vertex.normal.z));
+      hash = fnv1a64_append_value(
+          hash, std::bit_cast<uint32_t>(vertex.texture_coordinates.x)
+      );
+      hash = fnv1a64_append_value(
+          hash, std::bit_cast<uint32_t>(vertex.texture_coordinates.y)
+      );
+      hash = fnv1a64_append_value(hash, std::bit_cast<uint32_t>(vertex.tangent.x));
+      hash = fnv1a64_append_value(hash, std::bit_cast<uint32_t>(vertex.tangent.y));
+      hash = fnv1a64_append_value(hash, std::bit_cast<uint32_t>(vertex.tangent.z));
     }
 
     for (unsigned int index : mesh.indices) {
-      fnv1a_update_value(hash, index);
+      hash = fnv1a64_append_value(hash, index);
     }
   }
 
-  std::ostringstream stream;
-  stream << std::hex << std::setfill('0') << std::setw(16) << hash;
-  return stream.str();
+  return fnv1a64_hex_digest(hash);
 }
 
-serialization::ComponentSnapshot
-externalize_component_snapshot(const Scene &scene, const serialization::ComponentSnapshot &component) {
+serialization::ComponentSnapshot externalize_component_snapshot(
+    const Scene &scene,
+    const serialization::ComponentSnapshot &component,
+    SceneArtifactKind artifact_kind
+) {
   if (component.name != "MeshSet") {
     return component;
   }
@@ -113,7 +157,7 @@ externalize_component_snapshot(const Scene &scene, const serialization::Componen
   const auto meshes = serialization::read_mesh_set(component.fields);
   const std::string asset_hash = hash_mesh_set(meshes);
   const auto asset_path =
-      generated_mesh_directory(scene) / (asset_hash + ".axmesh");
+      generated_mesh_directory(scene, artifact_kind) / (asset_hash + ".axmesh");
 
   if (!std::filesystem::exists(asset_path)) {
     AxMeshSerializer::write(asset_path, meshes);
@@ -139,15 +183,83 @@ struct SerializedEntityData {
   std::vector<serialization::ComponentSnapshot> components;
 };
 
+bool has_component_named(const serialization::EntitySnapshot &entity, std::string_view name) {
+  return std::any_of(
+      entity.components.begin(),
+      entity.components.end(),
+      [name](const auto &component) { return component.name == name; }
+  );
+}
+
+bool should_include_entity_in_artifact(
+    const serialization::EntitySnapshot &entity, SceneArtifactKind artifact_kind
+) {
+  switch (artifact_kind) {
+    case SceneArtifactKind::Source:
+      return !has_component_named(entity, "DerivedEntity");
+    case SceneArtifactKind::Preview:
+    case SceneArtifactKind::Runtime:
+      return !has_component_named(entity, "EditorOnly") &&
+             !has_component_named(entity, "GeneratorSpec");
+  }
+
+  return true;
+}
+
+bool should_strip_component_for_artifact(
+    const serialization::ComponentSnapshot &component,
+    SceneArtifactKind artifact_kind
+) {
+  return artifact_kind == SceneArtifactKind::Runtime &&
+         (component.name == "MetaEntityOwner" ||
+          component.name == "DerivedEntity");
+}
+
+std::vector<serialization::EntitySnapshot> filter_entities_for_artifact(
+    std::vector<serialization::EntitySnapshot> entities,
+    SceneArtifactKind artifact_kind
+) {
+  entities.erase(
+      std::remove_if(
+          entities.begin(),
+          entities.end(),
+          [&](const auto &entity) {
+            return !should_include_entity_in_artifact(entity, artifact_kind);
+          }
+      ),
+      entities.end()
+  );
+
+  for (auto &entity : entities) {
+    entity.components.erase(
+        std::remove_if(
+            entity.components.begin(),
+            entity.components.end(),
+            [&](const auto &component) {
+              return should_strip_component_for_artifact(
+                  component, artifact_kind
+              );
+            }
+        ),
+        entity.components.end()
+    );
+  }
+
+  return entities;
+}
+
 SerializedEntityData split_entity_snapshot(
-    const Scene &scene, const serialization::EntitySnapshot &entity
+    const Scene &scene,
+    const serialization::EntitySnapshot &entity,
+    SceneArtifactKind artifact_kind
 ) {
   SerializedEntityData serialized;
   serialized.tags.reserve(entity.components.size());
   serialized.components.reserve(entity.components.size());
 
   for (const auto &snapshot : entity.components) {
-    const auto component = externalize_component_snapshot(scene, snapshot);
+    const auto component =
+        externalize_component_snapshot(scene, snapshot, artifact_kind);
     if (is_tag_component(component)) {
       serialized.tags.push_back(component.name);
     } else {
@@ -170,80 +282,10 @@ void inline_external_mesh_set(serialization::ComponentSnapshot &component) {
   auto project = active_project();
   ASTRA_ENSURE(project == nullptr, "Cannot resolve MeshSet asset without an active project");
 
-  const auto meshes =
-      AxMeshSerializer::read(project->resolve_path(*asset_path));
+  const auto meshes = AxMeshSerializer::read(project->resolve_path(*asset_path));
   component.fields =
       serialization::snapshot_component(rendering::MeshSet{.meshes = meshes})
           .fields;
-}
-
-void write_nested_field(ContextProxy ctx, std::string_view path, const SerializableValue &value) {
-  const size_t separator = path.find('.');
-  if (separator == std::string_view::npos) {
-    ctx[std::string(path)] = value;
-    return;
-  }
-
-  write_nested_field(ctx[std::string(path.substr(0, separator))], path.substr(separator + 1), value);
-}
-
-std::optional<SerializableValue> read_serializable_value(ContextProxy &ctx) {
-  switch (ctx.kind()) {
-    case SerializationTypeKind::String:
-      return SerializableValue(ctx.as<std::string>());
-    case SerializationTypeKind::Int:
-      return SerializableValue(ctx.as<int>());
-    case SerializationTypeKind::Float:
-      return SerializableValue(ctx.as<float>());
-    case SerializationTypeKind::Bool:
-      return SerializableValue(ctx.as<bool>());
-    default:
-      return std::nullopt;
-  }
-}
-
-void append_nested_fields(ContextProxy &field_ctx, std::string_view prefix, serialization::fields::FieldList &fields) {
-  if (auto value = read_serializable_value(field_ctx); value.has_value()) {
-    if (!prefix.empty()) {
-      fields.push_back(serialization::fields::Field{
-          .name = std::string(prefix),
-          .value = std::move(*value),
-      });
-    }
-    return;
-  }
-
-  if (field_ctx.kind() != SerializationTypeKind::Object) {
-    return;
-  }
-
-  for (const auto &key : field_ctx.object_keys()) {
-    const std::string field_name =
-        prefix.empty() ? key : std::string(prefix) + "." + key;
-    auto child_ctx = field_ctx[key];
-    append_nested_fields(child_ctx, field_name, fields);
-  }
-}
-
-std::optional<serialization::ComponentSnapshot>
-read_component_snapshot(ContextProxy component_ctx) {
-  if (component_ctx["type"].kind() != SerializationTypeKind::String) {
-    return std::nullopt;
-  }
-
-  serialization::ComponentSnapshot component{
-      .name = component_ctx["type"].as<std::string>(),
-  };
-
-  auto fields_ctx = component_ctx["fields"];
-  component.fields.reserve(fields_ctx.size());
-
-  ASTRA_ENSURE(fields_ctx.kind() == SerializationTypeKind::Array, "Legacy array-based scene fields are no longer supported for "
-                                                                  "component ",
-               component.name);
-  append_nested_fields(fields_ctx, "", component.fields);
-
-  return component;
 }
 
 std::optional<serialization::EntitySnapshot>
@@ -291,32 +333,44 @@ read_entity_snapshot(ContextProxy entity_ctx) {
   return entity;
 }
 
-} // namespace
-
-SceneSerializer::SceneSerializer(Ref<Scene> scene) { m_scene = scene; }
-
-SceneSerializer::SceneSerializer() {}
-
-void SceneSerializer::serialize() {
-  if (m_scene == nullptr) {
-    return;
-  }
-
-  reset_context(m_ctx);
-  SerializationContext &ctx = *m_ctx.get();
-
-  ASTRA_ENSURE(m_scene->get_scene_id().empty(), "Scene id is not configured for scene type ", m_scene->get_type());
+void serialize_entities_to_context(
+    SceneSerializer &serializer,
+    const Scene &scene,
+    const std::vector<serialization::EntitySnapshot> &entities
+) {
+  SerializationContext &ctx = *serializer.get_ctx().get();
 
   ctx["scene"]["version"] = k_scene_version;
-  ctx["scene"]["id"] = m_scene->get_scene_id();
-  ctx["scene"]["type"] = m_scene->get_type();
+  ctx["scene"]["kind"] =
+      scene_artifact_kind_to_string(serializer.get_artifact_kind());
+  ctx["scene"]["id"] = scene.get_scene_id();
+  ctx["scene"]["type"] = scene.get_type();
 
-  auto entities = serialization::collect_scene_snapshots(m_scene->world());
+  if (serializer.get_artifact_kind() == SceneArtifactKind::Source) {
+    serialize_derived_state(ctx, scene.get_derived_state());
+  } else if (serializer.get_artifact_kind() == SceneArtifactKind::Preview) {
+    if (const auto &preview_info = scene.get_preview_build_info();
+        preview_info.has_value()) {
+      ctx["build"]["source_revision"] =
+          static_cast<int>(preview_info->source_revision);
+      ctx["build"]["built_at_utc"] = preview_info->built_at_utc;
+    }
+  } else if (serializer.get_artifact_kind() == SceneArtifactKind::Runtime) {
+    if (const auto &runtime_info = scene.get_runtime_promotion_info();
+        runtime_info.has_value()) {
+      ctx["build"]["promoted_from_preview_revision"] =
+          static_cast<int>(runtime_info->promoted_from_preview_revision);
+      ctx["build"]["promoted_at_utc"] = runtime_info->promoted_at_utc;
+    }
+  }
+
   std::vector<SerializedEntityData> serialized_entities;
   serialized_entities.reserve(entities.size());
 
   for (const auto &entity : entities) {
-    serialized_entities.push_back(split_entity_snapshot(*m_scene, entity));
+    serialized_entities.push_back(
+        split_entity_snapshot(scene, entity, serializer.get_artifact_kind())
+    );
   }
 
   for (size_t i = 0; i < entities.size(); ++i) {
@@ -339,12 +393,44 @@ void SceneSerializer::serialize() {
           ctx["entities"][static_cast<int>(i)]["components"][static_cast<int>(j)];
       component_ctx["type"] = component.name;
 
-      for (size_t k = 0; k < component.fields.size(); ++k) {
-        const auto &field = component.fields[k];
+      for (const auto &field : component.fields) {
         write_nested_field(component_ctx["fields"], field.name, field.value);
       }
     }
   }
+}
+
+} // namespace
+
+SceneSerializer::SceneSerializer(Ref<Scene> scene)
+    : Serializer(), m_scene(scene), m_artifact_kind(SceneArtifactKind::Source) {}
+
+SceneSerializer::SceneSerializer()
+    : Serializer(), m_artifact_kind(SceneArtifactKind::Source) {}
+
+void SceneSerializer::serialize() {
+  if (m_scene == nullptr) {
+    return;
+  }
+
+  serialize_snapshots(
+      filter_entities_for_artifact(
+          serialization::collect_scene_snapshots(m_scene->world()),
+          m_artifact_kind
+      )
+  );
+}
+
+void SceneSerializer::serialize_snapshots(
+    const std::vector<serialization::EntitySnapshot> &entities
+) {
+  if (m_scene == nullptr) {
+    return;
+  }
+
+  ASTRA_ENSURE(m_scene->get_scene_id().empty(), "Scene id is not configured for scene type ", m_scene->get_type());
+  reset_context(m_ctx);
+  serialize_entities_to_context(*this, *m_scene, entities);
 }
 
 void SceneSerializer::deserialize() {
@@ -354,14 +440,36 @@ void SceneSerializer::deserialize() {
 
   std::vector<serialization::EntitySnapshot> entities;
 
-  ASTRA_ENSURE((*m_ctx)["scene"]["version"].kind() != SerializationTypeKind::Int, "Scene version is missing or invalid");
-  ASTRA_ENSURE((*m_ctx)["scene"]["version"].as<int>() != k_scene_version, "Unsupported scene version: ", (*m_ctx)["scene"]["version"].as<int>());
-  ASTRA_ENSURE((*m_ctx)["scene"]["id"].kind() != SerializationTypeKind::String, "Scene id is missing");
-  ASTRA_ENSURE((*m_ctx)["scene"]["type"].kind() != SerializationTypeKind::String, "Scene type is missing");
+  ASTRA_ENSURE(
+      (*m_ctx)["scene"]["version"].kind() != SerializationTypeKind::Int,
+      "Scene version is missing or invalid"
+  );
+  const int scene_version = (*m_ctx)["scene"]["version"].as<int>();
+  ASTRA_ENSURE(
+      scene_version != k_scene_version,
+      "Unsupported scene version: ",
+      scene_version
+  );
+  ASTRA_ENSURE(
+      (*m_ctx)["scene"]["kind"].kind() != SerializationTypeKind::String,
+      "Scene kind is missing"
+  );
+  ASTRA_ENSURE(
+      (*m_ctx)["scene"]["id"].kind() != SerializationTypeKind::String,
+      "Scene id is missing"
+  );
+  ASTRA_ENSURE(
+      (*m_ctx)["scene"]["type"].kind() != SerializationTypeKind::String,
+      "Scene type is missing"
+  );
 
+  const auto scene_kind = scene_artifact_kind_from_string(
+      (*m_ctx)["scene"]["kind"].as<std::string>()
+  );
   const std::string scene_id = (*m_ctx)["scene"]["id"].as<std::string>();
   const std::string scene_type = (*m_ctx)["scene"]["type"].as<std::string>();
 
+  ASTRA_ENSURE(scene_kind != m_artifact_kind, "Scene kind mismatch. Expected ", scene_artifact_kind_to_string(m_artifact_kind), ", got ", scene_artifact_kind_to_string(scene_kind));
   ASTRA_ENSURE(scene_id != m_scene->get_scene_id(), "Scene id mismatch. Expected ", m_scene->get_scene_id(), ", got ", scene_id);
   ASTRA_ENSURE(scene_type != m_scene->get_type(), "Scene type mismatch. Expected ", m_scene->get_type(), ", got ", scene_type);
 
@@ -377,5 +485,63 @@ void SceneSerializer::deserialize() {
   }
 
   serialization::apply_scene_snapshots(m_scene->world(), entities);
+
+  switch (m_artifact_kind) {
+    case SceneArtifactKind::Source:
+      m_scene->set_derived_state(deserialize_derived_state(m_ctx));
+      m_scene->set_preview_build_info(std::nullopt);
+      m_scene->set_runtime_promotion_info(std::nullopt);
+      break;
+    case SceneArtifactKind::Preview: {
+      ScenePreviewBuildInfo preview_info;
+      bool has_preview_info = false;
+      if ((*m_ctx)["build"]["source_revision"].kind() ==
+          SerializationTypeKind::Int) {
+        preview_info.source_revision = static_cast<uint64_t>(
+            (*m_ctx)["build"]["source_revision"].as<int>()
+        );
+        has_preview_info = true;
+      }
+      if ((*m_ctx)["build"]["built_at_utc"].kind() ==
+          SerializationTypeKind::String) {
+        preview_info.built_at_utc =
+            (*m_ctx)["build"]["built_at_utc"].as<std::string>();
+        has_preview_info = true;
+      }
+      m_scene->set_preview_build_info(
+          has_preview_info ? std::optional<ScenePreviewBuildInfo>(preview_info)
+                           : std::nullopt
+      );
+      m_scene->set_runtime_promotion_info(std::nullopt);
+      m_scene->set_derived_state({});
+      break;
+    }
+    case SceneArtifactKind::Runtime: {
+      SceneRuntimePromotionInfo runtime_info;
+      bool has_runtime_info = false;
+      if ((*m_ctx)["build"]["promoted_from_preview_revision"].kind() ==
+          SerializationTypeKind::Int) {
+        runtime_info.promoted_from_preview_revision = static_cast<uint64_t>(
+            (*m_ctx)["build"]["promoted_from_preview_revision"].as<int>()
+        );
+        has_runtime_info = true;
+      }
+      if ((*m_ctx)["build"]["promoted_at_utc"].kind() ==
+          SerializationTypeKind::String) {
+        runtime_info.promoted_at_utc =
+            (*m_ctx)["build"]["promoted_at_utc"].as<std::string>();
+        has_runtime_info = true;
+      }
+      m_scene->set_runtime_promotion_info(
+          has_runtime_info
+              ? std::optional<SceneRuntimePromotionInfo>(runtime_info)
+              : std::nullopt
+      );
+      m_scene->set_preview_build_info(std::nullopt);
+      m_scene->set_derived_state({});
+      break;
+    }
+  }
 }
+
 } // namespace astralix

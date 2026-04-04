@@ -131,7 +131,7 @@ void append_editable_text_commands(
           .x = text_rect.x - node.text_scroll_x + caret_x,
           .y = text_rect.y,
           .width = 1.0f,
-          .height = std::max(text_rect.height, line_height),
+          .height = line_height,
       };
       apply_content_clip(caret_command, node);
       caret_command.color = resolved.caret_color;
@@ -163,7 +163,7 @@ void append_editable_text_commands(
         .x = text_rect.x,
         .y = text_rect.y,
         .width = 1.0f,
-        .height = std::max(text_rect.height, line_height),
+        .height = line_height,
     };
     apply_content_clip(caret_command, node);
     caret_command.color = resolved.caret_color;

@@ -6,19 +6,13 @@
 #include "assert.hpp"
 #include "context-proxy.hpp"
 #include "serialization-context.hpp"
+#include "serialization-context-readers.hpp"
 #include "stream-buffer.hpp"
 
-#include <cstring>
 #include <filesystem>
 
 namespace astralix {
 namespace {
-
-Scope<StreamBuffer> copy_to_stream_buffer(ElasticArena::Block *block) {
-  auto buffer = create_scope<StreamBuffer>(block->size);
-  std::memcpy(buffer->data(), block->data, block->size);
-  return buffer;
-}
 
 void write_vec2(ContextProxy ctx, const glm::vec2 &value) {
   ctx["x"] = value.x;
@@ -29,27 +23,6 @@ void write_vec3(ContextProxy ctx, const glm::vec3 &value) {
   ctx["x"] = value.x;
   ctx["y"] = value.y;
   ctx["z"] = value.z;
-}
-
-float read_number(ContextProxy ctx) {
-  switch (ctx.kind()) {
-    case SerializationTypeKind::Float:
-      return ctx.as<float>();
-    case SerializationTypeKind::Int:
-      return static_cast<float>(ctx.as<int>());
-    default:
-      ASTRA_EXCEPTION("AxMesh numeric field is missing or invalid");
-  }
-}
-
-glm::vec2 read_vec2(ContextProxy ctx) {
-  return glm::vec2(read_number(ctx["x"]), read_number(ctx["y"]));
-}
-
-glm::vec3 read_vec3(ContextProxy ctx) {
-  return glm::vec3(
-      read_number(ctx["x"]), read_number(ctx["y"]), read_number(ctx["z"])
-  );
 }
 
 } // namespace
@@ -84,7 +57,7 @@ void AxMeshSerializer::write(const std::filesystem::path &path, const std::vecto
 
   ElasticArena arena(KB(64));
   auto *block = ctx->to_buffer(arena);
-  auto writer = FileStreamWriter(path, copy_to_stream_buffer(block));
+  auto writer = FileStreamWriter(path, clone_stream_buffer(block));
   writer.write();
 }
 
@@ -121,10 +94,11 @@ std::vector<Mesh> AxMeshSerializer::read(const std::filesystem::path &path) {
          ++vertex_index) {
       auto vertex_ctx = vertices_ctx[static_cast<int>(vertex_index)];
       vertices.push_back(Vertex{
-          .position = read_vec3(vertex_ctx["position"]),
-          .normal = read_vec3(vertex_ctx["normal"]),
-          .texture_coordinates = read_vec2(vertex_ctx["texture_coordinates"]),
-          .tangent = read_vec3(vertex_ctx["tangent"]),
+          .position = serialization::context::read_vec3(vertex_ctx["position"]),
+          .normal = serialization::context::read_vec3(vertex_ctx["normal"]),
+          .texture_coordinates =
+              serialization::context::read_vec2(vertex_ctx["texture_coordinates"]),
+          .tangent = serialization::context::read_vec3(vertex_ctx["tangent"]),
       });
     }
 

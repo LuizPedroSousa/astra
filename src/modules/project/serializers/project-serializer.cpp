@@ -157,6 +157,35 @@ std::string serialization_format_to_string(SerializationFormat format) {
   }
 }
 
+std::string scene_startup_target_to_string(SceneStartupTarget target) {
+  switch (target) {
+    case SceneStartupTarget::Source:
+      return "source";
+    case SceneStartupTarget::Preview:
+      return "preview";
+    case SceneStartupTarget::Runtime:
+      return "runtime";
+    default:
+      ASTRA_EXCEPTION("Unknown scene startup target");
+  }
+}
+
+SceneStartupTarget scene_startup_target_from_string(const std::string &value) {
+  if (value == "source") {
+    return SceneStartupTarget::Source;
+  }
+
+  if (value == "preview") {
+    return SceneStartupTarget::Preview;
+  }
+
+  if (value == "runtime") {
+    return SceneStartupTarget::Runtime;
+  }
+
+  ASTRA_EXCEPTION("Unknown scene startup target: ", value);
+}
+
 #define SET_CONFIG(value, key) \
   do {                         \
     auto &&_v = (value);       \
@@ -180,6 +209,8 @@ void ProjectSerializer::serialize() {
   ctx["project"]["serialization"]["format"] =
       serialization_format_to_string(config.serialization.format);
   ctx["project"]["scenes"]["startup"] = config.scenes.startup;
+  ctx["project"]["scenes"]["startup_target"] =
+      scene_startup_target_to_string(config.scenes.startup_target);
 
   for (size_t index = 0; index < config.scenes.entries.size(); ++index) {
     const auto &entry = config.scenes.entries[index];
@@ -187,7 +218,9 @@ void ProjectSerializer::serialize() {
         ctx["project"]["scenes"]["entries"][static_cast<int>(index)];
     scene_ctx["id"] = entry.id;
     scene_ctx["type"] = entry.type;
-    scene_ctx["path"] = entry.path;
+    scene_ctx["source_path"] = entry.source_path;
+    scene_ctx["preview_path"] = entry.preview_path;
+    scene_ctx["runtime_path"] = entry.runtime_path;
   }
 }
 
@@ -220,6 +253,15 @@ void ProjectSerializer::deserialize() {
         ctx["project"]["scenes"]["startup"].as<std::string>();
   }
 
+  ASTRA_ENSURE(
+      ctx["project"]["scenes"]["startup_target"].kind() !=
+          SerializationTypeKind::String,
+      "Scene startup target is required"
+  );
+  config.scenes.startup_target = scene_startup_target_from_string(
+      ctx["project"]["scenes"]["startup_target"].as<std::string>()
+  );
+
   std::unordered_set<std::string> scene_ids;
   const auto scene_entries_size = ctx["project"]["scenes"]["entries"].size();
   config.scenes.entries.reserve(scene_entries_size);
@@ -228,20 +270,32 @@ void ProjectSerializer::deserialize() {
     auto entry_ctx = ctx["project"]["scenes"]["entries"][i];
 
     if (entry_ctx["id"].kind() != SerializationTypeKind::String ||
-        entry_ctx["type"].kind() != SerializationTypeKind::String ||
-        entry_ctx["path"].kind() != SerializationTypeKind::String) {
+        entry_ctx["type"].kind() != SerializationTypeKind::String) {
       continue;
     }
 
     ProjectSceneEntryConfig entry{
         .id = entry_ctx["id"].as<std::string>(),
         .type = entry_ctx["type"].as<std::string>(),
-        .path = entry_ctx["path"].as<std::string>(),
+        .source_path =
+            entry_ctx["source_path"].kind() == SerializationTypeKind::String
+                ? entry_ctx["source_path"].as<std::string>()
+                : std::string{},
+        .preview_path =
+            entry_ctx["preview_path"].kind() == SerializationTypeKind::String
+                ? entry_ctx["preview_path"].as<std::string>()
+                : std::string{},
+        .runtime_path =
+            entry_ctx["runtime_path"].kind() == SerializationTypeKind::String
+                ? entry_ctx["runtime_path"].as<std::string>()
+                : std::string{},
     };
 
     ASTRA_ENSURE(entry.id.empty(), "Scene entry id is required");
     ASTRA_ENSURE(entry.type.empty(), "Scene entry type is required");
-    ASTRA_ENSURE(entry.path.empty(), "Scene entry path is required");
+    ASTRA_ENSURE(entry.source_path.empty(), "Scene entry source path is required");
+    ASTRA_ENSURE(entry.preview_path.empty(), "Scene entry preview path is required");
+    ASTRA_ENSURE(entry.runtime_path.empty(), "Scene entry runtime path is required");
     ASTRA_ENSURE(!scene_ids.insert(entry.id).second, "Duplicate scene entry id: ", entry.id);
 
     config.scenes.entries.push_back(std::move(entry));

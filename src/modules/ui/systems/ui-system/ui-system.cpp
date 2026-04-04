@@ -97,6 +97,8 @@ void UISystem::fixed_update(double) {}
 void UISystem::pre_update(double) {}
 
 void UISystem::update(double dt) {
+  (void)SceneManager::get()->flush_pending_active_scene_state();
+
   auto *scene = SceneManager::get()->get_active_scene();
   auto window = window_manager()->active_window();
 

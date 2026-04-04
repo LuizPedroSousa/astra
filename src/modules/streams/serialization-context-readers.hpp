@@ -1,7 +1,9 @@
 #pragma once
 
+#include "assert.hpp"
 #include "serialization-context.hpp"
 
+#include <glm/glm.hpp>
 #include <optional>
 #include <string>
 #include <utility>
@@ -96,6 +98,27 @@ inline float read_float_or(ContextProxy proxy, float fallback) {
 
 inline bool read_bool_or(ContextProxy proxy, bool fallback) {
   return read_bool(std::move(proxy)).value_or(fallback);
+}
+
+inline glm::vec2 read_vec2(ContextProxy proxy) {
+  auto x = read_float(proxy["x"]);
+  auto y = read_float(proxy["y"]);
+  if (!x.has_value() || !y.has_value()) {
+    ASTRA_EXCEPTION("Serialization vec2 field is missing or invalid");
+  }
+
+  return glm::vec2(*x, *y);
+}
+
+inline glm::vec3 read_vec3(ContextProxy proxy) {
+  auto x = read_float(proxy["x"]);
+  auto y = read_float(proxy["y"]);
+  auto z = read_float(proxy["z"]);
+  if (!x.has_value() || !y.has_value() || !z.has_value()) {
+    ASTRA_EXCEPTION("Serialization vec3 field is missing or invalid");
+  }
+
+  return glm::vec3(*x, *y, *z);
 }
 
 } // namespace astralix::serialization::context

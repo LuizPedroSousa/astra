@@ -50,7 +50,8 @@ namespace input {
 
 [[nodiscard]] static inline bool IS_KEY_RELEASED(input::KeyCode keycode) {
   return window_manager()->active_window()->keyboard()->is_key_released(
-      keycode);
+      keycode
+  );
 }
 
 [[nodiscard]] static inline const input::Mouse::Position MOUSE_DELTA() {

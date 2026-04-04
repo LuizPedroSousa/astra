@@ -1,6 +1,8 @@
 #pragma once
 
+#include "fnv1a.hpp"
 #include "shader-lang/ast.hpp"
+
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -26,16 +28,7 @@ constexpr uint32_t shader_stage_mask(StageKind stage) {
 }
 
 constexpr uint64_t shader_binding_id(std::string_view logical_name) {
-  constexpr uint64_t k_offset_basis = 14695981039346656037ull;
-  constexpr uint64_t k_prime = 1099511628211ull;
-
-  uint64_t hash = k_offset_basis;
-  for (char character : logical_name) {
-    hash ^= static_cast<uint8_t>(character);
-    hash *= k_prime;
-  }
-
-  return hash;
+  return fnv1a64_append_string(logical_name);
 }
 
 struct BackendLayoutReflection {

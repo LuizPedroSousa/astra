@@ -45,4 +45,11 @@ private:
   ;
 };
 
+[[nodiscard]] inline Scope<StreamBuffer>
+clone_stream_buffer(ElasticArena::Block *block) {
+  auto buffer = create_scope<StreamBuffer>(block->size);
+  std::memcpy(buffer->data(), block->data, block->size);
+  return buffer;
+}
+
 } // namespace astralix
