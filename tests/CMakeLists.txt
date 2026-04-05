@@ -43,6 +43,7 @@ file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/shader-lang/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/resources/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/shared/allocators/*.test.cpp"
+  "${CMAKE_SOURCE_DIR}/../src/shared/containers/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/streams/**/*.test.cpp"
   "${AXSLC_DIR}/*.test.cpp"
   "${AXGEN_SRC_DIR}/*.test.cpp")
@@ -67,6 +68,7 @@ target_include_directories(astralix_tests PRIVATE
   "${MODULES_DIR}/project"
   "${MODULES_DIR}/streams"
   "${SHARED_DIR}/allocators"
+  "${SHARED_DIR}/containers"
   "${SHARED_DIR}/foundation"
   "${SHARED_DIR}/ecs"
   "${VCPKG_INSTALLED_ROOT}/include"

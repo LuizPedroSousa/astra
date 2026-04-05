@@ -2,6 +2,7 @@
 #include "console.hpp"
 #include "log.hpp"
 #include "managers/scene-manager.hpp"
+#include "trace.hpp"
 #include "managers/window-manager.hpp"
 #include "systems/camera-system/camera-controller-system.hpp"
 #include "systems/render-resource-expansion.hpp"
@@ -22,6 +23,7 @@ void SceneSystem::pre_update(double dt) {
 };
 
 void SceneSystem::update(double dt) {
+  ASTRA_PROFILE_N("SceneSystem::update");
   (void)SceneManager::get()->flush_pending_active_scene_state();
 
   auto scene = SceneManager::get()->get_active_scene();
@@ -37,7 +39,10 @@ void SceneSystem::update(double dt) {
     return;
   }
 
-  rendering::expand_render_resource_requests(world);
+  {
+    ASTRA_PROFILE_N("SceneSystem::expand_render_resources");
+    rendering::expand_render_resource_requests(world);
+  }
 
   auto window = window_manager()->active_window();
   const bool console_captures_input = ConsoleManager::get().captures_input();
@@ -59,6 +64,7 @@ void SceneSystem::update(double dt) {
             ? MOUSE_DELTA()
             : input::Mouse::Position{.x = 0.0, .y = 0.0};
 
+    ASTRA_PROFILE_N("SceneSystem::camera_controllers");
     scene::update_camera_controllers(
         world, scene::CameraControllerInput{
                    .forward = camera_input_enabled && IS_KEY_DOWN(KeyCode::W),
@@ -74,9 +80,14 @@ void SceneSystem::update(double dt) {
     );
   }
 
-  scene::update_transforms(world);
+  {
+    ASTRA_PROFILE_N("SceneSystem::update_transforms");
+    scene::update_transforms(world);
+  }
 
-  world.each<scene::Transform, rendering::Camera>(
+  {
+    ASTRA_PROFILE_N("SceneSystem::recalculate_cameras");
+    world.each<scene::Transform, rendering::Camera>(
       [&](EntityID, scene::Transform &transform, rendering::Camera &camera) {
         scene::recalculate_camera_view_matrix(camera, transform, aspect_ratio);
 
@@ -87,6 +98,7 @@ void SceneSystem::update(double dt) {
         }
       }
   );
+  }
 };
 
 } // namespace astralix

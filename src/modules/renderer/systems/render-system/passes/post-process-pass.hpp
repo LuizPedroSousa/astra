@@ -7,6 +7,7 @@
 #include "resources/mesh.hpp"
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+#include "trace.hpp"
 
 namespace astralix {
 
@@ -59,6 +60,7 @@ public:
   void begin(double dt) override { m_render_target->unbind(); }
 
   void execute(double dt) override {
+    ASTRA_PROFILE_N("PostProcessPass");
     if (m_shader == nullptr || m_bloom == nullptr) {
       return;
     }

@@ -1,4 +1,4 @@
-#include "build.hpp"
+#include "fields.hpp"
 
 #include "entities/serializers/scene-snapshot.hpp"
 #include "managers/scene-manager.hpp"
@@ -26,13 +26,7 @@ void InspectorPanelController::set_entity_name(std::string value) {
 
   scene->world().set_name(*m_snapshot.entity_id, value);
   m_snapshot.entity_name = std::move(value);
-  if (m_document != nullptr) {
-    m_document->set_text(
-        m_selection_title_node,
-        m_snapshot.entity_name.empty() ? std::string("Unnamed Entity")
-                                       : m_snapshot.entity_name
-    );
-  }
+  mark_render_dirty();
 }
 
 void InspectorPanelController::set_entity_active(bool active) {
@@ -44,6 +38,7 @@ void InspectorPanelController::set_entity_active(bool active) {
 
   scene->world().set_active(*m_snapshot.entity_id, active);
   m_snapshot.entity_active = active;
+  mark_render_dirty();
 }
 
 void InspectorPanelController::set_string_field(
@@ -71,6 +66,7 @@ void InspectorPanelController::set_string_field(
   serialization::apply_component_snapshot(
       scene->world().entity(*m_snapshot.entity_id), *component
   );
+  mark_render_dirty();
 }
 
 void InspectorPanelController::set_bool_field(
@@ -98,6 +94,7 @@ void InspectorPanelController::set_bool_field(
   serialization::apply_component_snapshot(
       scene->world().entity(*m_snapshot.entity_id), *component
   );
+  mark_render_dirty();
 }
 
 void InspectorPanelController::set_enum_field(

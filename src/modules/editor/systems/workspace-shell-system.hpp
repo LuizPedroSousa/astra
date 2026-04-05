@@ -50,6 +50,9 @@ private:
   struct MountedPanel {
     PanelInstanceSpec spec;
     Scope<PanelController> controller;
+    ui::UINodeId content_host_node = ui::k_invalid_node_id;
+    std::unique_ptr<ui::im::Runtime> runtime;
+    std::optional<uint64_t> last_render_version;
   };
 
   struct SplitRuntimeNodes {
@@ -87,6 +90,9 @@ private:
   ui::dsl::NodeSpec build_floating_panel(std::string_view panel_instance_id);
   void mount_panels_from_snapshot();
   void destroy_unmounted_panels();
+  void reset_mounted_panel_runtime(MountedPanel &mounted);
+  void mount_rendered_panel(std::string_view instance_id, MountedPanel &mounted);
+  void render_mounted_panel(MountedPanel &mounted);
   void apply_pending_requests();
   void sync_runtime_layout_state();
   void save_active_workspace();

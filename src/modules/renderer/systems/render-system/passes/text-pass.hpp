@@ -15,6 +15,7 @@
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include "systems/render-system/scene-selection.hpp"
 #include "targets/render-target.hpp"
+#include "trace.hpp"
 #include "vertex-array.hpp"
 #include "vertex-buffer.hpp"
 #include <array>
@@ -62,6 +63,7 @@ public:
   void begin(double dt) override {}
 
   void execute(double dt) override {
+    ASTRA_PROFILE_N("TextPass");
     if (m_scene_color == nullptr) {
       LOG_WARN("[TextPass] Skipping execute: scene_color framebuffer is not "
                "available");
@@ -169,19 +171,21 @@ private:
   }
 
   void draw_text_sprite(const rendering::TextSprite &sprite, const Font &font) {
-    const auto characters = font.characters();
+    const auto &glyphs = font.glyphs();
+    const auto &glyph_lut = font.glyph_lut();
 
     float current_x = sprite.position.x;
     const float base_y = sprite.position.y;
     auto renderer_api = m_render_target->renderer_api();
 
     for (const char character : sprite.text) {
-      auto glyph_it = characters.find(character);
-      if (glyph_it == characters.end()) {
+      const GlyphHandle handle =
+          glyph_lut[static_cast<unsigned char>(character)];
+      if (handle == k_invalid_glyph_handle) {
         continue;
       }
 
-      const auto &glyph = glyph_it->second;
+      const auto &glyph = glyphs[handle];
       auto texture =
           resource_manager()->get_by_descriptor_id<Texture2D>(glyph.texture_id);
       if (texture == nullptr) {

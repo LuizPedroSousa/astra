@@ -27,6 +27,8 @@ if(ASTRA_EDITOR)
   add_definitions(-DASTRA_EDITOR_USOCKET)
 endif()
 
+set(VCPKG_INSTALLED_ROOT "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-linux")
+
 if(ASTRA_TRACE)
   add_definitions(-DASTRA_TRACE)
   set(TRACE_LIBS "${VCPKG_INSTALLED_ROOT}/lib/libTracyClient.a")
@@ -34,8 +36,6 @@ endif()
 
 find_package(OpenGL REQUIRED)
 find_package(assimp REQUIRED)
-
-set(VCPKG_INSTALLED_ROOT "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-linux")
 
 set(freetype_DIR "${VCPKG_INSTALLED_ROOT}/share/freetype")
 set(imgui_DIR "${VCPKG_INSTALLED_ROOT}/share/imgui")
@@ -75,6 +75,8 @@ if(ASTRA_ENABLE_TESTS)
   find_package(GTest CONFIG REQUIRED)
   file(GLOB_RECURSE UI_DOCUMENT_SUPPORT_SRC CONFIGURE_DEPENDS
        ${CMAKE_SOURCE_DIR}/src/modules/ui/document/*.cpp)
+  file(GLOB_RECURSE UI_IMMEDIATE_SUPPORT_SRC CONFIGURE_DEPENDS
+       ${CMAKE_SOURCE_DIR}/src/modules/ui/immediate/*.cpp)
   file(GLOB_RECURSE UI_LAYOUT_SUPPORT_SRC CONFIGURE_DEPENDS
        ${CMAKE_SOURCE_DIR}/src/modules/ui/layout/*.cpp)
   list(
@@ -83,6 +85,7 @@ if(ASTRA_ENABLE_TESTS)
 
   file(GLOB_RECURSE ARCHETYPE_ECS_TEST_SRC
        ${CMAKE_SOURCE_DIR}/src/shared/foundation/*.test.cpp
+       ${CMAKE_SOURCE_DIR}/src/shared/containers/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/ui/*.test.hpp
@@ -92,6 +95,7 @@ if(ASTRA_ENABLE_TESTS)
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/systems/transform-system/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/shared/ecs/*.test.cpp)
   file(GLOB_RECURSE HEADER_ONLY_TEST_SRC
+       ${CMAKE_SOURCE_DIR}/src/shared/containers/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/renderer/entities/serializers/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/physics/systems/*.test.hpp
        ${CMAKE_SOURCE_DIR}/src/modules/ui/*.test.hpp
@@ -123,6 +127,7 @@ if(ASTRA_ENABLE_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/model-stub.cpp
       ${CMAKE_SOURCE_DIR}/tests/ui-layout-renderer-stub.cpp
       ${UI_DOCUMENT_SUPPORT_SRC}
+      ${UI_IMMEDIATE_SUPPORT_SRC}
       ${UI_LAYOUT_SUPPORT_SRC})
   set_source_files_properties(
     ${HEADER_ONLY_TEST_SRC}
@@ -180,6 +185,7 @@ set(ASTRALIX_ENGINE_GENERATED_DIR
 
 add_subdirectory(src/shared/foundation)
 add_subdirectory(src/shared/allocators)
+add_subdirectory(src/shared/containers)
 
 if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/shared/events)
@@ -208,6 +214,7 @@ if(ASTRA_ENABLE_TESTS)
   target_link_libraries(
     archetype_ecs_tests PRIVATE shared::foundation glm::glm GTest::gtest
                                 GTest::gtest_main GTest::gmock glfw
+                                shared::containers
                                 GTest::gmock_main)
   target_include_directories(
     archetype_ecs_tests PRIVATE ${ASTRALIX_ENGINE_GENERATED_DIR})
@@ -223,6 +230,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   foreach(_astralix_target IN ITEMS
       foundation
       allocators
+      containers
       events
       ecs
       streams
@@ -370,6 +378,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   install(TARGETS astra
           foundation
           allocators
+          containers
           events
           ecs
           streams

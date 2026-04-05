@@ -5,26 +5,24 @@ set(EDITOR_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/layouts/layout-registry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/panels/panel-registry.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/systems/workspace-shell-system.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/styles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/console-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/entry-presentation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/rows.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/actions.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/fields.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/styles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/cards.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/component-descriptors.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/inspector-panel-controller.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/build.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/chart-refresh.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/refresh.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/snapshot.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/timing.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/styles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/helpers.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/scene-panel-controller.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/actions.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/styles.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/menus.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/refresh.cpp
@@ -48,14 +46,13 @@ set(EDITOR_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/systems/workspace-shell-system.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/console-panel-controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/console/entry-presentation.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/build.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/fields.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/styles.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/inspector/inspector-panel-controller.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/build.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/runtime/runtime-panel-controller.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/build.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/styles.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/helpers.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene/scene-panel-controller.hpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/build.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/helpers.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/scene-hierachy/scene-hierarchy-panel-controller.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tools/viewport/gizmo-math.hpp

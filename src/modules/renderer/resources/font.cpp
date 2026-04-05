@@ -47,7 +47,8 @@ void Font::ensure_size_loaded(uint32_t pixel_size) const {
 
   glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
-  std::map<char, CharacterGlyph> characters;
+  GlyphSet glyph_set;
+  glyph_set.glyphs.reserve(128u);
 
   auto resource_manager = ResourceManager::get();
 
@@ -86,15 +87,16 @@ void Font::ensure_size_loaded(uint32_t pixel_size) const {
         .advance = static_cast<unsigned int>(face->glyph->advance.x)
     };
 
-    characters.insert(std::pair<char, CharacterGlyph>(c, character));
+    const GlyphHandle handle =
+        static_cast<GlyphHandle>(glyph_set.glyphs.size());
+    glyph_set.glyph_lut[c] = handle;
+    glyph_set.glyphs.push_back(std::move(character));
   }
 
-  GlyphSet glyph_set{
-      .characters = std::move(characters),
-      .line_height = static_cast<float>(face->size->metrics.height >> 6),
-      .ascent = static_cast<float>(face->size->metrics.ascender >> 6),
-      .descent = static_cast<float>(std::abs(face->size->metrics.descender >> 6)),
-  };
+  glyph_set.line_height = static_cast<float>(face->size->metrics.height >> 6);
+  glyph_set.ascent = static_cast<float>(face->size->metrics.ascender >> 6);
+  glyph_set.descent =
+      static_cast<float>(std::abs(face->size->metrics.descender >> 6));
 
   m_glyph_sets.emplace(pixel_size, std::move(glyph_set));
 
@@ -102,34 +104,41 @@ void Font::ensure_size_loaded(uint32_t pixel_size) const {
   FT_Done_FreeType(ft);
 }
 
-const std::map<char, CharacterGlyph> &Font::characters(uint32_t pixel_size) const {
+const std::vector<CharacterGlyph> &Font::glyphs(uint32_t pixel_size) const {
   ensure_size_loaded(pixel_size);
-  return m_glyph_sets.at(pixel_size).characters;
+  return m_glyph_sets.at(pixel_size).glyphs;
 }
 
-std::optional<CharacterGlyph> Font::glyph(char character, uint32_t pixel_size) const {
-  const auto &glyphs = characters(pixel_size);
-  auto it = glyphs.find(character);
-  if (it == glyphs.end()) {
-    return std::nullopt;
-  }
+const std::array<GlyphHandle, 256u> &Font::glyph_lut(uint32_t pixel_size) const {
+  ensure_size_loaded(pixel_size);
+  return m_glyph_sets.at(pixel_size).glyph_lut;
+}
 
-  return it->second;
+GlyphHandle Font::glyph_handle(char character, uint32_t pixel_size) const {
+  const auto &lut = glyph_lut(pixel_size);
+  return lut[static_cast<unsigned char>(character)];
+}
+
+const CharacterGlyph &Font::glyph(GlyphHandle handle, uint32_t pixel_size) const {
+  ensure_size_loaded(pixel_size);
+  return m_glyph_sets.at(pixel_size).glyphs[handle];
 }
 
 glm::vec2 Font::measure_text(const std::string &text, float pixel_size) const {
   const uint32_t resolved_size =
       static_cast<uint32_t>(std::max(1.0f, std::round(pixel_size)));
-  const auto &glyphs = characters(resolved_size);
+  ensure_size_loaded(resolved_size);
+  const auto &glyph_set = m_glyph_sets.at(resolved_size);
 
   float width = 0.0f;
   for (const char character : text) {
-    auto it = glyphs.find(character);
-    if (it == glyphs.end()) {
+    const GlyphHandle handle =
+        glyph_set.glyph_lut[static_cast<unsigned char>(character)];
+    if (handle == k_invalid_glyph_handle) {
       continue;
     }
 
-    width += static_cast<float>(it->second.advance >> 6);
+    width += static_cast<float>(glyph_set.glyphs[handle].advance >> 6);
   }
 
   return glm::vec2(width, line_height(resolved_size));

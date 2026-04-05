@@ -8,11 +8,13 @@
 #include "managers/system-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "time.hpp"
+#include "trace.hpp"
 
 namespace astralix {
 Application *Application::m_instance = nullptr;
 
 Application *Application::init() {
+  ASTRA_PROFILE_N("Application::init");
   m_instance = new Application;
 
   EventDispatcher::init();
@@ -31,6 +33,7 @@ Application *Application::init() {
 }
 
 void Application::start() {
+  ASTRA_PROFILE_N("Application::start");
   WindowManager::get()->start();
   Engine::get()->start();
 
@@ -52,13 +55,27 @@ void Application::run() {
   auto scheduler = EventScheduler::get();
 
   while (wm->is_open()) {
+    ASTRA_FRAME_MARK;
+    ASTRA_PROFILE_N("Application::frame");
     time->update();
-    wm->update();
-    scheduler->bind(SchedulerType::POST_FRAME);
+    {
+      ASTRA_PROFILE_N("WindowManager::update");
+      wm->update();
+    }
+    {
+      ASTRA_PROFILE_N("EventScheduler::POST_FRAME");
+      scheduler->bind(SchedulerType::POST_FRAME);
+    }
     system->fixed_update(1 / 60.0f);
     system->update(Time::get()->get_deltatime());
-    scheduler->bind(SchedulerType::IMMEDIATE);
-    wm->swap();
+    {
+      ASTRA_PROFILE_N("EventScheduler::IMMEDIATE");
+      scheduler->bind(SchedulerType::IMMEDIATE);
+    }
+    {
+      ASTRA_PROFILE_N("WindowManager::swap");
+      wm->swap();
+    }
   }
 
   delete m_instance;

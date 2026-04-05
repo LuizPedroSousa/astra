@@ -1,6 +1,7 @@
 #include "systems/ui-system/ui-system.hpp"
 
 #include "event-dispatcher.hpp"
+#include "trace.hpp"
 #include "events/mouse-listener.hpp"
 #include "foundations.hpp"
 #include "layout/layout.hpp"
@@ -17,6 +18,15 @@ namespace astralix {
 namespace detail = ui_system_core;
 
 namespace {
+
+bool document_needs_layout(
+    const ui::UIDocument &document,
+    const ui::UILayoutContext &context
+) {
+  return document.layout_dirty() || document.structure_dirty() ||
+         document.canvas_size() != context.viewport_size ||
+         document.root_font_size() != context.default_font_size;
+}
 
 std::optional<CursorIcon> cursor_icon_for_target(
     const detail::Target &target
@@ -97,6 +107,7 @@ void UISystem::fixed_update(double) {}
 void UISystem::pre_update(double) {}
 
 void UISystem::update(double dt) {
+  ASTRA_PROFILE_N("UISystem::update");
   (void)SceneManager::get()->flush_pending_active_scene_state();
 
   auto *scene = SceneManager::get()->get_active_scene();
@@ -116,25 +127,69 @@ void UISystem::update(double dt) {
   const glm::vec2 viewport_size(static_cast<float>(window->width()), static_cast<float>(window->height()));
   const bool pointer_enabled = !input::IS_CURSOR_CAPTURED();
 
-  auto roots = gather_root_entries(world, viewport_size);
-  process_programmatic_focus(roots, viewport_size);
-  validate_targets(roots, scene_changed, pointer_enabled);
+  std::vector<detail::RootEntry> roots;
+  {
+    ASTRA_PROFILE_N("UISystem::gather_root_entries");
+    roots = gather_root_entries(world, viewport_size);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::process_programmatic_focus");
+    process_programmatic_focus(roots, viewport_size);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::validate_targets");
+    validate_targets(roots, scene_changed, pointer_enabled);
+  }
 
   glm::vec2 pointer(0.0f);
-  const auto deepest_hit = hit_test(roots, pointer_enabled, pointer);
+  std::optional<detail::PointerHit> deepest_hit;
+  {
+    ASTRA_PROFILE_N("UISystem::hit_test");
+    deepest_hit = hit_test(roots, pointer_enabled, pointer);
+  }
 
-  update_active_drags(roots, pointer_enabled, pointer, viewport_size);
-  resolve_hot_target(roots, deepest_hit);
-  handle_pointer_press(roots, deepest_hit, pointer_enabled, pointer, viewport_size);
-  handle_pointer_release(roots, pointer_enabled, deepest_hit, pointer);
-  dispatch_key_input(roots, viewport_size);
-  dispatch_character_input(roots, viewport_size);
-  dispatch_scroll_input(roots, deepest_hit);
-  tick_caret_blink(dt);
-  flush_and_relayout(roots, viewport_size);
-  apply_visual_state(roots, deepest_hit);
-  resolve_cursor_icon(roots, deepest_hit, pointer_enabled);
-  build_draw_lists(roots, viewport_size);
+  {
+    ASTRA_PROFILE_N("UISystem::update_active_drags");
+    update_active_drags(roots, pointer_enabled, pointer, viewport_size);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::resolve_hot_target");
+    resolve_hot_target(roots, deepest_hit);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::handle_pointer_press");
+    handle_pointer_press(roots, deepest_hit, pointer_enabled, pointer, viewport_size);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::handle_pointer_release");
+    handle_pointer_release(roots, pointer_enabled, deepest_hit, pointer);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::dispatch_input");
+    dispatch_key_input(roots, viewport_size);
+    dispatch_character_input(roots, viewport_size);
+    dispatch_scroll_input(roots, deepest_hit);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::tick_caret_blink");
+    tick_caret_blink(dt);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::flush_and_relayout");
+    flush_and_relayout(roots, viewport_size);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::apply_visual_state");
+    apply_visual_state(roots, deepest_hit);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::resolve_cursor_icon");
+    resolve_cursor_icon(roots, deepest_hit, pointer_enabled);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::build_draw_lists");
+    build_draw_lists(roots, viewport_size);
+  }
   clear_queued_inputs();
 }
 
@@ -160,7 +215,8 @@ UISystem::gather_root_entries(ecs::World &world, const glm::vec2 &viewport_size)
 
   for (const detail::RootEntry &entry : roots) {
     auto context = detail::make_context(entry, viewport_size);
-    if (entry.document->dirty()) {
+    if (document_needs_layout(*entry.document, context)) {
+      ASTRA_PROFILE_N("UISystem::initial_layout");
       ui::layout_document(*entry.document, context);
     }
   }
@@ -1220,9 +1276,12 @@ void UISystem::tick_caret_blink(double dt) {
 void UISystem::flush_and_relayout(const std::vector<detail::RootEntry> &roots, const glm::vec2 &viewport_size) {
   for (const detail::RootEntry &entry : roots) {
     auto context = detail::make_context(entry, viewport_size);
-    entry.document->flush_callbacks();
-
-    if (entry.document->dirty()) {
+    {
+      ASTRA_PROFILE_N("UIDocument::flush_callbacks");
+      entry.document->flush_callbacks();
+    }
+    if (document_needs_layout(*entry.document, context)) {
+      ASTRA_PROFILE_N("UISystem::relayout");
       ui::layout_document(*entry.document, context);
     }
   }

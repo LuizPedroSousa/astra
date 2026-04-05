@@ -1,8 +1,11 @@
+#include "containers/vector.hpp"
 #include "layout/common.hpp"
 #include "layout/internal.hpp"
 #include "layout/widgets/data-viz/line-chart.hpp"
+#include "trace.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -10,83 +13,92 @@
 namespace astralix::ui {
 namespace {
 
-glm::vec2 measure_intrinsic_size(
-    const UIDocument &document,
-    UINodeId node_id,
-    glm::vec2 available_size,
-    const UILayoutContext &context
-);
-
-glm::vec2 measure_container_size(
-    const UIDocument &document,
-    UINodeId node_id,
-    glm::vec2 available_size,
-    const UILayoutContext &context
-) {
-  const auto *node = document.node(node_id);
-  if (node == nullptr) {
-    return glm::vec2(0.0f);
-  }
-
-  const UIRect available_rect{
-      .width = std::max(0.0f, available_size.x),
-      .height = std::max(0.0f, available_size.y),
-  };
-  const UIRect inner_rect = inset_rect(available_rect, node->style.padding);
-
-  float total_main = 0.0f;
-  float max_cross = 0.0f;
-  uint32_t flow_children = 0u;
-
-  for (UINodeId child_id : node->children) {
-    const auto *child = document.node(child_id);
-    if (child == nullptr || !child->visible ||
-        child->type == NodeType::Popover ||
-        child->style.position_type == PositionType::Absolute) {
-      continue;
-    }
-
-    const glm::vec2 child_size = measure_intrinsic_size(
-        document,
-        child_id,
-        glm::vec2(inner_rect.width, inner_rect.height),
-        context
-    );
-
-    const float horizontal_margin = child->style.margin.horizontal();
-    const float vertical_margin = child->style.margin.vertical();
-    if (node->style.flex_direction == FlexDirection::Row) {
-      total_main += child_size.x + horizontal_margin;
-      max_cross = std::max(max_cross, child_size.y + vertical_margin);
-    } else {
-      total_main += child_size.y + vertical_margin;
-      max_cross = std::max(max_cross, child_size.x + horizontal_margin);
-    }
-
-    flow_children++;
-  }
-
-  if (flow_children > 1u) {
-    total_main += node->style.gap * static_cast<float>(flow_children - 1u);
-  }
-
-  if (node->style.flex_direction == FlexDirection::Row) {
-    return glm::vec2(
-        total_main + node->style.padding.horizontal(),
-        max_cross + node->style.padding.vertical()
-    );
-  }
-
+glm::vec2
+clamp_available_size(glm::vec2 available_size) {
   return glm::vec2(
-      max_cross + node->style.padding.horizontal(),
-      total_main + node->style.padding.vertical()
+      std::max(0.0f, available_size.x), std::max(0.0f, available_size.y)
   );
 }
 
-glm::vec2 measure_intrinsic_size(
+glm::vec2 inner_size_for_outer_size(
+    const UIDocument::UINode &node,
+    glm::vec2 outer_size
+) {
+  const UIRect outer_rect{
+      .width = std::max(0.0f, outer_size.x),
+      .height = std::max(0.0f, outer_size.y),
+  };
+  const UIRect inner_rect = inset_rect(outer_rect, node.style.padding);
+  return glm::vec2(inner_rect.width, inner_rect.height);
+}
+
+bool participates_in_intrinsic_pass(const UIDocument::UINode &node) {
+  return node.visible && node.type != NodeType::Popover;
+}
+
+bool participates_in_flow_measurement(const UIDocument::UINode &node) {
+  return participates_in_intrinsic_pass(node) &&
+         node.style.position_type != PositionType::Absolute;
+}
+
+glm::vec2 resolve_preferred_size(
+    const UIDocument::UINode &node,
+    glm::vec2 available_size,
+    const UILayoutContext &context,
+    glm::vec2 content_size
+) {
+  available_size = clamp_available_size(available_size);
+  content_size = clamp_available_size(content_size);
+
+  float width = resolve_length(
+      node.style.width,
+      available_size.x,
+      context.default_font_size,
+      content_size.x
+  );
+  float height = resolve_length(
+      node.style.height,
+      available_size.y,
+      context.default_font_size,
+      content_size.y
+  );
+
+  width = clamp_dimension(
+      width,
+      node.style.min_width,
+      node.style.max_width,
+      available_size.x,
+      context.default_font_size,
+      content_size.x
+  );
+  height = clamp_dimension(
+      height,
+      node.style.min_height,
+      node.style.max_height,
+      available_size.y,
+      context.default_font_size,
+      content_size.y
+  );
+
+  return glm::vec2(width, height);
+}
+
+glm::vec2 estimate_preferred_size_for_children(
+    const UIDocument::UINode &node,
+    glm::vec2 available_size,
+    const UILayoutContext &context
+) {
+  return resolve_preferred_size(
+      node,
+      available_size,
+      context,
+      clamp_available_size(available_size)
+  );
+}
+
+glm::vec2 compute_node_content_size(
     const UIDocument &document,
     UINodeId node_id,
-    glm::vec2 available_size,
     const UILayoutContext &context
 ) {
   const auto *node = document.node(node_id);
@@ -94,128 +106,155 @@ glm::vec2 measure_intrinsic_size(
     return glm::vec2(0.0f);
   }
 
-  float width = 0.0f;
-  float height = 0.0f;
-
   switch (node->type) {
-    case NodeType::Text: {
-      const glm::vec2 text_size = measure_text_size(*node, context);
-      width = text_size.x;
-      height = text_size.y;
-      break;
-    }
-    case NodeType::Image: {
-      const glm::vec2 image_size = measure_image_size(*node);
-      width = image_size.x;
-      height = image_size.y;
-      break;
-    }
-    case NodeType::RenderImageView: {
-      const glm::vec2 image_size = measure_render_image_view_size(*node);
-      width = image_size.x;
-      height = image_size.y;
-      break;
-    }
+    case NodeType::Text:
+      return measure_text_size(*node, context);
+    case NodeType::Image:
+      return measure_image_size(*node);
+    case NodeType::RenderImageView:
+      return measure_render_image_view_size(*node);
+    case NodeType::TextInput:
+      return measure_text_input_size(*node, context);
+    case NodeType::Combobox:
+      return measure_combobox_size(*node, context);
+    case NodeType::Splitter:
+      return measure_splitter_size(document, *node);
+    case NodeType::Checkbox:
+      return measure_checkbox_size(*node, context);
+    case NodeType::Slider:
+      return measure_slider_size(*node, context);
+    case NodeType::Select:
+      return measure_select_size(*node, context);
+    case NodeType::SegmentedControl:
+      return measure_segmented_control_size(*node, context);
+    case NodeType::ChipGroup:
+      return measure_chip_group_size(*node, context);
     case NodeType::View:
     case NodeType::Pressable:
     case NodeType::ScrollView:
     case NodeType::Popover:
-    case NodeType::LineChart:
-      if (!node->children.empty()) {
-        const glm::vec2 container_size =
-            measure_container_size(document, node_id, available_size, context);
-        width = container_size.x;
-        height = container_size.y;
-      } else {
-        width = node->style.padding.horizontal();
-        height = node->style.padding.vertical();
+    case NodeType::LineChart: {
+      float total_main = 0.0f;
+      float max_cross = 0.0f;
+      uint32_t flow_children = 0u;
+
+      for (UINodeId child_id : node->children) {
+        const auto *child = document.node(child_id);
+        if (child == nullptr || !participates_in_flow_measurement(*child)) {
+          continue;
+        }
+
+        const glm::vec2 child_size = child->layout.intrinsic.preferred_size;
+        const float horizontal_margin = child->style.margin.horizontal();
+        const float vertical_margin = child->style.margin.vertical();
+        if (node->style.flex_direction == FlexDirection::Row) {
+          total_main += child_size.x + horizontal_margin;
+          max_cross = std::max(max_cross, child_size.y + vertical_margin);
+        } else {
+          total_main += child_size.y + vertical_margin;
+          max_cross = std::max(max_cross, child_size.x + horizontal_margin);
+        }
+
+        flow_children++;
       }
-      break;
-    case NodeType::TextInput: {
-      const glm::vec2 input_size = measure_text_input_size(*node, context);
-      width = input_size.x;
-      height = input_size.y;
-      break;
-    }
-    case NodeType::Combobox: {
-      const glm::vec2 combobox_size = measure_combobox_size(*node, context);
-      width = combobox_size.x;
-      height = combobox_size.y;
-      break;
-    }
-    case NodeType::Splitter: {
-      const glm::vec2 splitter_size = measure_splitter_size(document, *node);
-      width = splitter_size.x;
-      height = splitter_size.y;
-      break;
-    }
-    case NodeType::Checkbox: {
-      const glm::vec2 checkbox_size = measure_checkbox_size(*node, context);
-      width = checkbox_size.x;
-      height = checkbox_size.y;
-      break;
-    }
-    case NodeType::Slider: {
-      const glm::vec2 slider_size = measure_slider_size(*node, context);
-      width = slider_size.x;
-      height = slider_size.y;
-      break;
-    }
-    case NodeType::Select: {
-      const glm::vec2 select_size = measure_select_size(*node, context);
-      width = select_size.x;
-      height = select_size.y;
-      break;
-    }
-    case NodeType::SegmentedControl: {
-      const glm::vec2 segmented_size =
-          measure_segmented_control_size(*node, context);
-      width = segmented_size.x;
-      height = segmented_size.y;
-      break;
-    }
-    case NodeType::ChipGroup: {
-      const glm::vec2 chip_group_size = measure_chip_group_size(*node, context);
-      width = chip_group_size.x;
-      height = chip_group_size.y;
-      break;
+
+      if (flow_children > 1u) {
+        total_main += node->style.gap * static_cast<float>(flow_children - 1u);
+      }
+
+      if (node->style.flex_direction == FlexDirection::Row) {
+        return glm::vec2(
+            total_main + node->style.padding.horizontal(),
+            max_cross + node->style.padding.vertical()
+        );
+      }
+
+      return glm::vec2(
+          max_cross + node->style.padding.horizontal(),
+          total_main + node->style.padding.vertical()
+      );
     }
   }
 
-  const float intrinsic_width = width;
-  const float intrinsic_height = height;
+  return glm::vec2(0.0f);
+}
 
-  width = resolve_length(
-      node->style.width,
-      available_size.x,
-      context.default_font_size,
-      intrinsic_width
-  );
-  height = resolve_length(
-      node->style.height,
-      available_size.y,
-      context.default_font_size,
-      intrinsic_height
-  );
+void compute_intrinsic_pass(
+    UIDocument &document,
+    UINodeId node_id,
+    glm::vec2 available_size,
+    const UILayoutContext &context
+) {
+  auto *node = document.node(node_id);
+  if (node == nullptr) {
+    return;
+  }
 
-  width = clamp_dimension(
-      width,
-      node->style.min_width,
-      node->style.max_width,
-      available_size.x,
-      context.default_font_size,
-      intrinsic_width
-  );
-  height = clamp_dimension(
-      height,
-      node->style.min_height,
-      node->style.max_height,
-      available_size.y,
-      context.default_font_size,
-      intrinsic_height
-  );
+  if (!node->visible) {
+    node->layout.intrinsic.content_size = glm::vec2(0.0f);
+    node->layout.intrinsic.preferred_size = glm::vec2(0.0f);
+    return;
+  }
 
-  return glm::vec2(width, height);
+  glm::vec2 initial_child_available;
+  {
+    ASTRA_PROFILE_N("intrinsic::estimate_size");
+    available_size = clamp_available_size(available_size);
+    const glm::vec2 estimated_outer_size =
+        estimate_preferred_size_for_children(*node, available_size, context);
+    initial_child_available =
+        inner_size_for_outer_size(*node, estimated_outer_size);
+  }
+
+  {
+    ASTRA_PROFILE_N("intrinsic::children_first_pass");
+    for (UINodeId child_id : node->children) {
+      auto *child = document.node(child_id);
+      if (child == nullptr || !participates_in_intrinsic_pass(*child)) {
+        continue;
+      }
+
+      compute_intrinsic_pass(document, child_id, initial_child_available, context);
+    }
+  }
+
+  glm::vec2 content_size;
+  glm::vec2 preferred_size;
+  {
+    ASTRA_PROFILE_N("intrinsic::resolve_size");
+    content_size = compute_node_content_size(document, node_id, context);
+    preferred_size =
+        resolve_preferred_size(*node, available_size, context, content_size);
+  }
+
+  const glm::vec2 final_child_available =
+      inner_size_for_outer_size(*node, preferred_size);
+  const bool child_basis_changed =
+      std::abs(final_child_available.x - initial_child_available.x) > 0.5f ||
+      std::abs(final_child_available.y - initial_child_available.y) > 0.5f;
+  if (child_basis_changed) {
+    {
+      ASTRA_PROFILE_N("intrinsic::children_repass");
+      for (UINodeId child_id : node->children) {
+        auto *child = document.node(child_id);
+        if (child == nullptr || !participates_in_intrinsic_pass(*child)) {
+          continue;
+        }
+
+        compute_intrinsic_pass(document, child_id, final_child_available, context);
+      }
+    }
+
+    {
+      ASTRA_PROFILE_N("intrinsic::resolve_size_repass");
+      content_size = compute_node_content_size(document, node_id, context);
+      preferred_size =
+          resolve_preferred_size(*node, available_size, context, content_size);
+    }
+  }
+
+  node->layout.intrinsic.content_size = content_size;
+  node->layout.intrinsic.preferred_size = preferred_size;
 }
 
 struct FlowItem {
@@ -231,6 +270,16 @@ struct FlowItem {
   float flex_grow = 0.0f;
   float flex_shrink = 0.0f;
   AlignItems align = AlignItems::Stretch;
+};
+
+struct PendingMainSize {
+  size_t index = 0u;
+  float size = 0.0f;
+};
+
+struct PlannedBounds {
+  UINodeId node_id = k_invalid_node_id;
+  UIRect bounds;
 };
 
 AlignItems resolve_align(const UIDocument::UINode &node, AlignItems parent) {
@@ -257,19 +306,6 @@ void layout_node(
     const UILayoutContext &context
 );
 
-glm::vec2 measure_popover_size(
-    const UIDocument &document,
-    UINodeId node_id,
-    const UILayoutContext &context
-) {
-  return measure_intrinsic_size(
-      document,
-      node_id,
-      context.viewport_size,
-      context
-  );
-}
-
 void update_popover_layout(
     UIDocument &document,
     UINodeId node_id,
@@ -281,7 +317,8 @@ void update_popover_layout(
     return;
   }
 
-  const glm::vec2 measured_size = measure_popover_size(document, node_id, context);
+  compute_intrinsic_pass(document, node_id, context.viewport_size, context);
+  const glm::vec2 measured_size = node->layout.intrinsic.preferred_size;
   if (measured_size.x <= 0.0f || measured_size.y <= 0.0f) {
     node->layout.popover.popup_rect = UIRect{};
     return;
@@ -367,7 +404,8 @@ void layout_children(
   const UIRect inner_bounds = node->layout.content_bounds;
   node->layout.scroll.viewport_size =
       glm::vec2(inner_bounds.width, inner_bounds.height);
-  std::vector<FlowItem> flow_items;
+  SmallVector<FlowItem, 16> flow_items;
+  flow_items.reserve(node->children.size());
 
   for (UINodeId child_id : node->children) {
     auto *child = document.node(child_id);
@@ -377,12 +415,7 @@ void layout_children(
       continue;
     }
 
-    const glm::vec2 preferred = measure_intrinsic_size(
-        document,
-        child_id,
-        glm::vec2(inner_bounds.width, inner_bounds.height),
-        context
-    );
+    const glm::vec2 preferred = child->layout.intrinsic.preferred_size;
 
     FlowItem item;
     item.node_id = child_id;
@@ -530,7 +563,7 @@ void layout_children(
       }
     } else if (free_space < 0.0f && total_flex_shrink > 0.0f) {
       float remaining_shrink = -free_space;
-      std::vector<size_t> active_indices;
+      SmallVector<size_t, 16> active_indices;
       active_indices.reserve(flow_items.size());
       for (size_t index = 0u; index < flow_items.size(); ++index) {
         if (flow_items[index].flex_shrink > 0.0f &&
@@ -551,10 +584,9 @@ void layout_children(
         }
 
         bool clamped_any = false;
-        std::vector<std::optional<float>> next_sizes(
-            flow_items.size(), std::nullopt
-        );
-        std::vector<size_t> next_active_indices;
+        SmallVector<PendingMainSize, 16> next_sizes;
+        next_sizes.reserve(active_indices.size());
+        SmallVector<size_t, 16> next_active_indices;
         next_active_indices.reserve(active_indices.size());
 
         for (const size_t index : active_indices) {
@@ -573,15 +605,16 @@ void layout_children(
             continue;
           }
 
-          next_sizes[index] = target_size;
+          next_sizes.push_back(PendingMainSize{
+              .index = index,
+              .size = target_size,
+          });
           next_active_indices.push_back(index);
         }
 
         if (!clamped_any) {
-          for (const size_t index : active_indices) {
-            if (next_sizes[index].has_value()) {
-              flow_items[index].main_size = *next_sizes[index];
-            }
+          for (const PendingMainSize &next_size : next_sizes) {
+            flow_items[next_size.index].main_size = next_size.size;
           }
           remaining_shrink = 0.0f;
           break;
@@ -613,7 +646,7 @@ void layout_children(
   const float leading_space = spacing.leading;
   const float between_space = spacing.between;
 
-  std::vector<std::pair<UINodeId, UIRect>> planned_bounds;
+  SmallVector<PlannedBounds, 16> planned_bounds;
   planned_bounds.reserve(node->children.size());
 
   float cursor = leading_space;
@@ -674,7 +707,10 @@ void layout_children(
       };
     }
 
-    planned_bounds.emplace_back(item.node_id, child_bounds);
+    planned_bounds.push_back(PlannedBounds{
+        .node_id = item.node_id,
+        .bounds = child_bounds,
+    });
     content_width =
         std::max(content_width, child_bounds.right() - inner_bounds.x);
     content_height =
@@ -692,12 +728,7 @@ void layout_children(
       continue;
     }
 
-    const glm::vec2 preferred = measure_intrinsic_size(
-        document,
-        child_id,
-        glm::vec2(inner_bounds.width, inner_bounds.height),
-        context
-    );
+    const glm::vec2 preferred = child->layout.intrinsic.preferred_size;
 
     float width = resolve_length(
         child->style.width,
@@ -802,7 +833,10 @@ void layout_children(
     if (node_supports_panel_resize(*child)) {
       child_bounds = clamp_rect_to_bounds(child_bounds, inner_bounds);
     }
-    planned_bounds.emplace_back(child_id, child_bounds);
+    planned_bounds.push_back(PlannedBounds{
+        .node_id = child_id,
+        .bounds = child_bounds,
+    });
     content_width =
         std::max(content_width, child_bounds.right() - inner_bounds.x);
     content_height =
@@ -830,14 +864,14 @@ void layout_children(
           : 0.0f
   );
 
-  for (const auto &[child_id, planned_bounds_rect] : planned_bounds) {
-    UIRect translated_bounds = planned_bounds_rect;
+  for (const PlannedBounds &planned : planned_bounds) {
+    UIRect translated_bounds = planned.bounds;
     translated_bounds.x += scroll_translation.x;
     translated_bounds.y += scroll_translation.y;
 
     layout_node(
         document,
-        child_id,
+        planned.node_id,
         translated_bounds,
         child_clip_rect(*node),
         context
@@ -1132,6 +1166,7 @@ hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
 } // namespace
 
 void layout_document(UIDocument &document, const UILayoutContext &context) {
+  ASTRA_PROFILE_N("ui::layout_document");
   document.set_canvas_size(context.viewport_size);
   document.set_root_font_size(context.default_font_size);
 
@@ -1143,8 +1178,11 @@ void layout_document(UIDocument &document, const UILayoutContext &context) {
     return;
   }
 
-  const glm::vec2 preferred =
-      measure_intrinsic_size(document, root_id, context.viewport_size, context);
+  {
+    ASTRA_PROFILE_N("ui::compute_intrinsic_pass");
+    compute_intrinsic_pass(document, root_id, context.viewport_size, context);
+  }
+  const glm::vec2 preferred = root->layout.intrinsic.preferred_size;
 
   const float width = resolve_length(
       root->style.width,
@@ -1159,18 +1197,21 @@ void layout_document(UIDocument &document, const UILayoutContext &context) {
       std::max(context.viewport_size.y, preferred.y)
   );
 
-  layout_node(
-      document,
-      root_id,
-      UIRect{
-          .x = 0.0f,
-          .y = 0.0f,
-          .width = width,
-          .height = height,
-      },
-      std::nullopt,
-      context
-  );
+  {
+    ASTRA_PROFILE_N("ui::layout_node");
+    layout_node(
+        document,
+        root_id,
+        UIRect{
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = width,
+            .height = height,
+        },
+        std::nullopt,
+        context
+    );
+  }
 
   const std::vector<UINodeId> open_popovers = document.open_popover_stack();
   for (UINodeId popover_id : open_popovers) {
@@ -1183,6 +1224,7 @@ void layout_document(UIDocument &document, const UILayoutContext &context) {
 
 std::optional<UIHitResult>
 hit_test_document(const UIDocument &document, glm::vec2 point) {
+  ASTRA_PROFILE_N("ui::hit_test_document");
   if (document.root() == k_invalid_node_id) {
     return std::nullopt;
   }
@@ -1239,6 +1281,7 @@ hit_test_document(const UIDocument &document, glm::vec2 point) {
 }
 
 void build_draw_list(UIDocument &document, const UILayoutContext &context) {
+  ASTRA_PROFILE_N("ui::build_draw_list");
   document.draw_list().clear();
 
   if (document.root() == k_invalid_node_id) {

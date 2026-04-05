@@ -1,6 +1,7 @@
 #pragma once
 
 #include "editor-gizmo-store.hpp"
+#include "immediate.hpp"
 #include "panels/panel-controller.hpp"
 #include <array>
 #include <string>
@@ -15,10 +16,11 @@ public:
   };
 
   PanelMinimumSize minimum_size() const override { return kMinimumSize; }
-  ui::dsl::NodeSpec build() override;
+  void render(ui::im::Frame &ui) override;
   void mount(const PanelMountContext &context) override;
   void unmount() override;
   void update(const PanelUpdateContext &context) override;
+  std::optional<uint64_t> render_version() const override;
 
 private:
   struct RenderViewSlot {
@@ -33,23 +35,10 @@ private:
   void toggle_grid();
   void toggle_snap();
   void swap_attachment_into_main(size_t index);
-  void sync_mode_ui();
-  void sync_attachments_ui();
-  void sync_grid_ui();
-  void sync_snap_ui();
-  void sync_render_views_ui();
   void sync_panel_rect();
 
-  Ref<ui::UIDocument> m_document = nullptr;
-  ui::UINodeId m_mode_toggle_node = ui::k_invalid_node_id;
-  ui::UINodeId m_attachments_toggle_node = ui::k_invalid_node_id;
-  ui::UINodeId m_attachments_strip_node = ui::k_invalid_node_id;
-  ui::UINodeId m_view_label_node = ui::k_invalid_node_id;
-  ui::UINodeId m_viewport_image_node = ui::k_invalid_node_id;
-  ui::UINodeId m_grid_toggle_node = ui::k_invalid_node_id;
-  ui::UINodeId m_snap_toggle_node = ui::k_invalid_node_id;
-  std::array<ui::UINodeId, kAttachmentViewCount> m_attachment_label_nodes{};
-  std::array<ui::UINodeId, kAttachmentViewCount> m_attachment_image_nodes{};
+  ui::im::Runtime *m_runtime = nullptr;
+  ui::im::WidgetId m_viewport_image_widget = ui::im::k_invalid_widget_id;
   RenderViewSlot m_main_view{
       .label = "Scene",
       .key = RenderImageExportKey{
@@ -118,6 +107,8 @@ private:
   bool m_show_attachments = false;
   bool m_show_grid = true;
   bool m_snap_enabled = false;
+  uint64_t m_toolbar_version = 0u;
+  uint64_t m_last_rendered_toolbar_version = 0u;
 };
 
 } // namespace astralix::editor

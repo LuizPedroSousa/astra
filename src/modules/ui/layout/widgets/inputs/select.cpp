@@ -41,7 +41,9 @@ void update_select_layout(
     UIDocument::UINode &node,
     const UILayoutContext &context
 ) {
-  node.layout.select = UILayoutMetrics::SelectLayout{};
+  node.layout.select.popup_rect = UIRect{};
+  node.layout.select.option_rects.clear();
+  node.layout.select.hovered_option_index.reset();
   if (!node.select.open || node.select.options.empty()) {
     return;
   }
@@ -175,6 +177,7 @@ void append_select_overlay_commands(
   popup_command.border_radius = std::max(8.0f, resolved.border_radius);
   document.draw_list().commands.push_back(std::move(popup_command));
 
+  const ResourceDescriptorID &font_id = resolve_ui_font_id(*node, context);
   const float font_size = resolve_ui_font_size(*node, context);
   const float line_height = measure_line_height(*node, context);
   for (size_t index = 0u; index < node->layout.select.option_rects.size();
@@ -213,7 +216,7 @@ void append_select_overlay_commands(
             std::max(0.0f, (option_rect.height - line_height) * 0.5f)
     );
     option_text.text = node->select.options[index];
-    option_text.font_id = resolve_ui_font_id(*node, context);
+    option_text.font_id = font_id;
     option_text.font_size = font_size;
     option_text.color = resolved.text_color;
     option_text.color.a *= resolved.opacity;

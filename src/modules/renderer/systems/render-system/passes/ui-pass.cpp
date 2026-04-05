@@ -1,6 +1,7 @@
 #include "systems/render-system/passes/ui-pass.hpp"
 
 #include "components/ui.hpp"
+#include "trace.hpp"
 #include "framebuffer.hpp"
 #include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
@@ -249,7 +250,8 @@ void UIPass::draw_text_command(const ui::UIDrawCommand &command, glm::mat4 proje
 
   const uint32_t font_size =
       static_cast<uint32_t>(std::max(1.0f, std::round(command.font_size)));
-  const auto &glyphs = font->characters(font_size);
+  const auto &glyphs = font->glyphs(font_size);
+  const auto &glyph_lut = font->glyph_lut(font_size);
   const float baseline_y = command.text_origin.y + font->ascent(font_size);
 
   float current_x = command.text_origin.x;
@@ -260,12 +262,13 @@ void UIPass::draw_text_command(const ui::UIDrawCommand &command, glm::mat4 proje
   m_text_shader->set(engine_shaders_ui_text_axsl::TextUniform::color, command.color);
 
   for (const char character : command.text) {
-    auto glyph_it = glyphs.find(character);
-    if (glyph_it == glyphs.end()) {
+    const GlyphHandle handle =
+        glyph_lut[static_cast<unsigned char>(character)];
+    if (handle == k_invalid_glyph_handle) {
       continue;
     }
 
-    const auto &glyph = glyph_it->second;
+    const auto &glyph = glyphs[handle];
     auto texture =
         resource_manager()->get_by_descriptor_id<Texture2D>(glyph.texture_id);
     if (texture == nullptr) {
@@ -427,6 +430,7 @@ void UIPass::draw_color_triangles(
 }
 
 void UIPass::execute(double) {
+  ASTRA_PROFILE_N("UIPass");
   auto *scene = SceneManager::get()->get_active_scene();
   if (scene == nullptr) {
     return;

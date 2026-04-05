@@ -47,7 +47,9 @@ void update_combobox_layout(
     UIDocument::UINode &node,
     const UILayoutContext &context
 ) {
-  node.layout.combobox = UILayoutMetrics::ComboboxLayout{};
+  node.layout.combobox.popup_rect = UIRect{};
+  node.layout.combobox.option_rects.clear();
+  node.layout.combobox.hovered_option_index.reset();
   if (!node.combobox.open || node.combobox.options.empty()) {
     return;
   }
@@ -173,6 +175,7 @@ void append_combobox_overlay_commands(
   popup_command.border_radius = std::max(8.0f, resolved.border_radius);
   document.draw_list().commands.push_back(std::move(popup_command));
 
+  const ResourceDescriptorID &font_id = resolve_ui_font_id(*node, context);
   const float font_size = resolve_ui_font_size(*node, context);
   const float line_height = measure_line_height(*node, context);
   for (size_t index = 0u; index < node->layout.combobox.option_rects.size();
@@ -208,7 +211,7 @@ void append_combobox_overlay_commands(
             std::max(0.0f, (option_rect.height - line_height) * 0.5f)
     );
     option_text.text = node->combobox.options[index];
-    option_text.font_id = resolve_ui_font_id(*node, context);
+    option_text.font_id = font_id;
     option_text.font_size = font_size;
     option_text.color = resolved.text_color;
     option_text.color.a *= resolved.opacity;

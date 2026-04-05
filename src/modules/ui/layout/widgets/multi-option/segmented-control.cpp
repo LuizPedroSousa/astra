@@ -37,7 +37,9 @@ void update_segmented_control_layout(
     UIDocument::UINode &node,
     const UILayoutContext &context
 ) {
-  node.layout.segmented_control = UILayoutMetrics::SegmentedControlLayout{};
+  node.layout.segmented_control.item_rects.clear();
+  node.layout.segmented_control.hovered_item_index.reset();
+  node.layout.segmented_control.active_item_index.reset();
   const UIRect content = node.layout.content_bounds;
   if (content.width <= 0.0f || content.height <= 0.0f ||
       node.segmented_control.options.empty()) {
@@ -98,6 +100,7 @@ void append_segmented_control_commands(
     const UIResolvedStyle &resolved
 ) {
   const float line_height = measure_line_height(node, context);
+  const ResourceDescriptorID &font_id = resolve_ui_font_id(node, context);
   for (size_t index = 0u; index < node.layout.segmented_control.item_rects.size();
        ++index) {
     const UIRect item_rect = node.layout.segmented_control.item_rects[index];
@@ -148,7 +151,7 @@ void append_segmented_control_commands(
         item_rect.y + std::max(0.0f, (item_rect.height - line_height) * 0.5f)
     );
     text_command.text = node.segmented_control.options[index];
-    text_command.font_id = resolve_ui_font_id(node, context);
+    text_command.font_id = font_id;
     text_command.font_size = resolve_ui_font_size(node, context);
     text_command.color = selected
                              ? glm::vec4(0.98f, 1.0f, 1.0f, 1.0f)

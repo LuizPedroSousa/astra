@@ -22,6 +22,8 @@ target_include_directories(ui
 target_link_libraries(
   ui
   PUBLIC
+  shared::allocators
+  shared::containers
   window
   shared::foundation
   shared::ecs)

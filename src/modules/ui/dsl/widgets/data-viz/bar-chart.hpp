@@ -38,11 +38,9 @@ inline NodeSpec bar_chart_bar(
       .style(
           styles::flex(1.0f)
               .height(UILength::pixels(0.0f))
+              .self_end()
               .radius(border_radius)
               .background(fill_color)
-              .raw([](UIStyle &style) {
-                style.align_self = AlignSelf::End;
-              })
       );
 }
 

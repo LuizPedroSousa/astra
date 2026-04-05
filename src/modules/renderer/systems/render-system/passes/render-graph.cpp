@@ -1,5 +1,6 @@
 #include "render-graph.hpp"
 #include "arena.hpp"
+#include "trace.hpp"
 #include "exporters/render-graph-exporter.hpp"
 #include "log.hpp"
 #include "storage-buffer.hpp"
@@ -43,6 +44,7 @@ resolve_framebuffer_extent(const FramebufferSpecification &spec,
 RenderGraph::~RenderGraph() { cleanup(); }
 
 void RenderGraph::compile(Ref<RenderTarget> target) {
+  ASTRA_PROFILE_N("RenderGraph::compile");
   m_render_target = target;
 
   LOG_INFO("[RenderGraph] Compiling render graph");
@@ -428,6 +430,7 @@ void RenderGraph::setup_passes() {
 }
 
 void RenderGraph::execute(double dt) {
+  ASTRA_PROFILE_N("RenderGraph::execute");
   if (m_render_target != nullptr) {
     auto *api = m_render_target->renderer_api();
     api->reset_frame_stats();
@@ -437,6 +440,9 @@ void RenderGraph::execute(double dt) {
   for (uint32_t pass_idx : m_execution_order) {
     auto &pass = m_passes[pass_idx];
     if (!pass->is_culled() && pass->is_enabled()) {
+      ASTRA_PROFILE_CHILD("RenderPass");
+      const auto pass_name = pass->get_name();
+      ASTRA_PROFILE_TEXT(pass_name.c_str(), pass_name.size());
       pass->begin(dt);
       pass->execute(dt);
       pass->end(dt);

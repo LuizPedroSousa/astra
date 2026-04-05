@@ -6,6 +6,7 @@
 #include "events/mouse.hpp"
 
 #include "assert.hpp"
+#include "trace.hpp"
 
 #include "events/key-codes.hpp"
 
@@ -84,6 +85,7 @@ void Window::resizing(GLFWwindow *window, int width, int height) {
 }
 
 void Window::start() {
+  ASTRA_PROFILE_N("Window::start");
   if (m_headless) {
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
   }
@@ -147,6 +149,7 @@ void Window::toggle_view_mouse(input::KeyReleasedEvent *event) {
 }
 
 void Window::mouse_callback(GLFWwindow *window, double x, double y) {
+  ASTRA_PROFILE_N("Window::mouse_callback");
   auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
   self->m_mouse->set_position(input::Mouse::Position{.x = x, .y = y});
 
@@ -156,6 +159,7 @@ void Window::mouse_callback(GLFWwindow *window, double x, double y) {
 
 void Window::mouse_button_callback(GLFWwindow *window, int button, int action,
                                    int mods) {
+  ASTRA_PROFILE_N("Window::mouse_button_callback");
   auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
   if (self == nullptr) {
     return;
@@ -191,6 +195,7 @@ void Window::mouse_button_callback(GLFWwindow *window, int button, int action,
 }
 
 void Window::char_callback(GLFWwindow *window, unsigned int codepoint) {
+  ASTRA_PROFILE_N("Window::char_callback");
   auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
   if (self == nullptr) {
     return;
@@ -221,6 +226,7 @@ void Window::char_callback(GLFWwindow *window, unsigned int codepoint) {
 
 void Window::scroll_callback(GLFWwindow *window, double xoffset,
                              double yoffset) {
+  ASTRA_PROFILE_N("Window::scroll_callback");
   auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
   if (self == nullptr) {
     return;
@@ -251,6 +257,7 @@ void Window::scroll_callback(GLFWwindow *window, double xoffset,
 
 void Window::key_callback(GLFWwindow *window, int key, int scancode, int action,
                           int mods) {
+  ASTRA_PROFILE_N("Window::key_callback");
   (void)scancode;
   auto self = static_cast<Window *>(glfwGetWindowUserPointer(window));
   if (self == nullptr) {
@@ -355,6 +362,7 @@ void Window::set_cursor_captured(bool captured) {
 }
 
 void Window::update() {
+  ASTRA_PROFILE_N("Window::update");
   glfwPollEvents();
 
   if (!m_headless)
@@ -362,6 +370,7 @@ void Window::update() {
 }
 
 void Window::swap() {
+  ASTRA_PROFILE_N("Window::swap");
   m_mouse->reset_delta();
   m_keyboard->destroy_release_keys();
 

@@ -1,6 +1,7 @@
 #include "systems/render-system/passes/debug-pass.hpp"
 
 #include "base.hpp"
+#include "trace.hpp"
 #include "components/light.hpp"
 #include "log.hpp"
 #include "managers/scene-manager.hpp"
@@ -109,6 +110,7 @@ void DebugGBufferPass::setup(
 void DebugGBufferPass::begin(double) {}
 
 void DebugGBufferPass::execute(double) {
+  ASTRA_PROFILE_N("DebugGBufferPass");
   if (input::IS_KEY_RELEASED(input::KeyCode::F4)) {
     m_debug_gbuffer.active = !m_debug_gbuffer.active;
   }
@@ -261,6 +263,7 @@ void DebugOverlayPass::setup(
 void DebugOverlayPass::begin(double) {}
 
 void DebugOverlayPass::execute(double) {
+  ASTRA_PROFILE_N("DebugOverlayPass");
   if (input::IS_KEY_RELEASED(input::KeyCode::F2) && m_shadow_map != nullptr &&
       m_debug_depth.shader != nullptr) {
     if (input::IS_KEY_DOWN(input::KeyCode::LeftShift)) {

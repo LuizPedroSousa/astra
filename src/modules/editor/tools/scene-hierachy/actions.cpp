@@ -8,7 +8,7 @@
 #include "editor-selection-store.hpp"
 #include "entities/serializers/scene-component-serialization.hpp"
 #include "managers/scene-manager.hpp"
-#include "tools/inspector/build.hpp"
+#include "tools/inspector/fields.hpp"
 
 #include <utility>
 

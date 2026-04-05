@@ -4,6 +4,7 @@
 #include "events/mouse.hpp"
 #include "glm/glm.hpp"
 #include "guid.hpp"
+#include "containers/vector.hpp"
 #include "systems/render-system/render-image-export.hpp"
 #include <algorithm>
 #include <cstddef>
@@ -405,6 +406,11 @@ struct UIScrollState {
 };
 
 struct UILayoutMetrics {
+  struct IntrinsicLayout {
+    glm::vec2 content_size = glm::vec2(0.0f);
+    glm::vec2 preferred_size = glm::vec2(0.0f);
+  };
+
   struct CheckboxLayout {
     UIRect indicator_rect;
     UIRect label_rect;
@@ -418,13 +424,13 @@ struct UILayoutMetrics {
 
   struct SelectLayout {
     UIRect popup_rect;
-    std::vector<UIRect> option_rects;
+    SmallVector<UIRect, 8> option_rects;
     std::optional<size_t> hovered_option_index;
   };
 
   struct ComboboxLayout {
     UIRect popup_rect;
-    std::vector<UIRect> option_rects;
+    SmallVector<UIRect, 8> option_rects;
     std::optional<size_t> hovered_option_index;
   };
 
@@ -433,13 +439,13 @@ struct UILayoutMetrics {
   };
 
   struct SegmentedControlLayout {
-    std::vector<UIRect> item_rects;
+    SmallVector<UIRect, 12> item_rects;
     std::optional<size_t> hovered_item_index;
     std::optional<size_t> active_item_index;
   };
 
   struct ChipGroupLayout {
-    std::vector<UIRect> item_rects;
+    SmallVector<UIRect, 12> item_rects;
     std::optional<size_t> hovered_item_index;
     std::optional<size_t> active_item_index;
   };
@@ -449,6 +455,7 @@ struct UILayoutMetrics {
   UIRect clip_bounds;
   bool has_clip = false;
   UIRect content_clip_bounds;
+  IntrinsicLayout intrinsic;
   glm::vec2 measured_size = glm::vec2(0.0f);
   CheckboxLayout checkbox;
   SliderLayout slider;

@@ -91,9 +91,11 @@ void append_editable_text_commands(
         starts_with_case_insensitive(node.autocomplete_text, node.text);
     if (show_autocomplete) {
       const uint32_t resolved_font_size = resolve_ui_font_pixel_size(font_size);
+      const auto &glyphs = font->glyphs(resolved_font_size);
+      const auto &glyph_lut = font->glyph_lut(resolved_font_size);
       const float prefix_width = measure_text_prefix_advance(
           node.text, node.text.size(), [&](char character) {
-            return ui_glyph_advance(*font, character, resolved_font_size);
+            return ui_glyph_advance(glyphs, glyph_lut, character);
           }
       );
 
@@ -118,9 +120,11 @@ void append_editable_text_commands(
     if (node.paint_state.focused && node.caret.active && node.caret.visible &&
         font != nullptr) {
       const uint32_t resolved_font_size = resolve_ui_font_pixel_size(font_size);
+      const auto &glyphs = font->glyphs(resolved_font_size);
+      const auto &glyph_lut = font->glyph_lut(resolved_font_size);
       const float caret_x = measure_text_prefix_advance(
           node.text, node.caret.index, [&](char character) {
-            return ui_glyph_advance(*font, character, resolved_font_size);
+            return ui_glyph_advance(glyphs, glyph_lut, character);
           }
       );
 

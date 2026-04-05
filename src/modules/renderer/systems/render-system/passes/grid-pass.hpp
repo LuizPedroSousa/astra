@@ -13,6 +13,7 @@
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include "systems/render-system/scene-selection.hpp"
+#include "trace.hpp"
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -57,6 +58,7 @@ public:
   void begin(double dt) override {}
 
   void execute(double dt) override {
+    ASTRA_PROFILE_N("GridPass");
     static constexpr int k_surface_render_mode = 0;
     static constexpr int k_y_axis_render_mode = 1;
 

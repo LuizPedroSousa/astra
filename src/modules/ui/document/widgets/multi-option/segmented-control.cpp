@@ -16,6 +16,27 @@ void normalize_segmented_control_state(UISegmentedControlState &segmented) {
       std::min(segmented.selected_index, segmented.options.size() - 1u);
 }
 
+bool vec4_equal(const glm::vec4 &lhs, const glm::vec4 &rhs) {
+  return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}
+
+bool accent_colors_equal(
+    const std::vector<glm::vec4> &lhs,
+    const std::vector<glm::vec4> &rhs
+) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+
+  for (size_t index = 0u; index < lhs.size(); ++index) {
+    if (!vec4_equal(lhs[index], rhs[index])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 } // namespace
 
 UINodeId UIDocument::create_segmented_control(
@@ -53,6 +74,10 @@ void UIDocument::set_segmented_options(
 ) {
   UINode *target = node(node_id);
   if (target == nullptr || target->type != NodeType::SegmentedControl) {
+    return;
+  }
+
+  if (target->segmented_control.options == options) {
     return;
   }
 
@@ -108,6 +133,10 @@ void UIDocument::set_segmented_item_accent_colors(
 ) {
   UINode *target = node(node_id);
   if (target == nullptr || target->type != NodeType::SegmentedControl) {
+    return;
+  }
+
+  if (accent_colors_equal(target->segmented_control.item_accent_colors, colors)) {
     return;
   }
 

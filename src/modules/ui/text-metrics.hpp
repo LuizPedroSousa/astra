@@ -9,7 +9,7 @@
 
 namespace astralix::ui {
 
-inline ResourceDescriptorID
+inline const ResourceDescriptorID &
 resolve_ui_font_id(const UIStyle &style, const ResourceDescriptorID &default_font_id) {
   return style.font_id.empty() ? default_font_id : style.font_id;
 }
@@ -30,7 +30,8 @@ inline Ref<Font> resolve_ui_font(const ResourceDescriptorID &font_id) {
   return resource_manager()->get_by_descriptor_id<Font>(font_id);
 }
 
-inline ResourceDescriptorID resolve_ui_font_id(const UIDocument::UINode &node, const UILayoutContext &context) {
+inline const ResourceDescriptorID &
+resolve_ui_font_id(const UIDocument::UINode &node, const UILayoutContext &context) {
   return resolve_ui_font_id(node.style, context.default_font_id);
 }
 
@@ -42,19 +43,29 @@ inline Ref<Font> resolve_ui_font(const UIDocument::UINode &node, const UILayoutC
   return resolve_ui_font(resolve_ui_font_id(node, context));
 }
 
-inline float ui_glyph_advance(const Font &font, char character, uint32_t pixel_size) {
-  auto glyph = font.glyph(character, pixel_size);
-  if (!glyph.has_value()) {
+inline float ui_glyph_advance(
+    const std::vector<CharacterGlyph> &glyphs,
+    const std::array<GlyphHandle, 256u> &glyph_lut,
+    char character
+) {
+  const GlyphHandle handle = glyph_lut[static_cast<unsigned char>(character)];
+  if (handle == k_invalid_glyph_handle) {
     return 0.0f;
   }
 
-  return static_cast<float>(glyph->advance >> 6);
+  return static_cast<float>(glyphs[handle].advance >> 6);
+}
+
+inline float ui_glyph_advance(const Font &font, char character, uint32_t pixel_size) {
+  return ui_glyph_advance(font.glyphs(pixel_size), font.glyph_lut(pixel_size), character);
 }
 
 inline float measure_ui_text_width(const Font &font, std::string_view text, uint32_t pixel_size) {
+  const auto &glyphs = font.glyphs(pixel_size);
+  const auto &glyph_lut = font.glyph_lut(pixel_size);
   float width = 0.0f;
   for (const char character : text) {
-    width += ui_glyph_advance(font, character, pixel_size);
+    width += ui_glyph_advance(glyphs, glyph_lut, character);
   }
 
   return width;

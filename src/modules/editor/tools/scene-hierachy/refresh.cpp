@@ -28,7 +28,7 @@ SceneHierarchyPanelController::transient_open_groups(
   }
 
   if (reveal_entity_id.has_value()) {
-    auto it = std::find_if(
+    const auto it = std::find_if(
         filtered_entities.begin(),
         filtered_entities.end(),
         [reveal_entity_id](const EntityEntry &candidate) {
@@ -89,10 +89,13 @@ SceneHierarchyPanelController::build_visible_rows(
         .kind = VisibleRow::Kind::ScopeHeader,
         .group_key = scope_key,
         .title = scene_hierarchy_panel::scope_bucket_label(scope),
-        .count_label = filtered ? scene_hierarchy_panel::entity_count_label(scope_visible, scope_total) : scene_hierarchy_panel::entity_count_label(scope_total),
+        .count_label =
+            filtered
+                ? scene_hierarchy_panel::entity_count_label(scope_visible, scope_total)
+                : scene_hierarchy_panel::entity_count_label(scope_total),
         .scope_bucket = scope,
         .open = scope_open,
-        .height = 32.0f,
+        .height = 34.0f,
     });
 
     if (!scope_open) {
@@ -128,11 +131,14 @@ SceneHierarchyPanelController::build_visible_rows(
           .kind = VisibleRow::Kind::TypeHeader,
           .group_key = type_key,
           .title = scene_hierarchy_panel::type_bucket_label(type),
-          .count_label = filtered ? scene_hierarchy_panel::entity_count_label(type_visible, type_total) : scene_hierarchy_panel::entity_count_label(type_total),
+          .count_label =
+              filtered
+                  ? scene_hierarchy_panel::entity_count_label(type_visible, type_total)
+                  : scene_hierarchy_panel::entity_count_label(type_total),
           .scope_bucket = scope,
           .type_bucket = type,
           .open = type_open,
-          .height = 30.0f,
+          .height = 32.0f,
       });
 
       if (!type_open) {
@@ -144,6 +150,9 @@ SceneHierarchyPanelController::build_visible_rows(
           continue;
         }
 
+        const bool selected =
+            m_selected_entity_id.has_value() &&
+            scene_hierarchy_panel::same_entity(*m_selected_entity_id, entry.id);
         rows.push_back(VisibleRow{
             .kind = VisibleRow::Kind::Entity,
             .title = entry.name,
@@ -154,8 +163,8 @@ SceneHierarchyPanelController::build_visible_rows(
             .scope_bucket = entry.scope_bucket,
             .type_bucket = entry.type_bucket,
             .active = entry.active,
-            .selected = m_selected_entity_id.has_value() && scene_hierarchy_panel::same_entity(*m_selected_entity_id, entry.id),
-            .height = m_selected_entity_id.has_value() && scene_hierarchy_panel::same_entity(*m_selected_entity_id, entry.id) ? 46.0f : 30.0f,
+            .selected = selected,
+            .height = selected ? 58.0f : 36.0f,
         });
       }
     }
@@ -165,11 +174,11 @@ SceneHierarchyPanelController::build_visible_rows(
 }
 
 void SceneHierarchyPanelController::refresh(bool force) {
-  if (m_document == nullptr) {
-    return;
-  }
-
   m_snapshot_poll_elapsed = 0.0;
+  const bool previous_has_scene = m_has_scene;
+  const std::string previous_scene_name = m_scene_name;
+  const std::string previous_empty_title = m_empty_title;
+  const std::string previous_empty_body = m_empty_body;
 
   const auto same_entity_entry = [](const EntityEntry &lhs, const EntityEntry &rhs) {
     return scene_hierarchy_panel::same_entity(lhs.id, rhs.id) &&
@@ -215,6 +224,20 @@ void SceneHierarchyPanelController::refresh(bool force) {
 
   const std::optional<EntityID> previous_selection = m_selected_entity_id;
   Snapshot snapshot = collect_snapshot();
+
+  bool all_entities_changed = m_all_entities.size() != snapshot.entities.size();
+  if (!all_entities_changed) {
+    all_entities_changed = !std::equal(
+        m_all_entities.begin(),
+        m_all_entities.end(),
+        snapshot.entities.begin(),
+        snapshot.entities.end(),
+        same_entity_entry
+    );
+  }
+
+  m_has_scene = snapshot.has_scene;
+  m_scene_name = snapshot.scene_name;
   m_all_entities = snapshot.entities;
 
   std::vector<EntityEntry> next_entities;
@@ -270,59 +293,26 @@ void SceneHierarchyPanelController::refresh(bool force) {
     );
   }
 
-  if (entities_changed) {
+  if (entities_changed || force) {
     m_entities = std::move(next_entities);
   }
-  if (rows_changed) {
+  if (rows_changed || force) {
     m_visible_rows = next_visible_rows;
-    m_virtual_list_layout_dirty = true;
   }
-
-  m_document->set_text(
-      m_scene_name_node,
-      snapshot.has_scene ? snapshot.scene_name : std::string("No active scene")
-  );
-  m_document->set_enabled(m_create_button_node, snapshot.has_scene);
-  m_document->set_text(
-      m_entity_count_node,
-      scene_hierarchy_panel::entity_count_label(
-          m_entities.size(), m_all_entities.size()
-      )
-  );
-  m_document->set_text(m_search_input_node, m_search_query);
-
-  if (const EntityEntry *entry = selected_entry(); entry != nullptr) {
-    m_document->set_visible(m_selection_line_node, true);
-    m_document->set_text(
-        m_selection_text_node,
-        entry->name + " (#" + static_cast<std::string>(entry->id) + ")"
-    );
-  } else {
-    m_document->set_visible(m_selection_line_node, false);
-    m_document->set_text(m_selection_text_node, {});
-  }
-
-  const bool show_list = snapshot.has_scene && !m_visible_rows.empty();
-  m_document->set_visible(m_scroll_node, show_list);
-  m_document->set_visible(m_empty_state_node, !show_list);
 
   if (!snapshot.has_scene) {
-    m_document->set_text(m_empty_title_node, "No active scene");
-    m_document->set_text(
-        m_empty_body_node,
-        "SceneManager is not exposing an active scene yet."
-    );
+    m_empty_title = "No active scene";
+    m_empty_body = "SceneManager is not exposing an active scene yet.";
   } else if (m_entities.empty()) {
-    m_document->set_text(
-        m_empty_title_node,
-        m_all_entities.empty() ? "World is empty" : "No matching entities"
-    );
-    m_document->set_text(
-        m_empty_body_node,
+    m_empty_title =
+        m_all_entities.empty() ? "World is empty" : "No matching entities";
+    m_empty_body =
         m_all_entities.empty()
             ? "Spawn entities into the active scene to populate the hierarchy."
-            : "Adjust the search query to show more entities."
-    );
+            : "Adjust the search query to show more entities.";
+  } else {
+    m_empty_title.clear();
+    m_empty_body.clear();
   }
 
   const bool context_is_valid =
@@ -344,9 +334,20 @@ void SceneHierarchyPanelController::refresh(bool force) {
        !scene_hierarchy_panel::same_entity(
            *previous_selection, *m_selected_entity_id
        ));
+  if (selection_changed && !m_context_entity_id.has_value()) {
+    rebuild_add_component_menu();
+  }
 
   m_last_selection_revision = selection_store->revision();
-  sync_virtual_list(force || entities_changed || rows_changed || selection_changed);
+
+  const bool scene_changed =
+      previous_has_scene != m_has_scene || previous_scene_name != m_scene_name;
+  const bool empty_state_changed =
+      previous_empty_title != m_empty_title || previous_empty_body != m_empty_body;
+  if (force || scene_changed || empty_state_changed || all_entities_changed ||
+      entities_changed || rows_changed || selection_changed) {
+    mark_render_dirty();
+  }
 }
 
 } // namespace astralix::editor

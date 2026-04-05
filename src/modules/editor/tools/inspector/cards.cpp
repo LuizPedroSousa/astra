@@ -1,4 +1,5 @@
-#include "build.hpp"
+#include "fields.hpp"
+#include "styles.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -36,26 +37,80 @@ StyleBuilder component_header_style(
 } // namespace
 
 void InspectorPanelController::rebuild_component_cards() {
-  if (m_document == nullptr || m_component_stack_node == ui::k_invalid_node_id) {
-    return;
-  }
-
-  const InspectorPanelTheme theme;
-  m_document->clear_children(m_component_stack_node);
   m_scalar_drafts.clear();
   m_group_drafts.clear();
 
   if (!m_snapshot.entity_id.has_value()) {
+    m_component_expansion.clear();
     return;
   }
 
-  size_t visible_index = 0u;
+  std::vector<std::string> live_components;
   for (const auto &component : m_snapshot.components) {
     const auto *descriptor = panel::find_component_descriptor(component.name);
     if (descriptor != nullptr && !descriptor->visible) {
       continue;
     }
 
+    live_components.push_back(component.name);
+    const auto field_groups = panel::build_field_groups(component);
+    for (const auto &group : field_groups) {
+      switch (group.mode) {
+        case panel::FieldMode::Text: {
+          m_scalar_drafts[panel::field_draft_key(
+              component.name, group.field_names.front()
+          )] = std::get<std::string>(group.values.front());
+          break;
+        }
+
+        case panel::FieldMode::Numeric: {
+          if (group.field_names.size() == 1u) {
+            m_scalar_drafts[panel::field_draft_key(
+                component.name, group.field_names.front()
+            )] = panel::format_value(group.values.front());
+            break;
+          }
+
+          std::vector<std::string> drafts;
+          drafts.reserve(group.values.size());
+          for (const auto &value : group.values) {
+            drafts.push_back(panel::format_value(value));
+          }
+          m_group_drafts[panel::group_draft_key(component.name, group.key)] =
+              std::move(drafts);
+          break;
+        }
+
+        case panel::FieldMode::Toggle:
+        case panel::FieldMode::Enum:
+        case panel::FieldMode::ReadOnly:
+        default:
+          break;
+      }
+    }
+  }
+
+  for (auto it = m_component_expansion.begin(); it != m_component_expansion.end();) {
+    if (std::find(live_components.begin(), live_components.end(), it->first) ==
+        live_components.end()) {
+      it = m_component_expansion.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
+
+void InspectorPanelController::render_component_cards(ui::im::Children &parent) {
+  const InspectorPanelTheme theme;
+  size_t visible_index = 0u;
+
+  for (const auto &component : m_snapshot.components) {
+    const auto *descriptor = panel::find_component_descriptor(component.name);
+    if (descriptor != nullptr && !descriptor->visible) {
+      continue;
+    }
+
+    ++visible_index;
     const auto field_groups = panel::build_field_groups(component);
     const bool read_only = std::none_of(
         field_groups.begin(),
@@ -64,116 +119,96 @@ void InspectorPanelController::rebuild_component_cards() {
           return group.mode != panel::FieldMode::ReadOnly;
         }
     );
+    const auto expansion_it = m_component_expansion.find(component.name);
     const bool expanded =
-        m_component_expansion.find(component.name) != m_component_expansion.end()
-            ? m_component_expansion[component.name]
-            : false;
+        expansion_it != m_component_expansion.end() && expansion_it->second;
 
-    auto card = ui::dsl::column().style(panel::component_card_style(theme));
-
-    auto header_content = ui::dsl::row().style(fill_x().items_center().gap(8.0f));
-    header_content.child(
-        image(disclosure_indicator_texture(expanded))
-            .style(
-                width(px(12.0f))
-                    .height(px(12.0f))
-                    .raw([expanded, theme](ui::UIStyle &style) {
-                      style.tint =
-                          expanded ? theme.accent : theme.text_muted;
-                    })
-            )
-    );
-    header_content.child(
-        ui::dsl::column()
-            .style(items_start().gap(2.0f))
-            .children(
-                text(panel::humanize_token(component.name))
-                    .style(font_size(14.0f).text_color(theme.text_primary)),
-                text(
-                    field_groups.empty()
-                        ? std::string("Tag component")
-                        : panel::component_count_label(field_groups.size())
-                )
-                    .style(font_size(11.0f).text_color(theme.text_muted))
-            )
-    );
-    header_content.child(spacer());
+    auto component_scope = parent.item_scope("component", component.name);
+    auto card = component_scope.column("card").style(panel::component_card_style(theme));
+    auto header = card.row("header").style(fill_x().items_center().gap(8.0f));
+    auto toggle = header.pressable("toggle")
+                      .on_click([this, component_name = component.name]() {
+                        const auto current = m_component_expansion.find(component_name);
+                        const bool next =
+                            current == m_component_expansion.end() || !current->second;
+                        m_component_expansion[component_name] = next;
+                        mark_render_dirty();
+                      })
+                      .style(component_header_style(theme, expanded).flex(1.0f));
+    auto toggle_content = toggle.row("content").style(fill_x().items_center().gap(8.0f));
+    toggle_content
+        .image("icon", disclosure_indicator_texture(expanded))
+        .style(
+            width(px(12.0f))
+                .height(px(12.0f))
+                .tint(expanded ? theme.accent : theme.text_muted)
+        );
+    auto toggle_text = toggle_content.column("text").style(items_start().gap(2.0f));
+    toggle_text.text("title", panel::humanize_token(component.name))
+        .style(font_size(14.0f).text_color(theme.text_primary));
+    toggle_text
+        .text(
+            "caption",
+            field_groups.empty() ? std::string("Tag component")
+                                 : panel::component_count_label(field_groups.size())
+        )
+        .style(font_size(11.0f).text_color(theme.text_muted));
+    toggle_content.spacer("spacer");
 
     if (read_only) {
-      header_content.child(
-          ui::dsl::row()
-              .style(
-                  items_center()
-                      .padding_xy(10.0f, 5.0f)
-                      .background(theme.subdued_soft)
-                      .border(1.0f, theme.subdued)
-                      .radius(8.0f)
-              )
-              .child(
-                  text("READ ONLY")
-                      .style(font_size(10.5f).text_color(theme.subdued))
-              )
+      auto badge = toggle_content.row("readonly").style(
+          items_center()
+              .padding_xy(10.0f, 5.0f)
+              .background(theme.subdued_soft)
+              .border(1.0f, theme.subdued)
+              .radius(8.0f)
       );
+      badge.text("label", "READ ONLY")
+          .style(font_size(10.5f).text_color(theme.subdued));
     }
 
-    auto header = ui::dsl::row().style(fill_x().items_center().gap(8.0f));
-    header.child(
-        pressable()
-            .style(component_header_style(theme, expanded).flex(1.0f))
-            .on_click([this, component_name = component.name]() {
-              const bool next =
-                  m_component_expansion.find(component_name) ==
-                          m_component_expansion.end()
-                      ? true
-                      : !m_component_expansion[component_name];
-              m_component_expansion[component_name] = next;
-              rebuild_component_cards();
-            })
-            .child(std::move(header_content))
-    );
     if (descriptor == nullptr || descriptor->removable) {
-      header.child(
-          button(
-              "Remove",
-              [this, component_name = component.name]() {
-                remove_component(component_name);
-              }
-          )
-              .style(panel::remove_button_style(theme))
-      );
+      auto remove = header.pressable("remove")
+                        .on_click([this, component_name = component.name]() {
+                          remove_component(component_name);
+                        })
+                        .style(
+                            panel::remove_button_style(theme)
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                        );
+      remove.text("label", "Remove")
+          .style(font_size(12.5f).text_color(theme.text_primary));
     }
-
-    card.child(std::move(header));
 
     if (!expanded) {
-      ui::dsl::append(*m_document, m_component_stack_node, card);
-      ++visible_index;
       continue;
     }
 
     if (field_groups.empty()) {
-      card.child(
-          text("No configurable fields.")
-              .style(font_size(11.5f).text_color(theme.text_muted))
-      );
+      card.text("empty-fields", "No configurable fields.")
+          .style(font_size(11.5f).text_color(theme.text_muted));
+      continue;
     }
 
     for (size_t group_index = 0u; group_index < field_groups.size(); ++group_index) {
-      const panel::FieldGroup &group = field_groups[group_index];
+      const auto &group = field_groups[group_index];
+      auto group_scope = card.item_scope("group", group.key);
       const std::string component_name = component.name;
 
       switch (group.mode) {
         case panel::FieldMode::Toggle: {
-          const bool current_value = std::get<bool>(group.values.front());
-          card.child(
-              checkbox(group.label, current_value)
-                  .style(panel::checkbox_field_style(theme))
-                  .on_toggle(
-                      [this, component_name, field_name = group.field_names.front()](
-                          bool value
-                      ) { set_bool_field(component_name, field_name, value); }
-                  )
-          );
+          group_scope
+              .checkbox(
+                  "toggle", group.label, std::get<bool>(group.values.front())
+              )
+              .style(panel::checkbox_field_style(theme))
+              .on_toggle(
+                  [this, component_name, field_name = group.field_names.front()](
+                      bool value
+                  ) { set_bool_field(component_name, field_name, value); }
+              );
           break;
         }
 
@@ -192,58 +227,57 @@ void InspectorPanelController::rebuild_component_cards() {
             }
           }
 
-          card.child(
-              ui::dsl::column()
-                  .style(fill_x().gap(4.0f))
-                  .children(
-                      text(group.label)
-                          .style(font_size(11.5f).text_color(theme.text_muted)),
-                      select(
-                          group.options != nullptr ? *group.options
-                                                   : std::vector<std::string>{},
-                          selected_index,
-                          group.label
-                      )
-                          .on_select(
-                              [this,
-                               component_name,
-                               field_name = group.field_names.front()](
-                                  size_t,
-                                  const std::string &value
-                              ) { set_enum_field(component_name, field_name, value); }
-                          )
-                          .style(panel::input_field_style(theme))
-                  )
-          );
+          auto field = group_scope.column("enum").style(fill_x().gap(4.0f));
+          field.text("label", group.label)
+              .style(font_size(11.5f).text_color(theme.text_muted));
+          field
+              .select(
+                  "input",
+                  group.options != nullptr ? *group.options
+                                           : std::vector<std::string>{},
+                  selected_index,
+                  group.label
+              )
+              .on_select(
+                  [this,
+                   component_name,
+                   field_name = group.field_names.front()](
+                      size_t,
+                      const std::string &value
+                  ) { set_enum_field(component_name, field_name, value); }
+              )
+              .style(panel::input_field_style(theme));
           break;
         }
 
         case panel::FieldMode::Text: {
           const std::string draft_key =
               panel::field_draft_key(component_name, group.field_names.front());
-          m_scalar_drafts[draft_key] = std::get<std::string>(group.values.front());
-          card.child(
-              ui::dsl::column()
-                  .style(fill_x().gap(4.0f))
-                  .children(
-                      text(group.label)
-                          .style(font_size(11.5f).text_color(theme.text_muted)),
-                      text_input(m_scalar_drafts[draft_key])
-                          .select_all_on_focus(true)
-                          .on_change(
-                              [this,
-                               draft_key,
-                               component_name,
-                               field_name = group.field_names.front()](
-                                  const std::string &value
-                              ) {
-                                m_scalar_drafts[draft_key] = value;
-                                set_string_field(component_name, field_name, value);
-                              }
-                          )
-                          .style(panel::input_field_style(theme))
-                  )
-          );
+          const auto draft_it = m_scalar_drafts.find(draft_key);
+          const std::string draft_value =
+              draft_it != m_scalar_drafts.end() ? draft_it->second
+                                                : std::get<std::string>(
+                                                      group.values.front()
+                                                  );
+
+          auto field = group_scope.column("text").style(fill_x().gap(4.0f));
+          field.text("label", group.label)
+              .style(font_size(11.5f).text_color(theme.text_muted));
+          field
+              .text_input("input", draft_value)
+              .select_all_on_focus(true)
+              .on_change(
+                  [this,
+                   draft_key,
+                   component_name,
+                   field_name = group.field_names.front()](
+                      const std::string &value
+                  ) {
+                    m_scalar_drafts[draft_key] = value;
+                    set_string_field(component_name, field_name, value);
+                  }
+              )
+              .style(panel::input_field_style(theme));
           break;
         }
 
@@ -251,98 +285,92 @@ void InspectorPanelController::rebuild_component_cards() {
           if (group.field_names.size() == 1u) {
             const std::string draft_key =
                 panel::field_draft_key(component_name, group.field_names.front());
-            m_scalar_drafts[draft_key] = panel::format_value(group.values.front());
-            card.child(
-                ui::dsl::column()
-                    .style(fill_x().gap(4.0f))
-                    .children(
-                        text(group.label)
-                            .style(font_size(11.5f).text_color(theme.text_muted)),
-                        text_input(m_scalar_drafts[draft_key])
-                            .select_all_on_focus(true)
-                            .on_change([this, draft_key](const std::string &value) {
-                              m_scalar_drafts[draft_key] = value;
-                            })
-                            .on_submit(
-                                [this,
-                                 component_name,
-                                 field_name = group.field_names.front(),
-                                 draft_key](const std::string &) {
-                                  commit_numeric_field(
-                                      component_name, field_name, draft_key
-                                  );
-                                }
-                            )
-                            .on_blur([this,
-                                      component_name,
-                                      field_name = group.field_names.front(),
-                                      draft_key]() {
-                              commit_numeric_field(component_name, field_name, draft_key);
-                            })
-                            .style(panel::input_field_style(theme))
-                    )
-            );
-          } else {
-            const std::string draft_key =
-                panel::group_draft_key(component_name, group.key);
-            std::vector<std::string> drafts;
-            drafts.reserve(group.values.size());
+            const auto draft_it = m_scalar_drafts.find(draft_key);
+            const std::string draft_value =
+                draft_it != m_scalar_drafts.end()
+                    ? draft_it->second
+                    : panel::format_value(group.values.front());
+
+            auto field = group_scope.column("numeric").style(fill_x().gap(4.0f));
+            field.text("label", group.label)
+                .style(font_size(11.5f).text_color(theme.text_muted));
+            field
+                .text_input("input", draft_value)
+                .select_all_on_focus(true)
+                .on_change([this, draft_key](const std::string &value) {
+                  m_scalar_drafts[draft_key] = value;
+                })
+                .on_submit(
+                    [this,
+                     component_name,
+                     field_name = group.field_names.front(),
+                     draft_key](const std::string &) {
+                      commit_numeric_field(component_name, field_name, draft_key);
+                    }
+                )
+                .on_blur(
+                    [this,
+                     component_name,
+                     field_name = group.field_names.front(),
+                     draft_key]() {
+                      commit_numeric_field(component_name, field_name, draft_key);
+                    }
+                )
+                .style(panel::input_field_style(theme));
+            break;
+          }
+
+          const std::string draft_key =
+              panel::group_draft_key(component_name, group.key);
+          auto draft_it = m_group_drafts.find(draft_key);
+          std::vector<std::string> draft_values =
+              draft_it != m_group_drafts.end() ? draft_it->second : std::vector<std::string>{};
+          if (draft_values.empty()) {
+            draft_values.reserve(group.values.size());
             for (const auto &value : group.values) {
-              drafts.push_back(panel::format_value(value));
+              draft_values.push_back(panel::format_value(value));
             }
-            m_group_drafts[draft_key] = drafts;
+          }
 
-            auto group_node = ui::dsl::column().style(fill_x().gap(4.0f));
-            group_node.child(
-                text(group.label)
-                    .style(font_size(11.5f).text_color(theme.text_muted))
-            );
+          auto group_node = group_scope.column("numeric-group").style(fill_x().gap(4.0f));
+          group_node.text("label", group.label)
+              .style(font_size(11.5f).text_color(theme.text_muted));
 
-            auto inputs = ui::dsl::row().style(fill_x().gap(6.0f));
-            for (size_t value_index = 0u; value_index < drafts.size(); ++value_index) {
-              auto axis_column = ui::dsl::column().style(flex(1.0f).gap(2.0f));
-              axis_column.child(
-                  text(group.axis_labels[value_index])
-                      .style(font_size(10.5f).text_color(theme.text_muted))
-              );
-              axis_column.child(
-                  text_input(drafts[value_index])
-                      .select_all_on_focus(true)
-                      .on_change(
-                          [this, draft_key, value_index](const std::string &value) {
-                            auto &draft_values = m_group_drafts[draft_key];
-                            if (value_index < draft_values.size()) {
-                              draft_values[value_index] = value;
-                            }
-                          }
-                      )
-                      .on_submit(
-                          [this,
-                           component_name,
-                           field_names = group.field_names,
-                           draft_key](const std::string &) {
-                            commit_numeric_group(
-                                component_name, field_names, draft_key
-                            );
-                          }
-                      )
-                      .on_blur(
-                          [this,
-                           component_name,
-                           field_names = group.field_names,
-                           draft_key]() {
-                            commit_numeric_group(
-                                component_name, field_names, draft_key
-                            );
-                          }
-                      )
-                      .style(panel::input_field_style(theme))
-              );
-              inputs.child(std::move(axis_column));
-            }
-
-            group_node.child(std::move(inputs));
-            card.child(std::move(group_node));
+          auto inputs = group_node.row("inputs").style(fill_x().gap(6.0f));
+          for (size_t value_index = 0u; value_index < draft_values.size();
+               ++value_index) {
+            auto axis_scope = inputs.item_scope("axis", group.field_names[value_index]);
+            auto axis = axis_scope.column("column").style(flex(1.0f).gap(2.0f));
+            axis.text("label", group.axis_labels[value_index])
+                .style(font_size(10.5f).text_color(theme.text_muted));
+            axis
+                .text_input("input", draft_values[value_index])
+                .select_all_on_focus(true)
+                .on_change(
+                    [this, draft_key, value_index](const std::string &value) {
+                      auto &drafts = m_group_drafts[draft_key];
+                      if (value_index < drafts.size()) {
+                        drafts[value_index] = value;
+                      }
+                    }
+                )
+                .on_submit(
+                    [this,
+                     component_name,
+                     field_names = group.field_names,
+                     draft_key](const std::string &) {
+                      commit_numeric_group(component_name, field_names, draft_key);
+                    }
+                )
+                .on_blur(
+                    [this,
+                     component_name,
+                     field_names = group.field_names,
+                     draft_key]() {
+                      commit_numeric_group(component_name, field_names, draft_key);
+                    }
+                )
+                .style(panel::input_field_style(theme));
           }
           break;
         }
@@ -363,48 +391,29 @@ void InspectorPanelController::rebuild_component_cards() {
             }
           }
 
-          card.child(
-              ui::dsl::column()
-                  .style(fill_x().gap(1.0f))
-                  .children(
-                      text(group.label)
-                          .style(font_size(11.5f).text_color(theme.text_muted)),
-                      text(std::move(value_text))
-                          .style(font_size(12.0f).text_color(theme.text_primary))
-                  )
-          );
+          auto field = group_scope.column("readonly").style(fill_x().gap(1.0f));
+          field.text("label", group.label)
+              .style(font_size(11.5f).text_color(theme.text_muted));
+          field.text("value", std::move(value_text))
+              .style(font_size(12.0f).text_color(theme.text_primary));
           break;
         }
       }
 
       if (group_index + 1u < field_groups.size()) {
-        card.child(
-            ui::dsl::row().style(
-                fill_x()
-                    .height(px(1.0f))
-                    .background(theme.separator)
-            )
-        );
+        group_scope.view("separator")
+            .style(fill_x().height(px(1.0f)).background(theme.separator));
       }
     }
-
-    ui::dsl::append(*m_document, m_component_stack_node, card);
-    ++visible_index;
   }
 
   if (visible_index == 0u) {
-    ui::dsl::append(
-        *m_document,
-        m_component_stack_node,
-        ui::dsl::column()
-            .style(panel::component_card_style(theme).items_center())
-            .children(
-                text("No visible components")
-                    .style(font_size(14.0f).text_color(theme.text_primary)),
-                text("The selected entity only exposes internal tags right now.")
-                    .style(font_size(11.5f).text_color(theme.text_muted))
-            )
-    );
+    auto empty = parent.column("empty-visible-components")
+                     .style(panel::component_card_style(theme).items_center());
+    empty.text("title", "No visible components")
+        .style(font_size(14.0f).text_color(theme.text_primary));
+    empty.text("body", "The selected entity only exposes internal tags right now.")
+        .style(font_size(11.5f).text_color(theme.text_muted));
   }
 }
 

@@ -9,6 +9,7 @@
 #include "resources/mesh.hpp"
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+#include "trace.hpp"
 
 namespace astralix {
 
@@ -59,6 +60,7 @@ public:
   void begin(double) override {}
 
   void execute(double) override {
+    ASTRA_PROFILE_N("SSAOBlurPass");
     if (m_g_buffer == nullptr || m_ssao == nullptr || m_ssao_blur == nullptr) {
       LOG_WARN("[SSAOBlurPass] Skipping execute: required framebuffers are not available");
       return;

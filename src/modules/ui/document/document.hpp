@@ -116,6 +116,7 @@ public:
   void append_child(UINodeId parent_id, UINodeId child_id);
   void remove_child(UINodeId child_id);
   void clear_children(UINodeId parent_id);
+  void destroy_subtree(UINodeId node_id);
 
   UINode *node(UINodeId node_id);
   const UINode *node(UINodeId node_id) const;

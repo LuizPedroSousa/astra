@@ -6,13 +6,13 @@
 #include "resources/texture.hpp"
 #include "tools/scene-hierachy/helpers.hpp"
 
-#include <algorithm>
-#include <cmath>
 #include <initializer_list>
 #include <string_view>
 
 namespace astralix::editor {
 namespace {
+
+using namespace ui::dsl::styles;
 
 ResourceDescriptorID resolve_image(
     std::initializer_list<std::string_view> descriptor_ids
@@ -52,518 +52,322 @@ resolved_entity_icon_texture_id(
   );
 }
 
-void style_meta_badge(
-    const Ref<ui::UIDocument> &document,
-    ui::UINodeId badge_node,
-    ui::UINodeId text_node,
+ui::dsl::StyleBuilder text_style(
     ResourceDescriptorID font_id,
-    float font_size,
+    float size,
+    const glm::vec4 &color
+) {
+  return font_size(size).text_color(color).font_id(std::move(font_id));
+}
+
+ui::dsl::StyleBuilder meta_badge_style(
     const glm::vec4 &background,
+    const glm::vec4 &border,
     const glm::vec4 &text_color
 ) {
-  const glm::vec4 border_color = glm::vec4(
-      text_color.r, text_color.g, text_color.b, text_color.a * 0.38f
-  );
-  document->mutate_style(badge_node, [background, border_color](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Row;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Center;
-    style.padding = ui::UIEdges::symmetric(5.0f, 2.0f);
-    style.border_radius = 4.0f;
-    style.border_width = 1.0f;
-    style.border_color = border_color;
-    style.flex_shrink = 1.0f;
-    style.overflow = ui::Overflow::Hidden;
-    style.background_color = background;
-  });
-  document->mutate_style(text_node, [font_id, font_size, text_color](ui::UIStyle &style) {
-    style.font_id = font_id;
-    style.font_size = font_size;
-    style.text_color = text_color;
-  });
+  return items_center()
+      .justify_center()
+      .padding_xy(5.0f, 2.0f)
+      .radius(4.0f)
+      .background(background)
+      .border(1.0f, border)
+      .text_color(text_color);
+}
+
+ui::dsl::StyleBuilder row_style(
+    const SceneHierarchyPanelTheme &theme,
+    const SceneHierarchyPanelController::VisibleRow &row_data
+) {
+  const bool is_scope_header =
+      row_data.kind ==
+      SceneHierarchyPanelController::VisibleRow::Kind::ScopeHeader;
+  const bool is_type_header =
+      row_data.kind ==
+      SceneHierarchyPanelController::VisibleRow::Kind::TypeHeader;
+
+  auto style = row()
+                   .fill_x()
+                   .items_center()
+                   .gap(8.0f)
+                   .min_height(px(row_data.height))
+                   .padding(
+                       ui::UIEdges{
+                           .left = is_scope_header ? 8.0f
+                                                   : (is_type_header ? 24.0f : 40.0f),
+                           .top = row_data.selected ? 8.0f : 6.0f,
+                           .right = 14.0f,
+                           .bottom = row_data.selected ? 8.0f : 6.0f,
+                       }
+                   )
+                   .radius(10.0f)
+                   .cursor_pointer()
+                   .overflow_hidden();
+
+  if (is_scope_header) {
+    return style.background(theme_alpha(theme.panel_background, 0.0f))
+        .border(1.0f, theme_alpha(theme.panel_border, 0.0f))
+        .hover(
+            state()
+                .background(theme_alpha(theme.card_background, 0.16f))
+                .border(1.0f, theme_alpha(theme.panel_border, 0.18f))
+        )
+        .pressed(
+            state()
+                .background(theme_alpha(theme.card_background, 0.24f))
+                .border(1.0f, theme_alpha(theme.panel_border, 0.24f))
+        )
+        .focused(state().border(1.0f, theme.accent));
+  }
+
+  if (is_type_header) {
+    return style.background(theme_alpha(theme.panel_background, 0.0f))
+        .border(1.0f, theme_alpha(theme.panel_border, 0.0f))
+        .hover(
+            state()
+                .background(theme_alpha(theme.card_background, 0.12f))
+                .border(1.0f, theme_alpha(theme.panel_border, 0.14f))
+        )
+        .pressed(
+            state()
+                .background(theme_alpha(theme.card_background, 0.18f))
+                .border(1.0f, theme_alpha(theme.panel_border, 0.20f))
+        )
+        .focused(state().border(1.0f, theme.accent));
+  }
+
+  return style
+      .background(
+          row_data.selected ? theme_alpha(theme.row_selected_background, 0.28f)
+                            : theme_alpha(theme.panel_background, 0.0f)
+      )
+      .border(
+          row_data.selected ? 1.0f : 0.0f,
+          row_data.selected ? theme_alpha(theme.row_selected_border, 0.52f)
+                            : theme_alpha(theme.row_border, 0.0f)
+      )
+      .hover(
+          state()
+              .background(
+                  row_data.selected
+                      ? theme_alpha(theme.row_selected_background, 0.34f)
+                      : theme_alpha(theme.card_background, 0.16f)
+              )
+              .border(
+                  1.0f,
+                  row_data.selected
+                      ? theme_alpha(theme.row_selected_border, 0.56f)
+                      : theme_alpha(theme.card_border, 0.0f)
+              )
+      )
+      .pressed(
+          state()
+              .background(
+                  row_data.selected
+                      ? theme_alpha(theme.row_selected_background, 0.42f)
+                      : theme_alpha(theme.card_background, 0.22f)
+              )
+              .border(
+                  1.0f,
+                  row_data.selected
+                      ? theme_alpha(theme.row_selected_border, 0.62f)
+                      : theme_alpha(theme.card_border, 0.0f)
+              )
+      )
+      .focused(state().border(1.0f, theme.accent));
 }
 
 } // namespace
 
-ui::UINodeId SceneHierarchyPanelController::create_row_slot(size_t slot_index) {
-  static_cast<void>(slot_index);
-
-  if (m_document == nullptr) {
-    return ui::k_invalid_node_id;
-  }
-
+void SceneHierarchyPanelController::render_visible_rows(ui::im::Children &parent) {
   const SceneHierarchyPanelTheme theme;
-
-  RowNodes nodes;
-  nodes.slot = m_document->create_view();
-  nodes.button = m_document->create_pressable();
-  nodes.selection_bar = m_document->create_view();
-  nodes.guide_scope = m_document->create_view();
-  nodes.guide_type = m_document->create_view();
-  nodes.guide_branch = m_document->create_view();
-  nodes.chevron = m_document->create_image(resolved_chevron_texture_id(false));
-  nodes.icon_shell = m_document->create_view();
-  nodes.icon = m_document->create_image("icons::cube");
-  const ui::UINodeId body = m_document->create_view();
-  const ui::UINodeId header = m_document->create_view();
-  const ui::UINodeId header_spacer = m_document->create_view();
-  nodes.meta_row = m_document->create_view();
-  nodes.title = m_document->create_text();
-  nodes.count = m_document->create_text();
-  nodes.id_badge = m_document->create_view();
-  nodes.id_badge_text = m_document->create_text();
-  nodes.scope_badge = m_document->create_view();
-  nodes.scope_badge_text = m_document->create_text();
-  nodes.kind_badge = m_document->create_view();
-  nodes.kind_badge_text = m_document->create_text();
-  nodes.meta_spacer = m_document->create_view();
-  nodes.status_badge = m_document->create_view();
-  nodes.status_badge_text = m_document->create_text();
-
-  m_document->append_child(nodes.slot, nodes.button);
-  m_document->append_child(nodes.button, nodes.selection_bar);
-  m_document->append_child(nodes.button, nodes.guide_scope);
-  m_document->append_child(nodes.button, nodes.guide_type);
-  m_document->append_child(nodes.button, nodes.guide_branch);
-  m_document->append_child(nodes.button, nodes.chevron);
-  m_document->append_child(nodes.button, nodes.icon_shell);
-  m_document->append_child(nodes.icon_shell, nodes.icon);
-  m_document->append_child(nodes.button, body);
-  m_document->append_child(body, header);
-  m_document->append_child(body, nodes.meta_row);
-  m_document->append_child(header, nodes.title);
-  m_document->append_child(header, header_spacer);
-  m_document->append_child(header, nodes.count);
-  m_document->append_child(nodes.meta_row, nodes.id_badge);
-  m_document->append_child(nodes.id_badge, nodes.id_badge_text);
-  m_document->append_child(nodes.meta_row, nodes.scope_badge);
-  m_document->append_child(nodes.scope_badge, nodes.scope_badge_text);
-  m_document->append_child(nodes.meta_row, nodes.kind_badge);
-  m_document->append_child(nodes.kind_badge, nodes.kind_badge_text);
-  m_document->append_child(nodes.meta_row, nodes.meta_spacer);
-  m_document->append_child(nodes.meta_row, nodes.status_badge);
-  m_document->append_child(nodes.status_badge, nodes.status_badge_text);
-
-  m_document->mutate_style(nodes.slot, [](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Column;
-    style.align_items = ui::AlignItems::Stretch;
-    style.justify_content = ui::JustifyContent::Start;
-    style.width = ui::UILength::percent(1.0f);
-    style.flex_shrink = 0.0f;
-    style.overflow = ui::Overflow::Hidden;
-  });
-  m_document->mutate_style(nodes.button, [](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Row;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Start;
-    style.width = ui::UILength::percent(1.0f);
-    style.height = ui::UILength::percent(1.0f);
-    style.gap = 6.0f;
-    style.background_color = glm::vec4(0.0f);
-    style.border_color = glm::vec4(0.0f);
-    style.border_width = 0.0f;
-    style.border_radius = 8.0f;
-    style.cursor = ui::CursorStyle::Pointer;
-    style.overflow = ui::Overflow::Hidden;
-  });
-  m_document->mutate_style(
-      nodes.selection_bar,
-      [theme](ui::UIStyle &style) {
-        style.position_type = ui::PositionType::Absolute;
-        style.left = ui::UILength::pixels(6.0f);
-        style.top = ui::UILength::pixels(5.0f);
-        style.bottom = ui::UILength::pixels(5.0f);
-        style.width = ui::UILength::pixels(2.0f);
-        style.border_radius = 999.0f;
-        style.background_color = theme.accent;
-      }
-  );
-  m_document->mutate_style(
-      nodes.guide_scope,
-      [theme](ui::UIStyle &style) {
-        style.position_type = ui::PositionType::Absolute;
-        style.left = ui::UILength::pixels(18.0f);
-        style.top = ui::UILength::pixels(0.0f);
-        style.bottom = ui::UILength::pixels(0.0f);
-        style.width = ui::UILength::pixels(1.0f);
-        style.background_color = theme_alpha(theme.panel_border, 0.34f);
-      }
-  );
-  m_document->mutate_style(
-      nodes.guide_type,
-      [theme](ui::UIStyle &style) {
-        style.position_type = ui::PositionType::Absolute;
-        style.left = ui::UILength::pixels(34.0f);
-        style.top = ui::UILength::pixels(0.0f);
-        style.bottom = ui::UILength::pixels(0.0f);
-        style.width = ui::UILength::pixels(1.0f);
-        style.background_color = theme_alpha(theme.panel_border, 0.34f);
-      }
-  );
-  m_document->mutate_style(
-      nodes.guide_branch,
-      [theme](ui::UIStyle &style) {
-        style.position_type = ui::PositionType::Absolute;
-        style.left = ui::UILength::pixels(34.0f);
-        style.top = ui::UILength::pixels(20.0f);
-        style.width = ui::UILength::pixels(10.0f);
-        style.height = ui::UILength::pixels(1.0f);
-        style.background_color = theme_alpha(theme.panel_border, 0.34f);
-      }
-  );
-  m_document->mutate_style(nodes.chevron, [this, theme](ui::UIStyle &style) {
-    style.width = ui::UILength::pixels(12.0f);
-    style.height = ui::UILength::pixels(12.0f);
-    style.tint = theme.text_muted;
-    style.flex_shrink = 0.0f;
-  });
-  m_document->mutate_style(nodes.icon_shell, [theme](ui::UIStyle &style) {
-    style.width = ui::UILength::pixels(16.0f);
-    style.height = ui::UILength::pixels(16.0f);
-    style.align_self = ui::AlignSelf::Center;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Center;
-    style.background_color = theme_alpha(theme.panel_background, 0.0f);
-    style.border_color = theme_alpha(theme.panel_border, 0.0f);
-    style.border_width = 0.0f;
-    style.border_radius = 0.0f;
-    style.flex_shrink = 0.0f;
-  });
-  m_document->mutate_style(nodes.icon, [theme](ui::UIStyle &style) {
-    style.width = ui::UILength::pixels(14.0f);
-    style.height = ui::UILength::pixels(14.0f);
-    style.tint = theme.text_primary;
-    style.flex_shrink = 0.0f;
-  });
-  m_document->mutate_style(body, [](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Column;
-    style.align_items = ui::AlignItems::Stretch;
-    style.justify_content = ui::JustifyContent::Center;
-    style.flex_grow = 1.0f;
-    style.flex_shrink = 1.0f;
-    style.gap = 1.0f;
-    style.overflow = ui::Overflow::Hidden;
-  });
-  m_document->mutate_style(header, [](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Row;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Start;
-    style.gap = 6.0f;
-  });
-  m_document->mutate_style(header_spacer, [](ui::UIStyle &style) {
-    style.flex_grow = 1.0f;
-  });
-  m_document->mutate_style(nodes.meta_row, [](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Row;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Start;
-    style.gap = 4.0f;
-    style.overflow = ui::Overflow::Hidden;
-  });
-  m_document->mutate_style(nodes.title, [this](ui::UIStyle &style) {
-    style.font_id = m_default_font_id;
-    style.font_size = std::max(12.5f, m_default_font_size * 0.80f);
-  });
-  m_document->mutate_style(nodes.count, [this](ui::UIStyle &style) {
-    style.font_id = m_default_font_id;
-    style.font_size = std::max(10.5f, m_default_font_size * 0.68f);
-  });
-
+  const float title_font_size = std::max(12.5f, m_default_font_size * 0.80f);
+  const float count_font_size = std::max(10.5f, m_default_font_size * 0.68f);
   const float badge_font_size = std::max(10.0f, m_default_font_size * 0.65f);
-  style_meta_badge(
-      m_document, nodes.id_badge, nodes.id_badge_text, m_default_font_id, badge_font_size, glm::vec4(0.08f, 0.16f, 0.22f, 0.52f), glm::vec4(0.45f, 0.72f, 0.82f, 0.84f)
-  );
-  style_meta_badge(
-      m_document, nodes.scope_badge, nodes.scope_badge_text, m_default_font_id, badge_font_size, theme_alpha(k_theme.sunset_950, 0.38f), theme_alpha(k_theme.sunset_400, 0.82f)
-  );
-  style_meta_badge(
-      m_document, nodes.kind_badge, nodes.kind_badge_text, m_default_font_id, badge_font_size, glm::vec4(0.16f, 0.10f, 0.24f, 0.48f), glm::vec4(0.70f, 0.58f, 0.88f, 0.86f)
-  );
-  m_document->mutate_style(nodes.meta_spacer, [](ui::UIStyle &style) {
-    style.flex_grow = 1.0f;
-  });
-  m_document->mutate_style(nodes.status_badge, [](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Row;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Center;
-    style.padding = ui::UIEdges::symmetric(5.0f, 2.0f);
-    style.border_radius = 4.0f;
-    style.flex_shrink = 0.0f;
-  });
-  m_document->mutate_style(nodes.status_badge_text, [this](ui::UIStyle &style) {
-    style.font_id = m_default_font_id;
-    style.font_size = std::max(9.5f, m_default_font_size * 0.60f);
-  });
 
-  m_row_slots.push_back(nodes);
-  return nodes.slot;
-}
+  auto list = parent.virtual_list(
+      "rows",
+      m_visible_rows.size(),
+      [this](size_t index) { return m_visible_rows[index].height; },
+      [this,
+       &theme,
+       title_font_size,
+       count_font_size,
+       badge_font_size](ui::im::Children &visible_scope, size_t start, size_t end) {
+        for (size_t index = start; index <= end; ++index) {
+          const VisibleRow &row = m_visible_rows[index];
+          const bool is_scope_header = row.kind == VisibleRow::Kind::ScopeHeader;
+          const bool is_type_header = row.kind == VisibleRow::Kind::TypeHeader;
+          const bool is_entity = row.kind == VisibleRow::Kind::Entity;
+          const ResourceDescriptorID icon_texture =
+              is_scope_header ? resolved_header_icon_texture_id()
+                              : resolved_entity_icon_texture_id(row.type_bucket);
 
-void SceneHierarchyPanelController::bind_row_slot(
-    size_t slot_index,
-    size_t item_index
-) {
-  if (m_document == nullptr || slot_index >= m_row_slots.size() ||
-      item_index >= m_visible_rows.size()) {
-    return;
-  }
+          auto row_scope =
+              is_entity
+                  ? visible_scope.item_scope(
+                        "entity",
+                        static_cast<uint64_t>(row.entity_id)
+                    )
+                  : visible_scope.item_scope("group", row.group_key);
+          auto item = row_scope.pressable("row").style(row_style(theme, row));
+          if (is_entity) {
+            item.on_click([this, entity_id = row.entity_id]() {
+              handle_entity_click(entity_id);
+            });
+            item.on_secondary_click(
+                [this, entity_id = row.entity_id](const ui::UIPointerButtonEvent &event) {
+                  select_entity(entity_id);
+                  open_row_menu(entity_id, event.position);
+                }
+            );
+          } else {
+            item.on_click([this, key = row.group_key]() { toggle_group(key); });
+          }
 
-  const SceneHierarchyPanelTheme theme;
-  const RowNodes &nodes = m_row_slots[slot_index];
-  const VisibleRow &row = m_visible_rows[item_index];
-  const bool is_scope_header = row.kind == VisibleRow::Kind::ScopeHeader;
-  const bool is_type_header = row.kind == VisibleRow::Kind::TypeHeader;
-  const bool is_entity = row.kind == VisibleRow::Kind::Entity;
-  const bool show_entity_meta = is_entity && row.selected;
-  const VisibleRow *next_row =
-      item_index + 1u < m_visible_rows.size() ? &m_visible_rows[item_index + 1u]
-                                              : nullptr;
-  const bool next_in_scope =
-      next_row != nullptr && next_row->scope_bucket == row.scope_bucket;
-  const bool next_in_type =
-      next_row != nullptr &&
-      next_row->scope_bucket == row.scope_bucket &&
-      next_row->type_bucket == row.type_bucket &&
-      next_row->kind == VisibleRow::Kind::Entity;
-  const float branch_y = std::floor(row.height * 0.5f);
-  const float scope_guide_bottom =
-      is_entity && next_in_scope ? 0.0f : branch_y;
-  const float type_guide_bottom =
-      (is_type_header && row.open && next_in_type) ||
-              (is_entity && next_in_type)
-          ? 0.0f
-          : branch_y;
+          if (is_entity && row.selected) {
+            item.view("selection-bar")
+                .style(
+                    absolute()
+                        .left(px(10.0f))
+                        .top(px(8.0f))
+                        .bottom(px(8.0f))
+                        .width(px(2.0f))
+                        .background(theme.accent)
+                        .radius(999.0f)
+                );
+          }
 
-  m_document->set_texture(nodes.chevron, resolved_chevron_texture_id(row.open));
-  m_document->set_text(nodes.title, row.title);
-  m_document->set_text(nodes.count, row.count_label);
-  m_document->set_text(nodes.id_badge_text, row.id_label);
-  m_document->set_text(nodes.scope_badge_text, row.scope_label);
-  m_document->set_text(nodes.kind_badge_text, row.kind_label);
-  m_document->set_text(nodes.status_badge_text, "ACTIVE");
+          if (!is_entity) {
+            auto chevron = item.image("chevron", resolved_chevron_texture_id(row.open))
+                               .style(
+                                   width(px(12.0f))
+                                       .height(px(12.0f))
+                                       .shrink(0.0f)
+                                       .tint(theme.text_muted)
+                               );
+            static_cast<void>(chevron);
+          } else {
+            item.spacer("chevron-gap").style(width(px(12.0f)).shrink(0.0f));
+          }
 
-  m_document->set_visible(nodes.chevron, !is_entity);
-  m_document->set_visible(nodes.selection_bar, is_entity && row.selected);
-  m_document->set_visible(nodes.guide_scope, is_entity);
-  m_document->set_visible(nodes.guide_type, is_type_header || is_entity);
-  m_document->set_visible(nodes.guide_branch, is_type_header || is_entity);
-  m_document->set_visible(nodes.count, !is_entity);
-  m_document->set_visible(nodes.meta_row, show_entity_meta);
-  m_document->set_visible(nodes.id_badge, show_entity_meta);
-  m_document->set_visible(nodes.scope_badge, show_entity_meta);
-  m_document->set_visible(nodes.kind_badge, show_entity_meta);
-  m_document->set_visible(nodes.meta_spacer, show_entity_meta && row.active);
-  m_document->set_visible(nodes.status_badge, show_entity_meta && row.active);
-
-  if (is_entity) {
-    const ResourceDescriptorID icon_id =
-        resolved_entity_icon_texture_id(row.type_bucket);
-    m_document->set_texture(nodes.icon, icon_id);
-    m_document->set_visible(nodes.icon_shell, !icon_id.empty());
-  } else {
-    const ResourceDescriptorID icon_id = resolved_header_icon_texture_id();
-    m_document->set_texture(nodes.icon, icon_id);
-    m_document->set_visible(nodes.icon_shell, !icon_id.empty());
-  }
-
-  if (is_entity) {
-    m_document->set_on_click(
-        nodes.button,
-        [this, entity_id = row.entity_id]() { handle_entity_click(entity_id); }
-    );
-    m_document->set_on_secondary_click(
-        nodes.button,
-        [this, entity_id = row.entity_id](const ui::UIPointerButtonEvent &event) {
-          select_entity(entity_id);
-          open_row_menu(entity_id, event.position);
-        }
-    );
-  } else {
-    m_document->set_on_click(
-        nodes.button,
-        [this, key = row.group_key]() { toggle_group(key); }
-    );
-    m_document->set_on_secondary_click(nodes.button, {});
-  }
-
-  m_document->mutate_style(nodes.button, [is_scope_header, is_type_header, row, theme](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Row;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Start;
-    style.width = ui::UILength::percent(1.0f);
-    style.height = ui::UILength::percent(1.0f);
-    style.gap = 6.0f;
-    style.background_color = glm::vec4(0.0f);
-    style.border_color = glm::vec4(0.0f);
-    style.border_width = 0.0f;
-    style.border_radius = 8.0f;
-    style.cursor = ui::CursorStyle::Pointer;
-    style.overflow = ui::Overflow::Hidden;
-    style.focused_style.border_color = theme.accent;
-    style.focused_style.border_width = 1.0f;
-
-    if (is_scope_header) {
-      style.padding = ui::UIEdges{
-          .left = 6.0f,
-          .top = 5.0f,
-          .right = 18.0f,
-          .bottom = 5.0f,
-      };
-      style.background_color = theme_alpha(theme.panel_background, 0.0f);
-      style.border_color = theme_alpha(theme.panel_border, 0.0f);
-      style.hovered_style.background_color = theme_alpha(theme.card_background, 0.16f);
-      style.hovered_style.border_color = theme_alpha(theme.panel_border, 0.18f);
-      style.pressed_style.background_color = theme_alpha(theme.card_background, 0.24f);
-      style.pressed_style.border_color = theme_alpha(theme.panel_border, 0.24f);
-      return;
-    }
-
-    if (is_type_header) {
-      style.padding = ui::UIEdges{
-          .left = 22.0f,
-          .top = 4.0f,
-          .right = 18.0f,
-          .bottom = 4.0f,
-      };
-      style.background_color = theme_alpha(theme.panel_background, 0.0f);
-      style.border_color = theme_alpha(theme.panel_border, 0.0f);
-      style.hovered_style.background_color = theme_alpha(theme.card_background, 0.12f);
-      style.hovered_style.border_color = theme_alpha(theme.panel_border, 0.14f);
-      style.pressed_style.background_color = theme_alpha(theme.card_background, 0.18f);
-      style.pressed_style.border_color = theme_alpha(theme.panel_border, 0.20f);
-      return;
-    }
-
-    style.padding = ui::UIEdges{
-        .left = 38.0f,
-        .top = 4.0f,
-        .right = 18.0f,
-        .bottom = 4.0f,
-    };
-    style.background_color =
-        row.selected ? theme_alpha(theme.row_selected_background, 0.28f)
-                     : theme_alpha(theme.panel_background, 0.0f);
-    style.border_color =
-        row.selected ? theme_alpha(theme.row_selected_border, 0.52f)
-                     : theme_alpha(theme.row_border, 0.0f);
-    style.border_width = row.selected ? 1.0f : 0.0f;
-    style.hovered_style.background_color =
-        row.selected ? theme_alpha(theme.row_selected_background, 0.34f)
-                     : theme_alpha(theme.card_background, 0.16f);
-    style.hovered_style.border_color =
-        row.selected ? theme_alpha(theme.row_selected_border, 0.56f)
-                     : theme_alpha(theme.card_border, 0.0f);
-    style.pressed_style.background_color =
-        row.selected ? theme_alpha(theme.row_selected_background, 0.42f)
-                     : theme_alpha(theme.card_background, 0.22f);
-    style.pressed_style.border_color =
-        row.selected ? theme_alpha(theme.row_selected_border, 0.62f)
-                     : theme_alpha(theme.card_border, 0.0f);
-  });
-  m_document->mutate_style(nodes.guide_scope, [scope_guide_bottom, theme](ui::UIStyle &style) {
-    style.position_type = ui::PositionType::Absolute;
-    style.left = ui::UILength::pixels(18.0f);
-    style.top = ui::UILength::pixels(0.0f);
-    style.bottom = ui::UILength::pixels(scope_guide_bottom);
-    style.width = ui::UILength::pixels(1.0f);
-    style.background_color = theme_alpha(theme.panel_border, 0.34f);
-  });
-  m_document->mutate_style(
-      nodes.guide_type,
-      [is_type_header, type_guide_bottom, theme](ui::UIStyle &style) {
-        style.position_type = ui::PositionType::Absolute;
-        style.left = ui::UILength::pixels(is_type_header ? 18.0f : 34.0f);
-        style.top = ui::UILength::pixels(0.0f);
-        style.bottom = ui::UILength::pixels(type_guide_bottom);
-        style.width = ui::UILength::pixels(1.0f);
-        style.background_color = theme_alpha(theme.panel_border, 0.34f);
-      }
-  );
-  m_document->mutate_style(
-      nodes.guide_branch,
-      [is_type_header, branch_y, theme](ui::UIStyle &style) {
-        style.position_type = ui::PositionType::Absolute;
-        style.left = ui::UILength::pixels(is_type_header ? 18.0f : 34.0f);
-        style.top = ui::UILength::pixels(branch_y);
-        style.width = ui::UILength::pixels(10.0f);
-        style.height = ui::UILength::pixels(1.0f);
-        style.background_color = theme_alpha(theme.panel_border, 0.34f);
-      }
-  );
-  m_document->mutate_style(nodes.icon, [is_entity, row, theme](ui::UIStyle &style) {
-    style.width = ui::UILength::pixels(14.0f);
-    style.height = ui::UILength::pixels(14.0f);
-    style.tint = row.selected ? theme.accent
+          auto icon_shell = item.view("icon-shell").visible(!icon_texture.empty()).style(
+              width(px(18.0f))
+                  .height(px(18.0f))
+                  .shrink(0.0f)
+                  .items_center()
+                  .justify_center()
+                  .radius(6.0f)
+                  .background(
+                      is_entity ? theme_alpha(theme.panel_background, 0.0f)
+                                : theme_alpha(theme.card_background, 0.18f)
+                  )
+          );
+          icon_shell.image("icon", icon_texture)
+              .style(
+                  width(px(14.0f))
+                      .height(px(14.0f))
+                      .tint(
+                          row.selected
+                              ? theme.accent
                               : (is_entity ? theme_alpha(theme.text_muted, 0.94f)
-                                           : theme.text_muted);
-    style.flex_shrink = 0.0f;
-  });
-  m_document->mutate_style(
-      nodes.title,
-      [this, is_scope_header, is_type_header, row, theme](ui::UIStyle &style) {
-        style.font_id = m_default_font_id;
-        style.font_size = is_scope_header
-                              ? std::max(13.0f, m_default_font_size * 0.82f)
-                              : std::max(12.5f, m_default_font_size * 0.80f);
-        if (row.selected) {
-          style.text_color = theme.accent;
-        } else if (is_type_header) {
-          style.text_color = theme_alpha(theme.text_primary, 0.92f);
-        } else {
-          style.text_color = theme.text_primary;
+                                           : theme.text_muted)
+                      )
+              );
+
+          auto body = item.column("body").style(grow(1.0f).min_width(px(0.0f)).gap(2.0f));
+          auto header = body.row("header").style(fill_x().items_center().gap(6.0f));
+          header.text("title", row.title)
+              .style(
+                  text_style(
+                      m_default_font_id,
+                      is_scope_header
+                          ? std::max(13.0f, m_default_font_size * 0.82f)
+                          : title_font_size,
+                      row.selected ? theme.accent
+                                   : (is_type_header ? theme_alpha(theme.text_primary, 0.92f)
+                                                     : theme.text_primary)
+                  )
+              );
+          header.spacer("spacer");
+          header.text("count", row.count_label)
+              .visible(!is_entity)
+              .style(text_style(m_default_font_id, count_font_size, theme.text_muted));
+
+          if (is_entity && row.selected) {
+            auto meta = body.row("meta").style(fill_x().items_center().gap(4.0f));
+            meta.text("id", row.id_label)
+                .style(
+                    meta_badge_style(
+                        glm::vec4(0.08f, 0.16f, 0.22f, 0.52f),
+                        glm::vec4(0.45f, 0.72f, 0.82f, 0.32f),
+                        glm::vec4(0.45f, 0.72f, 0.82f, 0.84f)
+                    ),
+                    text_style(
+                        m_default_font_id,
+                        badge_font_size,
+                        glm::vec4(0.45f, 0.72f, 0.82f, 0.84f)
+                    )
+                );
+            meta.text("scope", row.scope_label)
+                .style(
+                    meta_badge_style(
+                        theme_alpha(k_theme.sunset_950, 0.38f),
+                        theme_alpha(k_theme.sunset_400, 0.24f),
+                        theme_alpha(k_theme.sunset_400, 0.82f)
+                    ),
+                    text_style(
+                        m_default_font_id,
+                        badge_font_size,
+                        theme_alpha(k_theme.sunset_400, 0.82f)
+                    )
+                );
+            meta.text("kind", row.kind_label)
+                .style(
+                    meta_badge_style(
+                        glm::vec4(0.16f, 0.10f, 0.24f, 0.48f),
+                        glm::vec4(0.70f, 0.58f, 0.88f, 0.26f),
+                        glm::vec4(0.70f, 0.58f, 0.88f, 0.86f)
+                    ),
+                    text_style(
+                        m_default_font_id,
+                        badge_font_size,
+                        glm::vec4(0.70f, 0.58f, 0.88f, 0.86f)
+                    )
+                );
+            meta.spacer("spacer");
+            meta.text("status", "ACTIVE")
+                .visible(row.active)
+                .style(
+                    meta_badge_style(
+                        theme_alpha(theme.success_soft, 0.90f),
+                        theme_alpha(theme.success, 0.72f),
+                        theme.success
+                    ),
+                    text_style(m_default_font_id, badge_font_size, theme.success)
+                );
+          }
         }
       }
   );
-  m_document->mutate_style(nodes.count, [this, theme](ui::UIStyle &style) {
-    style.font_id = m_default_font_id;
-    style.font_size = std::max(10.5f, m_default_font_size * 0.68f);
-    style.text_color = theme.text_muted;
-  });
 
-  const float badge_font_size = std::max(10.0f, m_default_font_size * 0.65f);
-  style_meta_badge(
-      m_document, nodes.id_badge, nodes.id_badge_text, m_default_font_id, badge_font_size, glm::vec4(0.08f, 0.16f, 0.22f, 0.52f), glm::vec4(0.45f, 0.72f, 0.82f, 0.84f)
-  );
-  style_meta_badge(
-      m_document, nodes.scope_badge, nodes.scope_badge_text, m_default_font_id, badge_font_size, theme_alpha(k_theme.sunset_950, 0.38f), theme_alpha(k_theme.sunset_400, 0.82f)
-  );
-  style_meta_badge(
-      m_document, nodes.kind_badge, nodes.kind_badge_text, m_default_font_id, badge_font_size, glm::vec4(0.16f, 0.10f, 0.24f, 0.48f), glm::vec4(0.70f, 0.58f, 0.88f, 0.86f)
-  );
-  m_document->mutate_style(nodes.status_badge, [theme](ui::UIStyle &style) {
-    style.flex_direction = ui::FlexDirection::Row;
-    style.align_items = ui::AlignItems::Center;
-    style.justify_content = ui::JustifyContent::Center;
-    style.padding = ui::UIEdges::symmetric(5.0f, 2.0f);
-    style.border_radius = 4.0f;
-    style.flex_shrink = 0.0f;
-    style.background_color = theme_alpha(theme.success_soft, 0.90f);
-    style.border_color = theme_alpha(theme.success, 0.72f);
-    style.border_width = 1.0f;
-  });
-  m_document->mutate_style(nodes.status_badge_text, [this, theme](ui::UIStyle &style) {
-    style.font_id = m_default_font_id;
-    style.font_size = std::max(9.5f, m_default_font_size * 0.60f);
-    style.text_color = theme.success;
-  });
-}
+  m_rows_widget = list.widget_id();
 
-void SceneHierarchyPanelController::sync_virtual_list(bool force) {
-  if (m_virtual_list == nullptr) {
-    return;
-  }
-
-  if (force || m_virtual_list_layout_dirty) {
-    m_virtual_list->set_item_count(m_visible_rows.size());
-    for (size_t index = 0u; index < m_visible_rows.size(); ++index) {
-      m_virtual_list->set_item_height(index, m_visible_rows[index].height);
-    }
-
-    m_virtual_list->set_content_width(0.0f);
-    m_virtual_list_layout_dirty = false;
-  }
-
-  m_virtual_list->refresh(force);
+  list.style(
+          fill_x()
+              .flex(1.0f)
+              .min_height(px(0.0f))
+              .padding(8.0f)
+              .gap(4.0f)
+              .background(theme.panel_background)
+              .border(1.0f, theme.panel_border)
+              .radius(18.0f)
+              .overflow_hidden()
+              .scroll_vertical()
+              .scrollbar_thickness(8.0f)
+      )
+      .on_secondary_click([this](const ui::UIPointerButtonEvent &event) {
+        open_create_menu_at(event.position);
+      });
 }
 
 } // namespace astralix::editor

@@ -71,6 +71,10 @@ void UIDocument::set_select_options(
     return;
   }
 
+  if (target->select.options == options) {
+    return;
+  }
+
   target->select.options = std::move(options);
   normalize_select_state(target->select);
   if (target->select.options.empty()) {
