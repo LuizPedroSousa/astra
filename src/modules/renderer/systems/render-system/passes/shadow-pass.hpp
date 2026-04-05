@@ -8,6 +8,7 @@
 #include "systems/render-system/light-frame.hpp"
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+#include "trace.hpp"
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -48,6 +49,7 @@ public:
   void begin(double dt) override {}
 
   void execute(double dt) override {
+    ASTRA_PROFILE_N("ShadowPass");
     if (m_shadow_mapping_framebuffer == nullptr) {
       LOG_WARN("[ShadowPass] Skipping execute: shadow_map framebuffer is not "
                "available");

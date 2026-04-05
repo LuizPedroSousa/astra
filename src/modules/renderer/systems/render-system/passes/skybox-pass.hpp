@@ -12,6 +12,7 @@
 #include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include "systems/render-system/scene-selection.hpp"
+#include "trace.hpp"
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -50,6 +51,7 @@ public:
   void begin(double dt) override {}
 
   void execute(double dt) override {
+    ASTRA_PROFILE_N("SkyboxPass");
     auto scene = SceneManager::get()->get_active_scene();
 
     if (scene == nullptr) {

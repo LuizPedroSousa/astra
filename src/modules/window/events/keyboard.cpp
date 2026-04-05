@@ -7,6 +7,7 @@
 #include "key-codes.hpp"
 #include "log.hpp"
 #include "managers/window-manager.hpp"
+#include "trace.hpp"
 #include <GLFW/glfw3.h>
 
 namespace astralix::input {
@@ -15,6 +16,7 @@ Keyboard::Keyboard(WindowID &window_id) : m_window_id(window_id) {};
 Keyboard::~Keyboard() {}
 
 void Keyboard::release_keys() {
+  ASTRA_PROFILE_N("Keyboard::release_keys");
   for (auto [key, value] : m_key_events) {
     auto window = window_manager()->get_window_by_id(m_window_id);
 
@@ -47,6 +49,7 @@ void Keyboard::release_key(KeyCode key, WindowID window_id) {
 }
 
 void Keyboard::destroy_release_keys() {
+  ASTRA_PROFILE_N("Keyboard::destroy_release_keys");
   auto it = m_key_events.begin();
   auto scheduler = EventScheduler::get();
 

@@ -1,6 +1,7 @@
 #include "physics-system.hpp"
 
 #include "PxPhysics.h"
+#include "trace.hpp"
 #include "PxPhysicsAPI.h"
 #include "PxSimulationEventCallback.h"
 #include "collider-shape-resolution.hpp"
@@ -150,6 +151,7 @@ PhysicsSystem::PhysicsSystem(PhysicsSystemConfig &config)
              .timeout = config.pvd_timeout}) {}
 
 void PhysicsSystem::start() {
+  ASTRA_PROFILE_N("PhysicsSystem::start");
   g_foundation =
       PxCreateFoundation(PX_PHYSICS_VERSION, g_allocator, g_error_callback);
   ASTRA_ENSURE(g_foundation == nullptr, "[PHYSICS SYSTEM] foundation failed")
@@ -185,6 +187,7 @@ void PhysicsSystem::start() {
 }
 
 void PhysicsSystem::fixed_update(double fixed_dt) {
+  ASTRA_PROFILE_N("PhysicsSystem::fixed_update");
   if (g_scene == nullptr) {
     return;
   }
@@ -268,8 +271,11 @@ void PhysicsSystem::fixed_update(double fixed_dt) {
     return;
   }
 
-  g_scene->simulate(fixed_dt);
-  g_scene->fetchResults(true);
+  {
+    ASTRA_PROFILE_N("PhysX::simulate");
+    g_scene->simulate(fixed_dt);
+    g_scene->fetchResults(true);
+  }
 
   for (auto &[entity_id, actor] : m_actors) {
     auto entity = world.entity(entity_id);

@@ -15,4 +15,13 @@ target_include_directories(foundation
     $<INSTALL_INTERFACE:include/astralix/shared/foundation>
 )
 
+if(ASTRA_TRACE)
+  target_include_directories(foundation
+    PUBLIC
+      $<BUILD_INTERFACE:${VCPKG_INSTALLED_ROOT}/include/tracy>
+      $<INSTALL_INTERFACE:include>
+  )
+  target_link_libraries(foundation PUBLIC ${TRACE_LIBS})
+endif()
+
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${FOUNDATION_SOURCES} ${FOUNDATION_HEADERS})

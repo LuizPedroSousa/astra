@@ -3,6 +3,7 @@
 
 #include "assert.hpp"
 #include "log.hpp"
+#include "trace.hpp"
 #include "window-manager.hpp"
 
 namespace astralix {
@@ -46,6 +47,7 @@ void WindowManager::set_active_window_by_id(WindowID id) {
 }
 
 void WindowManager::start() {
+  ASTRA_PROFILE_N("WindowManager::start");
   auto project_config = active_project()->get_config();
 
 
@@ -64,12 +66,14 @@ void WindowManager::start() {
 };
 
 void WindowManager::update() {
+  ASTRA_PROFILE_N("WindowManager::update");
   for (auto &[_, window] : m_window_table) {
     window->update();
   }
 };
 
 void WindowManager::swap() {
+  ASTRA_PROFILE_N("WindowManager::swap");
   for (auto &[_, window] : m_window_table) {
     window->swap();
   }

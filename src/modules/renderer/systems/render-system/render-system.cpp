@@ -35,6 +35,7 @@ namespace astralix {
 RenderSystem::RenderSystem(RenderSystemConfig &config) : m_config(config) {};
 
 void RenderSystem::start() {
+  ASTRA_PROFILE_N("RenderSystem::start");
   m_render_target = RenderTarget::create(m_config.backend_to_api(), m_config.msaa_to_render_target_msaa(), m_config.window_id);
 
   m_render_target->init();

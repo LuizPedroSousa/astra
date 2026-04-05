@@ -1,6 +1,7 @@
 #include "systems/render-system/passes/entity-selection-pass.hpp"
 
 #include "components/tags.hpp"
+#include "trace.hpp"
 #include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
 #include "path.hpp"
@@ -51,6 +52,7 @@ void EntitySelectionPass::setup(
 void EntitySelectionPass::begin(double) {}
 
 void EntitySelectionPass::execute(double) {
+  ASTRA_PROFILE_N("EntitySelectionPass");
   if (m_scene_color == nullptr || m_shader == nullptr ||
       m_pick_id_lut == nullptr) {
     return;

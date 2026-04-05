@@ -1,6 +1,7 @@
 #include "systems/render-system/passes/editor-gizmo-pass.hpp"
 
 #include "editor-gizmo-store.hpp"
+#include "trace.hpp"
 #include "editor-selection-store.hpp"
 #include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
@@ -99,6 +100,7 @@ void EditorGizmoPass::setup(
 void EditorGizmoPass::begin(double) {}
 
 void EditorGizmoPass::execute(double) {
+  ASTRA_PROFILE_N("EditorGizmoPass");
   if (m_scene_color == nullptr || m_shader == nullptr) {
     return;
   }
