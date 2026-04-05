@@ -5,11 +5,16 @@
 #include "path.hpp"
 #include "resources/descriptors/font-descriptor.hpp"
 #include "resources/resource.hpp"
-#include <map>
-#include <optional>
+#include <array>
+#include <limits>
 #include <unordered_map>
+#include <vector>
 
 namespace astralix {
+using GlyphHandle = uint32_t;
+constexpr GlyphHandle k_invalid_glyph_handle =
+    std::numeric_limits<GlyphHandle>::max();
+
 struct CharacterGlyph {
   ResourceDescriptorID texture_id;
   glm::ivec2 size;
@@ -20,10 +25,13 @@ struct CharacterGlyph {
 class Font : public Resource {
 
   struct GlyphSet {
-    std::map<char, CharacterGlyph> characters;
+    std::vector<CharacterGlyph> glyphs;
+    std::array<GlyphHandle, 256u> glyph_lut;
     float line_height = 0.0f;
     float ascent = 0.0f;
     float descent = 0.0f;
+
+    GlyphSet() { glyph_lut.fill(k_invalid_glyph_handle); }
   };
 
 public:
@@ -39,9 +47,11 @@ public:
 
   void load();
 
-  const std::map<char, CharacterGlyph> &characters(uint32_t pixel_size = 48) const;
-  std::optional<CharacterGlyph> glyph(char character,
-                                      uint32_t pixel_size = 48) const;
+  const std::vector<CharacterGlyph> &glyphs(uint32_t pixel_size = 48) const;
+  const std::array<GlyphHandle, 256u> &
+  glyph_lut(uint32_t pixel_size = 48) const;
+  GlyphHandle glyph_handle(char character, uint32_t pixel_size = 48) const;
+  const CharacterGlyph &glyph(GlyphHandle handle, uint32_t pixel_size = 48) const;
   glm::vec2 measure_text(const std::string &text, float pixel_size) const;
   float line_height(float pixel_size) const;
   float ascent(float pixel_size) const;

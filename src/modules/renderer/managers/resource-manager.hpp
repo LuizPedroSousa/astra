@@ -33,7 +33,9 @@ public:
     std::vector<uint32_t> freelist;
     std::unordered_map<ResourceDescriptorID, ResourceHandle> descriptor_to_id;
 
-    ResourceHandle find_handle_strict_by_id(ResourceDescriptorID desc_id) {
+    ResourceHandle find_handle_strict_by_id(
+        const ResourceDescriptorID &desc_id
+    ) const {
       auto it = descriptor_to_id.find(desc_id);
 
       ASTRA_ENSURE_WITH_SUGGESTIONS(
@@ -43,7 +45,7 @@ public:
       return it->second;
     }
 
-    bool has_handle_by_id(ResourceDescriptorID desc_id) {
+    bool has_handle_by_id(const ResourceDescriptorID &desc_id) const {
       auto it = descriptor_to_id.find(desc_id);
 
       return it != descriptor_to_id.end();
@@ -102,7 +104,7 @@ public:
       return slot.resource;
     }
 
-    void release(ResourceDescriptorID desc_id) {
+    void release(const ResourceDescriptorID &desc_id) {
       auto it = descriptor_to_id.find(desc_id);
       if (it == descriptor_to_id.end())
         return;
@@ -132,13 +134,15 @@ public:
     std::vector<uint32_t> freelist;
     std::unordered_map<ResourceDescriptorID, Handle> descriptor_to_id;
 
-    bool has_handle_by_id(ResourceDescriptorID desc_id) {
+    bool has_handle_by_id(const ResourceDescriptorID &desc_id) const {
       auto it = descriptor_to_id.find(desc_id);
 
       return it != descriptor_to_id.end();
     }
 
-    Handle find_handle_strict_by_id(ResourceDescriptorID desc_id) {
+    Handle find_handle_strict_by_id(
+        const ResourceDescriptorID &desc_id
+    ) const {
       auto it = descriptor_to_id.find(desc_id);
 
       ASTRA_ENSURE_WITH_SUGGESTIONS(
@@ -191,7 +195,7 @@ public:
       return slot.descriptor;
     }
 
-    void release(ResourceDescriptorID desc_id) {
+    void release(const ResourceDescriptorID &desc_id) {
       auto it = descriptor_to_id.find(desc_id);
       if (it == descriptor_to_id.end())
         return;
@@ -233,7 +237,8 @@ public:
   void register_fonts(std::initializer_list<Ref<FontDescriptor>> fonts);
   void register_svgs(std::initializer_list<Ref<SvgDescriptor>> svgs);
 
-  template <class T> Ref<T> get_by_descriptor_id(ResourceDescriptorID id) {
+  template <class T>
+  Ref<T> get_by_descriptor_id(const ResourceDescriptorID &id) {
     auto &pool = get_pool_for<T>();
 
     if (pool.slots.empty() || !pool.has_handle_by_id(id)) {
@@ -244,7 +249,7 @@ public:
   }
 
   template <class T>
-  Ref<T> find_strict_by_descriptor_id(ResourceDescriptorID id) {
+  Ref<T> find_strict_by_descriptor_id(const ResourceDescriptorID &id) {
     auto &pool = get_pool_for<T>();
 
     if (pool.slots.empty()) {
@@ -255,7 +260,7 @@ public:
   }
 
   template <class T>
-  void ensure_exists_by_descriptor_id(ResourceDescriptorID id) {
+  void ensure_exists_by_descriptor_id(const ResourceDescriptorID &id) {
     auto &pool = get_pool_for<T>();
 
     pool.find_handle_strict_by_id(id);
