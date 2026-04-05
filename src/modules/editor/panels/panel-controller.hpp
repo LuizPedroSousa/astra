@@ -1,14 +1,15 @@
 #pragma once
 
 #include "base.hpp"
-#include "document/document.hpp"
-#include "dsl.hpp"
+#include "immediate.hpp"
 #include "serialization-context.hpp"
+
+#include <optional>
 
 namespace astralix::editor {
 
 struct PanelMountContext {
-  Ref<ui::UIDocument> document = nullptr;
+  ui::im::Runtime *runtime = nullptr;
   ResourceDescriptorID default_font_id;
   float default_font_size = 16.0f;
 };
@@ -27,10 +28,13 @@ public:
   virtual ~PanelController() = default;
 
   virtual PanelMinimumSize minimum_size() const { return {}; }
-  virtual ui::dsl::NodeSpec build() = 0;
+  virtual void render(ui::im::Frame &) = 0;
   virtual void mount(const PanelMountContext &context) = 0;
   virtual void unmount() {}
   virtual void update(const PanelUpdateContext &) {}
+  virtual std::optional<uint64_t> render_version() const {
+    return std::nullopt;
+  }
   virtual void load_state(Ref<SerializationContext>) {}
   virtual void save_state(Ref<SerializationContext>) const {}
 };

@@ -27,17 +27,18 @@ public:
   };
 
   PanelMinimumSize minimum_size() const override { return kMinimumSize; }
-  ui::dsl::NodeSpec build() override;
+  void render(ui::im::Frame &ui) override;
   void mount(const PanelMountContext &context) override;
   void unmount() override;
   void update(const PanelUpdateContext &context) override;
+  std::optional<uint64_t> render_version() const override;
 
 private:
   void refresh(bool force = false);
   InspectedEntitySnapshot collect_snapshot() const;
-  void sync_static_ui();
   void sync_add_component_controls();
   void rebuild_component_cards();
+  void render_component_cards(ui::im::Children &parent);
 
   void set_entity_name(std::string value);
   void set_entity_active(bool active);
@@ -68,27 +69,11 @@ private:
   );
   void add_component(std::string component_name);
   void remove_component(std::string component_name);
-
-  Ref<ui::UIDocument> m_document = nullptr;
-  ResourceDescriptorID m_default_font_id;
-  float m_default_font_size = 16.0f;
-
-  ui::UINodeId m_scene_name_node = ui::k_invalid_node_id;
-  ui::UINodeId m_selection_title_node = ui::k_invalid_node_id;
-  ui::UINodeId m_component_count_node = ui::k_invalid_node_id;
-  ui::UINodeId m_entity_id_node = ui::k_invalid_node_id;
-  ui::UINodeId m_entity_name_input_node = ui::k_invalid_node_id;
-  ui::UINodeId m_entity_active_node = ui::k_invalid_node_id;
-  ui::UINodeId m_add_component_select_node = ui::k_invalid_node_id;
-  ui::UINodeId m_add_component_button_node = ui::k_invalid_node_id;
-  ui::UINodeId m_component_scroll_node = ui::k_invalid_node_id;
-  ui::UINodeId m_component_stack_node = ui::k_invalid_node_id;
-  ui::UINodeId m_empty_state_node = ui::k_invalid_node_id;
-  ui::UINodeId m_empty_title_node = ui::k_invalid_node_id;
-  ui::UINodeId m_empty_body_node = ui::k_invalid_node_id;
+  void mark_render_dirty() { ++m_render_revision; }
 
   InspectedEntitySnapshot m_snapshot;
   uint64_t m_last_selection_revision = 0u;
+  uint64_t m_render_revision = 1u;
   std::vector<std::string> m_add_component_options;
   std::unordered_map<std::string, std::string> m_add_component_lookup;
   std::string m_pending_add_component_name;

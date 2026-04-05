@@ -1,8 +1,10 @@
-#include "build.hpp"
+#include "fields.hpp"
+#include "styles.hpp"
 
 #include "editor-selection-store.hpp"
 #include "entities/serializers/scene-snapshot.hpp"
 #include "managers/scene-manager.hpp"
+#include "trace.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -11,15 +13,12 @@ namespace astralix::editor {
 namespace panel = inspector_panel;
 
 void InspectorPanelController::mount(const PanelMountContext &context) {
-  m_document = context.document;
-  m_default_font_id = context.default_font_id;
-  m_default_font_size = context.default_font_size;
+  static_cast<void>(context);
   m_last_selection_revision = editor_selection_store()->revision();
   refresh(true);
 }
 
 void InspectorPanelController::unmount() {
-  m_document = nullptr;
   m_snapshot = {};
   m_add_component_options.clear();
   m_add_component_lookup.clear();
@@ -27,9 +26,14 @@ void InspectorPanelController::unmount() {
   m_scalar_drafts.clear();
   m_group_drafts.clear();
   m_component_expansion.clear();
+  mark_render_dirty();
 }
 
 void InspectorPanelController::update(const PanelUpdateContext &) { refresh(); }
+
+std::optional<uint64_t> InspectorPanelController::render_version() const {
+  return m_render_revision;
+}
 
 InspectorPanelController::InspectedEntitySnapshot
 InspectorPanelController::collect_snapshot() const {
@@ -60,10 +64,6 @@ InspectorPanelController::collect_snapshot() const {
 }
 
 void InspectorPanelController::refresh(bool force) {
-  if (m_document == nullptr) {
-    return;
-  }
-
   auto selection_store = editor_selection_store();
   if (selection_store->revision() != m_last_selection_revision) {
     force = true;
@@ -84,83 +84,13 @@ void InspectorPanelController::refresh(bool force) {
 
   m_snapshot = std::move(next_snapshot);
   m_last_selection_revision = selection_store->revision();
-  sync_static_ui();
-  rebuild_component_cards();
-}
-
-void InspectorPanelController::sync_static_ui() {
-  if (m_document == nullptr) {
-    return;
-  }
-
-  const InspectorPanelTheme theme;
-  m_document->set_text(
-      m_scene_name_node,
-      m_snapshot.has_scene ? m_snapshot.scene_name : std::string("No active scene")
-  );
-  m_document->set_text(
-      m_component_count_node,
-      panel::component_count_label(panel::visible_component_count(m_snapshot.components))
-  );
-
-  const bool has_selection = m_snapshot.entity_id.has_value();
-  m_document->set_enabled(m_entity_name_input_node, has_selection);
-  m_document->set_enabled(m_entity_active_node, has_selection);
-  m_document->set_checked(m_entity_active_node, has_selection && m_snapshot.entity_active);
-
-  if (has_selection) {
-    m_document->set_text(
-        m_selection_title_node,
-        m_snapshot.entity_name.empty() ? std::string("Unnamed Entity")
-                                       : m_snapshot.entity_name
-    );
-    m_document->set_text(
-        m_entity_id_node,
-        "Entity ID " + static_cast<std::string>(*m_snapshot.entity_id)
-    );
-    m_document->set_text(m_entity_name_input_node, m_snapshot.entity_name);
-    m_document->mutate_style(m_selection_title_node, [theme](ui::UIStyle &style) {
-      style.text_color = theme.text_primary;
-    });
-  } else {
-    m_document->set_text(
-        m_selection_title_node,
-        m_snapshot.has_scene ? std::string("Nothing selected")
-                             : std::string("Selection unavailable")
-    );
-    m_document->set_text(m_entity_id_node, "Entity ID --");
-    m_document->set_text(m_entity_name_input_node, {});
-    m_document->mutate_style(m_selection_title_node, [theme](ui::UIStyle &style) {
-      style.text_color = theme.text_muted;
-    });
-  }
-
-  const bool show_components = has_selection;
-  m_document->set_visible(m_component_scroll_node, show_components);
-  m_document->set_visible(m_empty_state_node, !show_components);
-
-  if (!m_snapshot.has_scene) {
-    m_document->set_text(m_empty_title_node, "No active scene");
-    m_document->set_text(
-        m_empty_body_node,
-        "SceneManager is not exposing an active scene yet."
-    );
-  } else if (!has_selection) {
-    m_document->set_text(m_empty_title_node, "Nothing selected");
-    m_document->set_text(
-        m_empty_body_node,
-        "Select an entity in Scene Hierarchy to inspect and edit it."
-    );
-  }
-
   sync_add_component_controls();
+  rebuild_component_cards();
+  mark_render_dirty();
 }
 
 void InspectorPanelController::sync_add_component_controls() {
-  if (m_document == nullptr) {
-    return;
-  }
-
+  const std::string previous_pending = m_pending_add_component_name;
   m_add_component_options.clear();
   m_add_component_lookup.clear();
   m_pending_add_component_name.clear();
@@ -172,9 +102,6 @@ void InspectorPanelController::sync_add_component_controls() {
                              scene->world().contains(*m_snapshot.entity_id);
 
   if (!has_selection) {
-    m_document->set_select_options(m_add_component_select_node, {});
-    m_document->set_enabled(m_add_component_select_node, false);
-    m_document->set_enabled(m_add_component_button_node, false);
     return;
   }
 
@@ -194,20 +121,205 @@ void InspectorPanelController::sync_add_component_controls() {
   }
 
   std::sort(m_add_component_options.begin(), m_add_component_options.end());
-  if (!m_add_component_options.empty()) {
-    m_pending_add_component_name = m_add_component_options.front();
+  for (const auto &label : m_add_component_options) {
+    const auto it = m_add_component_lookup.find(label);
+    if (it != m_add_component_lookup.end() &&
+        it->second == previous_pending) {
+      m_pending_add_component_name = previous_pending;
+      break;
+    }
   }
 
-  m_document->set_select_options(
-      m_add_component_select_node, m_add_component_options
+  if (m_pending_add_component_name.empty() && !m_add_component_options.empty()) {
+    const auto it = m_add_component_lookup.find(m_add_component_options.front());
+    if (it != m_add_component_lookup.end()) {
+      m_pending_add_component_name = it->second;
+    }
+  }
+}
+
+void InspectorPanelController::render(ui::im::Frame &ui) {
+  ASTRA_PROFILE_N("InspectorPanel::render");
+  using namespace ui::dsl::styles;
+
+  const InspectorPanelTheme theme;
+  const bool has_selection = m_snapshot.entity_id.has_value();
+  const std::string selection_title =
+      has_selection
+          ? (m_snapshot.entity_name.empty() ? std::string("Unnamed Entity")
+                                            : m_snapshot.entity_name)
+          : (m_snapshot.has_scene ? std::string("Nothing selected")
+                                  : std::string("Selection unavailable"));
+  const std::string entity_id_label =
+      has_selection
+          ? "Entity ID " + static_cast<std::string>(*m_snapshot.entity_id)
+          : std::string("Entity ID --");
+  const std::string empty_title =
+      !m_snapshot.has_scene ? std::string("No active scene")
+                            : std::string("Nothing selected");
+  const std::string empty_body =
+      !m_snapshot.has_scene
+          ? std::string("SceneManager is not exposing an active scene yet.")
+          : std::string(
+                "Select an entity in Scene Hierarchy to inspect and edit it."
+            );
+
+  size_t add_component_selected_index = 0u;
+  for (size_t index = 0u; index < m_add_component_options.size(); ++index) {
+    const auto it = m_add_component_lookup.find(m_add_component_options[index]);
+    if (it != m_add_component_lookup.end() &&
+        it->second == m_pending_add_component_name) {
+      add_component_selected_index = index;
+      break;
+    }
+  }
+
+  auto root = ui.column("root").style(
+      fill().background(theme.shell_background).padding(12.0f).gap(10.0f)
   );
-  m_document->set_selected_index(m_add_component_select_node, 0u);
-  m_document->set_enabled(
-      m_add_component_select_node, !m_add_component_options.empty()
+  {
+  ASTRA_PROFILE_N("InspectorPanel::summary");
+  auto summary = root.column("summary").style(
+      fill_x()
+          .padding(14.0f)
+          .gap(8.0f)
+          .radius(12.0f)
+          .background(theme.panel_background)
+          .border(1.0f, theme.panel_border)
   );
-  m_document->set_enabled(
-      m_add_component_button_node, !m_add_component_options.empty()
+  auto header_row = summary.row("header").style(fill_x().items_center().gap(8.0f));
+  auto header_title = header_row.column("title").style(items_start().gap(3.0f));
+  header_title.text("heading", "Inspector")
+      .style(font_size(18.0f).text_color(theme.text_primary));
+  header_title.text("body", "Inspect and edit the selected scene entity.")
+      .style(font_size(12.0f).text_color(theme.text_muted));
+  header_row.spacer("spacer");
+  auto scene_chip = header_row.row("scene-chip").style(
+      items_center()
+          .padding_xy(12.0f, 6.0f)
+          .background(theme.accent_soft)
+          .border(1.0f, theme.accent)
+          .radius(8.0f)
   );
+  scene_chip
+      .text(
+          "label",
+          m_snapshot.has_scene ? m_snapshot.scene_name : std::string("No active scene")
+      )
+      .style(font_size(12.0f).text_color(theme.accent));
+
+  summary.text("selection-title", selection_title)
+      .style(
+          font_size(16.0f).text_color(
+              has_selection ? theme.text_primary : theme.text_muted
+          )
+      );
+  summary.text(
+      "component-count",
+      panel::component_count_label(
+          panel::visible_component_count(m_snapshot.components)
+      )
+  )
+      .style(font_size(12.0f).text_color(theme.text_muted));
+  summary.text("entity-id", entity_id_label)
+      .style(font_size(12.0f).text_color(theme.text_muted));
+  summary
+      .text_input(
+          "entity-name",
+          has_selection ? m_snapshot.entity_name : std::string{},
+          "Entity name"
+      )
+      .enabled(has_selection)
+      .select_all_on_focus(true)
+      .on_change([this](const std::string &value) { set_entity_name(value); })
+      .style(panel::input_field_style(theme));
+  summary
+      .checkbox(
+          "entity-active", "Entity is active", has_selection && m_snapshot.entity_active
+      )
+      .enabled(has_selection)
+      .style(panel::checkbox_field_style(theme))
+      .on_toggle([this](bool active) { set_entity_active(active); });
+
+  }
+
+  {
+  ASTRA_PROFILE_N("InspectorPanel::add_component_row");
+  auto add_row = root.row("add-row").style(fill_x().items_center().gap(8.0f));
+  add_row
+      .select(
+          "add-component-select",
+          m_add_component_options,
+          add_component_selected_index,
+          "Add component"
+      )
+      .enabled(has_selection && !m_add_component_options.empty())
+      .on_select([this](size_t, const std::string &value) {
+        const auto it = m_add_component_lookup.find(value);
+        const std::string next_pending =
+            it != m_add_component_lookup.end() ? it->second : std::string{};
+        if (m_pending_add_component_name == next_pending) {
+          return;
+        }
+
+        m_pending_add_component_name = next_pending;
+        mark_render_dirty();
+      })
+      .style(panel::input_field_style(theme).flex(1.0f));
+
+  auto add_button = add_row.pressable("add-component-button")
+                        .enabled(
+                            has_selection && !m_pending_add_component_name.empty()
+                        )
+                        .on_click([this]() {
+                          add_component(m_pending_add_component_name);
+                        })
+                        .style(
+                            panel::compact_button_style(theme)
+                                .items_center()
+                                .justify_center()
+                                .cursor_pointer()
+                        );
+  add_button.text("label", "Add")
+      .style(font_size(12.5f).text_color(theme.text_primary));
+
+  }
+
+  if (auto scroll = root.scroll_view("component-scroll").visible(has_selection).style(
+      fill_x()
+          .flex(1.0f)
+          .padding(ui::UIEdges{
+              .left = 6.0f,
+              .top = 6.0f,
+              .right = 6.0f,
+              .bottom = 10.0f,
+          })
+          .gap(8.0f)
+          .background(theme.panel_background)
+          .border(1.0f, theme.panel_border)
+          .radius(12.0f)
+  )) {
+    ASTRA_PROFILE_N("InspectorPanel::component_cards");
+    auto stack = scroll.column("component-stack").style(fill_x().gap(4.0f));
+    render_component_cards(stack);
+  }
+
+  if (auto empty = root.column("empty-state").visible(!has_selection).style(
+      fill_x()
+          .flex(1.0f)
+          .justify_center()
+          .items_center()
+          .padding(18.0f)
+          .gap(8.0f)
+          .radius(12.0f)
+          .background(theme.panel_background)
+          .border(1.0f, theme.panel_border)
+  )) {
+    empty.text("title", empty_title)
+        .style(font_size(16.0f).text_color(theme.text_primary));
+    empty.text("body", empty_body)
+        .style(font_size(12.0f).text_color(theme.text_muted));
+  }
 }
 
 } // namespace astralix::editor

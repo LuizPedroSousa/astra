@@ -4,10 +4,9 @@
 #include "panels/panel-controller.hpp"
 #include "resources/mesh.hpp"
 #include "tools/scene-hierachy/helpers.hpp"
-#include "virtual-list.hpp"
 
 #include <cstdint>
-#include <memory>
+#include <glm/glm.hpp>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -25,10 +24,11 @@ public:
   };
 
   PanelMinimumSize minimum_size() const override { return kMinimumSize; }
-  ui::dsl::NodeSpec build() override;
+  void render(ui::im::Frame &ui) override;
   void mount(const PanelMountContext &context) override;
   void unmount() override;
   void update(const PanelUpdateContext &context) override;
+  std::optional<uint64_t> render_version() const override;
   void load_state(Ref<SerializationContext> state) override;
   void save_state(Ref<SerializationContext> state) const override;
 
@@ -54,6 +54,7 @@ private:
     std::vector<EntityEntry> entities;
   };
 
+public:
   struct VisibleRow {
     enum class Kind : uint8_t {
       ScopeHeader = 0,
@@ -77,32 +78,10 @@ private:
     float height = 0.0f;
   };
 
-  struct RowNodes {
-    ui::UINodeId slot = ui::k_invalid_node_id;
-    ui::UINodeId button = ui::k_invalid_node_id;
-    ui::UINodeId selection_bar = ui::k_invalid_node_id;
-    ui::UINodeId guide_scope = ui::k_invalid_node_id;
-    ui::UINodeId guide_type = ui::k_invalid_node_id;
-    ui::UINodeId guide_branch = ui::k_invalid_node_id;
-    ui::UINodeId chevron = ui::k_invalid_node_id;
-    ui::UINodeId icon_shell = ui::k_invalid_node_id;
-    ui::UINodeId icon = ui::k_invalid_node_id;
-    ui::UINodeId title = ui::k_invalid_node_id;
-    ui::UINodeId count = ui::k_invalid_node_id;
-    ui::UINodeId id_badge = ui::k_invalid_node_id;
-    ui::UINodeId id_badge_text = ui::k_invalid_node_id;
-    ui::UINodeId meta_row = ui::k_invalid_node_id;
-    ui::UINodeId scope_badge = ui::k_invalid_node_id;
-    ui::UINodeId scope_badge_text = ui::k_invalid_node_id;
-    ui::UINodeId kind_badge = ui::k_invalid_node_id;
-    ui::UINodeId kind_badge_text = ui::k_invalid_node_id;
-    ui::UINodeId meta_spacer = ui::k_invalid_node_id;
-    ui::UINodeId status_badge = ui::k_invalid_node_id;
-    ui::UINodeId status_badge_text = ui::k_invalid_node_id;
-  };
-
+private:
   Snapshot collect_snapshot() const;
   void refresh(bool force = false);
+  void render_visible_rows(ui::im::Children &parent);
   void select_entity(EntityID entity_id);
   void handle_entity_click(EntityID entity_id);
   const EntityEntry *selected_entry() const;
@@ -126,38 +105,26 @@ private:
   void create_light_entity(std::string name, rendering::LightType type);
   void delete_context_entity();
   void add_component_to_context_entity(std::string component_name);
-  ui::UINodeId create_row_slot(size_t slot_index);
-  void bind_row_slot(size_t slot_index, size_t item_index);
-  void sync_virtual_list(bool force);
+  void mark_render_dirty() { ++m_render_revision; }
 
-  Ref<ui::UIDocument> m_document = nullptr;
-  ui::UINodeId m_scene_name_node = ui::k_invalid_node_id;
-  ui::UINodeId m_entity_count_node = ui::k_invalid_node_id;
-  ui::UINodeId m_selection_line_node = ui::k_invalid_node_id;
-  ui::UINodeId m_selection_text_node = ui::k_invalid_node_id;
-  ui::UINodeId m_create_button_node = ui::k_invalid_node_id;
-  ui::UINodeId m_create_menu_node = ui::k_invalid_node_id;
-  ui::UINodeId m_create_3d_trigger_node = ui::k_invalid_node_id;
-  ui::UINodeId m_create_3d_menu_node = ui::k_invalid_node_id;
-  ui::UINodeId m_create_light_trigger_node = ui::k_invalid_node_id;
-  ui::UINodeId m_create_light_menu_node = ui::k_invalid_node_id;
-  ui::UINodeId m_row_menu_node = ui::k_invalid_node_id;
-  ui::UINodeId m_row_add_component_trigger_node = ui::k_invalid_node_id;
-  ui::UINodeId m_row_add_component_menu_node = ui::k_invalid_node_id;
-  ui::UINodeId m_row_add_component_container_node = ui::k_invalid_node_id;
-  ui::UINodeId m_search_input_node = ui::k_invalid_node_id;
-  ui::UINodeId m_scroll_node = ui::k_invalid_node_id;
-  ui::UINodeId m_empty_state_node = ui::k_invalid_node_id;
-  ui::UINodeId m_empty_title_node = ui::k_invalid_node_id;
-  ui::UINodeId m_empty_body_node = ui::k_invalid_node_id;
+  ui::im::Runtime *m_runtime = nullptr;
   ResourceDescriptorID m_default_font_id;
   float m_default_font_size = 16.0f;
 
-  std::vector<RowNodes> m_row_slots;
+  ui::im::WidgetId m_create_button_widget = ui::im::k_invalid_widget_id;
+  ui::im::WidgetId m_create_3d_trigger_widget = ui::im::k_invalid_widget_id;
+  ui::im::WidgetId m_create_light_trigger_widget = ui::im::k_invalid_widget_id;
+  ui::im::WidgetId m_row_add_component_trigger_widget =
+      ui::im::k_invalid_widget_id;
+  ui::im::WidgetId m_rows_widget = ui::im::k_invalid_widget_id;
+
+  bool m_has_scene = false;
+  std::string m_scene_name;
+  std::string m_empty_title;
+  std::string m_empty_body;
   std::vector<EntityEntry> m_all_entities;
   std::vector<EntityEntry> m_entities;
   std::vector<VisibleRow> m_visible_rows;
-  std::unique_ptr<ui::VirtualListController> m_virtual_list;
   std::optional<EntityID> m_selected_entity_id;
   std::optional<EntityID> m_context_entity_id;
   std::string m_search_query;
@@ -169,7 +136,16 @@ private:
   double m_last_click_time = 0.0;
   double m_elapsed_time = 0.0;
   double m_snapshot_poll_elapsed = 0.0;
-  bool m_virtual_list_layout_dirty = true;
+  uint64_t m_render_revision = 1u;
+
+  bool m_create_menu_open = false;
+  std::optional<glm::vec2> m_create_menu_anchor_point;
+  bool m_create_3d_menu_open = false;
+  bool m_create_light_menu_open = false;
+
+  bool m_row_menu_open = false;
+  std::optional<glm::vec2> m_row_menu_anchor_point;
+  bool m_row_add_component_menu_open = false;
 };
 
 } // namespace astralix::editor

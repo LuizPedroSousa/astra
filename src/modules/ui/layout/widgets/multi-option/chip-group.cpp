@@ -35,7 +35,9 @@ void update_chip_group_layout(
     UIDocument::UINode &node,
     const UILayoutContext &context
 ) {
-  node.layout.chip_group = UILayoutMetrics::ChipGroupLayout{};
+  node.layout.chip_group.item_rects.clear();
+  node.layout.chip_group.hovered_item_index.reset();
+  node.layout.chip_group.active_item_index.reset();
   const UIRect content = node.layout.content_bounds;
   if (content.width <= 0.0f || content.height <= 0.0f ||
       node.chip_group.options.empty()) {
@@ -72,6 +74,7 @@ void append_chip_group_commands(
     const UIResolvedStyle &resolved
 ) {
   const float line_height = measure_line_height(node, context);
+  const ResourceDescriptorID &font_id = resolve_ui_font_id(node, context);
   for (size_t index = 0u; index < node.layout.chip_group.item_rects.size();
        ++index) {
     const UIRect item_rect = node.layout.chip_group.item_rects[index];
@@ -113,7 +116,7 @@ void append_chip_group_commands(
         item_rect.y + std::max(0.0f, (item_rect.height - line_height) * 0.5f)
     );
     text_command.text = node.chip_group.options[index];
-    text_command.font_id = resolve_ui_font_id(node, context);
+    text_command.font_id = font_id;
     text_command.font_size = resolve_ui_font_size(node, context);
     text_command.color = selected
                              ? glm::vec4(0.97f, 1.0f, 1.0f, 1.0f)

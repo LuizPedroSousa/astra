@@ -12,7 +12,7 @@
 #include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/quaternion.hpp"
 #include "managers/scene-manager.hpp"
-#include "tools/inspector/build.hpp"
+#include "tools/inspector/fields.hpp"
 #include "world.hpp"
 
 #include <algorithm>

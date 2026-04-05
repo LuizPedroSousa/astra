@@ -66,6 +66,10 @@ void UIDocument::set_combobox_options(
     return;
   }
 
+  if (target->combobox.options == options) {
+    return;
+  }
+
   target->combobox.options = std::move(options);
   normalize_combobox_state(target->combobox);
   if (target->combobox.options.empty()) {

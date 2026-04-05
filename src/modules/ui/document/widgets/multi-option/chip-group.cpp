@@ -56,9 +56,18 @@ void UIDocument::set_chip_options(
     return;
   }
 
-  target->chip_group.options = std::move(options);
-  target->chip_group.selected = std::move(selected);
-  normalize_chip_group_state(target->chip_group);
+  UIChipGroupState next_state{
+      .options = std::move(options),
+      .selected = std::move(selected),
+  };
+  normalize_chip_group_state(next_state);
+
+  if (target->chip_group.options == next_state.options &&
+      target->chip_group.selected == next_state.selected) {
+    return;
+  }
+
+  target->chip_group = std::move(next_state);
   m_layout_dirty = true;
   m_paint_dirty = true;
 }

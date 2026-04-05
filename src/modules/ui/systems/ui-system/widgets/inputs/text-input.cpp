@@ -59,11 +59,13 @@ size_t text_input_index_from_pointer(const ui::UIDocument::UINode &node, const u
 
   const float font_size = ui::resolve_ui_font_size(node, context);
   const uint32_t resolved_font_size = ui::resolve_ui_font_pixel_size(font_size);
+  const auto &glyphs = font->glyphs(resolved_font_size);
+  const auto &glyph_lut = font->glyph_lut(resolved_font_size);
   const ui::UIRect text_rect = text_input_text_rect(node, context);
   const float local_x = point.x - text_rect.x + node.text_scroll_x;
 
   return ui::nearest_text_index(node.text, local_x, [&](char character) {
-    return ui::ui_glyph_advance(*font, character, resolved_font_size);
+    return ui::ui_glyph_advance(glyphs, glyph_lut, character);
   });
 }
 
@@ -85,11 +87,13 @@ void sync_text_input_scroll(const Target &target, const ui::UILayoutContext &con
     const float font_size = ui::resolve_ui_font_size(*node, context);
     const uint32_t resolved_font_size =
         ui::resolve_ui_font_pixel_size(font_size);
+    const auto &glyphs = font->glyphs(resolved_font_size);
+    const auto &glyph_lut = font->glyph_lut(resolved_font_size);
     const float content_width =
         ui::measure_ui_text_width(*font, node->text, resolved_font_size);
     const float caret_x = ui::measure_text_prefix_advance(
         node->text, node->caret.index, [&](char character) {
-          return ui::ui_glyph_advance(*font, character, resolved_font_size);
+          return ui::ui_glyph_advance(glyphs, glyph_lut, character);
         }
     );
 

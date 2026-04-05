@@ -1,6 +1,7 @@
 #include "tools/scene-hierachy/scene-hierarchy-panel-controller.hpp"
 
 #include "editor-selection-store.hpp"
+#include "fnv1a.hpp"
 #include "serialization-context-readers.hpp"
 #include "tools/scene-hierachy/helpers.hpp"
 
@@ -15,58 +16,41 @@ constexpr double k_snapshot_poll_interval_seconds = 0.2;
 } // namespace
 
 void SceneHierarchyPanelController::mount(const PanelMountContext &context) {
-  m_document = context.document;
+  m_runtime = context.runtime;
   m_default_font_id = context.default_font_id;
   m_default_font_size = context.default_font_size;
   m_last_selection_revision = editor_selection_store()->revision();
-  m_row_slots.clear();
-  m_virtual_list.reset();
   m_snapshot_poll_elapsed = 0.0;
-  m_virtual_list_layout_dirty = true;
 
   if (m_group_open.empty()) {
     scene_hierarchy_panel::seed_default_group_open(m_group_open);
-  }
-
-  if (m_document != nullptr && m_search_input_node != ui::k_invalid_node_id) {
-    m_document->set_text(m_search_input_node, m_search_query);
-    m_document->mutate_style(m_search_input_node, [this](ui::UIStyle &style) {
-      style.font_id = m_default_font_id;
-      style.font_size = std::max(13.0f, m_default_font_size * 0.78f);
-    });
-  }
-
-  if (m_document != nullptr && m_scroll_node != ui::k_invalid_node_id) {
-    m_virtual_list = std::make_unique<ui::VirtualListController>(
-        m_document,
-        m_scroll_node,
-        [this](size_t slot_index) { return create_row_slot(slot_index); },
-        [this](size_t slot_index, ui::UINodeId, size_t item_index) {
-          bind_row_slot(slot_index, item_index);
-        }
-    );
-    m_virtual_list->set_overscan(1u);
   }
 
   refresh(true);
 }
 
 void SceneHierarchyPanelController::unmount() {
-  m_context_entity_id.reset();
+  close_menus();
+  m_runtime = nullptr;
   m_add_component_options.clear();
   m_add_component_lookup.clear();
-  m_virtual_list.reset();
-  m_row_slots.clear();
   m_all_entities.clear();
   m_entities.clear();
   m_visible_rows.clear();
+  m_create_button_widget = ui::im::k_invalid_widget_id;
+  m_create_3d_trigger_widget = ui::im::k_invalid_widget_id;
+  m_create_light_trigger_widget = ui::im::k_invalid_widget_id;
+  m_row_add_component_trigger_widget = ui::im::k_invalid_widget_id;
+  m_rows_widget = ui::im::k_invalid_widget_id;
   m_last_selection_revision = 0u;
   m_last_clicked_entity_id.reset();
   m_last_click_time = 0.0;
   m_elapsed_time = 0.0;
   m_snapshot_poll_elapsed = 0.0;
-  m_virtual_list_layout_dirty = true;
-  m_document = nullptr;
+  m_has_scene = false;
+  m_scene_name.clear();
+  m_empty_title.clear();
+  m_empty_body.clear();
 }
 
 void SceneHierarchyPanelController::update(const PanelUpdateContext &context) {
@@ -80,10 +64,23 @@ void SceneHierarchyPanelController::update(const PanelUpdateContext &context) {
 
   if (m_snapshot_poll_elapsed >= k_snapshot_poll_interval_seconds) {
     refresh();
-    return;
+  }
+}
+
+std::optional<uint64_t> SceneHierarchyPanelController::render_version() const {
+  uint64_t hash = k_fnv1a64_offset_basis;
+  hash = fnv1a64_append_value(hash, m_render_revision);
+  hash = fnv1a64_append_value(hash, m_rows_widget.value);
+
+  if (m_runtime != nullptr && m_rows_widget != ui::im::k_invalid_widget_id) {
+    const auto scroll_state = m_runtime->virtual_list_state(m_rows_widget);
+    hash = fnv1a64_append_value(hash, scroll_state.scroll_offset.x);
+    hash = fnv1a64_append_value(hash, scroll_state.scroll_offset.y);
+    hash = fnv1a64_append_value(hash, scroll_state.viewport_width);
+    hash = fnv1a64_append_value(hash, scroll_state.viewport_height);
   }
 
-  sync_virtual_list(false);
+  return hash;
 }
 
 void SceneHierarchyPanelController::load_state(Ref<SerializationContext> state) {
@@ -120,6 +117,7 @@ void SceneHierarchyPanelController::load_state(Ref<SerializationContext> state) 
   if (!selected_id.has_value() || selected_id->empty()) {
     m_selected_entity_id.reset();
     editor_selection_store()->clear_selected_entity();
+    mark_render_dirty();
     return;
   }
 
@@ -131,6 +129,7 @@ void SceneHierarchyPanelController::load_state(Ref<SerializationContext> state) 
 
   editor_selection_store()->set_selected_entity(m_selected_entity_id);
   m_last_selection_revision = editor_selection_store()->revision();
+  mark_render_dirty();
 }
 
 void SceneHierarchyPanelController::save_state(Ref<SerializationContext> state) const {
@@ -159,6 +158,8 @@ void SceneHierarchyPanelController::save_state(Ref<SerializationContext> state) 
 void SceneHierarchyPanelController::handle_entity_click(EntityID entity_id) {
   constexpr double k_double_click_threshold = 0.4;
 
+  close_menus();
+
   const bool is_double_click =
       m_last_clicked_entity_id.has_value() &&
       scene_hierarchy_panel::same_entity(*m_last_clicked_entity_id, entity_id) &&
@@ -186,7 +187,7 @@ SceneHierarchyPanelController::selected_entry() const {
     return nullptr;
   }
 
-  auto it = std::find_if(
+  const auto it = std::find_if(
       m_all_entities.begin(),
       m_all_entities.end(),
       [selected_id = *m_selected_entity_id](const EntityEntry &entry) {
@@ -196,8 +197,10 @@ SceneHierarchyPanelController::selected_entry() const {
   return it != m_all_entities.end() ? &(*it) : nullptr;
 }
 
-bool SceneHierarchyPanelController::persisted_group_open(std::string_view key) const {
-  auto it = m_group_open.find(std::string(key));
+bool SceneHierarchyPanelController::persisted_group_open(
+    std::string_view key
+) const {
+  const auto it = m_group_open.find(std::string(key));
   if (it != m_group_open.end()) {
     return it->second;
   }
@@ -206,6 +209,7 @@ bool SceneHierarchyPanelController::persisted_group_open(std::string_view key) c
 }
 
 void SceneHierarchyPanelController::toggle_group(std::string key) {
+  close_menus();
   const bool next_open = !persisted_group_open(key);
   m_group_open[std::move(key)] = next_open;
   refresh(true);

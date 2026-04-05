@@ -1,6 +1,7 @@
 #include "systems/workspace-shell-system.hpp"
 
 #include "components/tags.hpp"
+#include "trace.hpp"
 #include "components/ui.hpp"
 #include "dsl.hpp"
 #include "editor-selection-store.hpp"
@@ -439,8 +440,10 @@ void WorkspaceShellSystem::pre_update(double) {
 }
 
 void WorkspaceShellSystem::update(double dt) {
+  ASTRA_PROFILE_N("WorkspaceShellSystem::update");
+
   if (auto scene_manager = SceneManager::get(); scene_manager != nullptr) {
-    (void)scene_manager->flush_pending_active_scene_state();
+    scene_manager->flush_pending_active_scene_state();
   }
 
   ensure_scene_root();
@@ -453,14 +456,25 @@ void WorkspaceShellSystem::update(double dt) {
 
   for (auto &[instance_id, panel] : m_panels) {
     if (panel.controller != nullptr && panel_instance_rendered(instance_id)) {
+      const std::string panel_zone_name =
+          panel.spec.title + "::update+render";
+      ASTRA_PROFILE_DYN(panel_zone_name.c_str(), panel_zone_name.size());
       panel.controller->update(PanelUpdateContext{.dt = dt});
+      render_mounted_panel(panel);
     }
   }
 
-  apply_pending_requests();
-  sync_runtime_layout_state();
+  {
+    ASTRA_PROFILE_N("WorkspaceShellSystem::apply_pending_requests");
+    apply_pending_requests();
+  }
+  {
+    ASTRA_PROFILE_N("WorkspaceShellSystem::sync_runtime_layout_state");
+    sync_runtime_layout_state();
+  }
 
   if (m_needs_rebuild && root_should_be_visible()) {
+    ASTRA_PROFILE_N("WorkspaceShellSystem::rebuild_workspace_document");
     rebuild_workspace_document();
   }
 
@@ -472,8 +486,11 @@ void WorkspaceShellSystem::update(double dt) {
     }
   }
 
-  sync_gizmo_capture_state();
-  update_gizmo_interaction();
+  {
+    ASTRA_PROFILE_N("WorkspaceShellSystem::gizmo");
+    sync_gizmo_capture_state();
+    update_gizmo_interaction();
+  }
 }
 
 bool WorkspaceShellSystem::active_workspace_uses_floating_panels() const {
@@ -665,6 +682,7 @@ void WorkspaceShellSystem::rebuild_workspace_document() {
     if (mounted.controller != nullptr) {
       mounted.controller->unmount();
     }
+    reset_mounted_panel_runtime(mounted);
   }
 
   m_split_runtime_nodes.clear();
@@ -691,11 +709,7 @@ void WorkspaceShellSystem::rebuild_workspace_document() {
 
   for (auto &[instance_id, mounted] : m_panels) {
     if (mounted.controller != nullptr && panel_instance_rendered(instance_id)) {
-      mounted.controller->mount(PanelMountContext{
-          .document = m_document,
-          .default_font_id = m_default_font_id,
-          .default_font_size = m_default_font_size,
-      });
+      mount_rendered_panel(instance_id, mounted);
     }
   }
 
@@ -745,6 +759,7 @@ void WorkspaceShellSystem::suspend_shell_panels() {
     if (mounted.controller != nullptr) {
       mounted.controller->unmount();
     }
+    reset_mounted_panel_runtime(mounted);
   }
 
   m_panels.clear();
@@ -1482,37 +1497,30 @@ ui::dsl::NodeSpec WorkspaceShellSystem::build_layout_node(
           node.second != nullptr ? layout_node_minimum_size(*node.second)
                                  : PanelMinimumSize{};
 
+      auto first_style = fill_y()
+                             .shrink()
+                             .min_width(ui::UILength::pixels(first_minimum.width))
+                             .min_height(ui::UILength::pixels(first_minimum.height));
+      if (node.split_axis == ui::FlexDirection::Row) {
+        first_style.width(
+            ui::UILength::percent(std::clamp(node.split_ratio, 0.1f, 0.9f))
+        ).height(ui::UILength::percent(1.0f));
+      } else {
+        first_style.height(
+            ui::UILength::percent(std::clamp(node.split_ratio, 0.1f, 0.9f))
+        ).width(ui::UILength::percent(1.0f));
+      }
       auto first = ui::dsl::view()
                        .bind(runtime.first)
-                       .style(fill_y().shrink().raw([axis = node.split_axis, ratio = node.split_ratio, first_minimum](ui::UIStyle &style) {
-                         style.min_width =
-                             ui::UILength::pixels(first_minimum.width);
-                         style.min_height =
-                             ui::UILength::pixels(first_minimum.height);
-                         if (axis == ui::FlexDirection::Row) {
-                           style.width = ui::UILength::percent(
-                               std::clamp(ratio, 0.1f, 0.9f)
-                           );
-                           style.height = ui::UILength::percent(1.0f);
-                         } else {
-                           style.height = ui::UILength::percent(
-                               std::clamp(ratio, 0.1f, 0.9f)
-                           );
-                           style.width = ui::UILength::percent(1.0f);
-                         }
-                       }));
+                       .style(std::move(first_style));
       first.child(build_layout_node(*node.first, path + "/0"));
 
+      auto second_style = flex(1.0f)
+                              .min_width(ui::UILength::pixels(second_minimum.width))
+                              .min_height(ui::UILength::pixels(second_minimum.height));
       auto second = ui::dsl::view()
                         .bind(runtime.second)
-                        .style(flex(1.0f).raw(
-                            [second_minimum](ui::UIStyle &style) {
-                              style.min_width =
-                                  ui::UILength::pixels(second_minimum.width);
-                              style.min_height =
-                                  ui::UILength::pixels(second_minimum.height);
-                            }
-                        ));
+                        .style(std::move(second_style));
       second.child(build_layout_node(*node.second, path + "/1"));
 
       return container.style(fill().gap(0.0f))
@@ -1744,9 +1752,11 @@ WorkspaceShellSystem::build_leaf_panel(std::string_view panel_instance_id) {
       )
       .children(
           std::move(header),
-          ui::dsl::view()
-              .style(fill_x().flex(1.0f).min_height(px(0.0f)).overflow_hidden())
-              .child(mounted_it->second.controller->build())
+          [&]() {
+            return ui::dsl::view()
+                .bind(mounted_it->second.content_host_node)
+                .style(fill_x().flex(1.0f).min_height(px(0.0f)).overflow_hidden());
+          }()
       );
 }
 
@@ -1842,9 +1852,11 @@ WorkspaceShellSystem::build_floating_panel(std::string_view panel_instance_id) {
       )
       .children(
           std::move(header),
-          ui::dsl::view()
-              .style(fill_x().flex(1.0f).min_height(px(0.0f)).overflow_hidden())
-              .child(mounted_it->second.controller->build())
+          [&]() {
+            return ui::dsl::view()
+                .bind(mounted_it->second.content_host_node)
+                .style(fill_x().flex(1.0f).min_height(px(0.0f)).overflow_hidden());
+          }()
       );
 }
 
@@ -1907,6 +1919,7 @@ void WorkspaceShellSystem::destroy_unmounted_panels() {
       if (mounted.controller != nullptr) {
         mounted.controller->unmount();
       }
+      reset_mounted_panel_runtime(mounted);
     }
     m_panels.clear();
     return;
@@ -1931,12 +1944,73 @@ void WorkspaceShellSystem::destroy_unmounted_panels() {
 
         it->second.controller->unmount();
       }
+      reset_mounted_panel_runtime(it->second);
       it = m_panels.erase(it);
       continue;
     }
 
     ++it;
   }
+}
+
+void WorkspaceShellSystem::reset_mounted_panel_runtime(MountedPanel &mounted) {
+  mounted.runtime.reset();
+  mounted.content_host_node = ui::k_invalid_node_id;
+  mounted.last_render_version.reset();
+}
+
+void WorkspaceShellSystem::mount_rendered_panel(
+    std::string_view,
+    MountedPanel &mounted
+) {
+  if (mounted.controller == nullptr || m_document == nullptr ||
+      mounted.content_host_node == ui::k_invalid_node_id) {
+    return;
+  }
+
+  mounted.runtime =
+      create_scope<ui::im::Runtime>(m_document, mounted.content_host_node);
+
+  mounted.controller->mount(PanelMountContext{
+      .runtime = mounted.runtime.get(),
+      .default_font_id = m_default_font_id,
+      .default_font_size = m_default_font_size,
+  });
+  render_mounted_panel(mounted);
+}
+
+void WorkspaceShellSystem::render_mounted_panel(MountedPanel &mounted) {
+  const std::string render_zone_name =
+      mounted.spec.title + "::render_mounted_panel";
+  ASTRA_PROFILE_DYN(render_zone_name.c_str(), render_zone_name.size());
+
+  if (mounted.controller == nullptr || mounted.runtime == nullptr) {
+    return;
+  }
+
+  const auto render_version = mounted.controller->render_version();
+  if (render_version.has_value() &&
+      mounted.last_render_version.has_value() &&
+      *mounted.last_render_version == *render_version) {
+    return;
+  }
+
+  mounted.runtime->render(
+#ifdef ASTRA_TRACE
+      [&controller = mounted.controller,
+       &title = mounted.spec.title](ui::im::Frame &ui) {
+        const std::string zone_name = title + "::render";
+        ASTRA_PROFILE_DYN(zone_name.c_str(), zone_name.size());
+        controller->render(ui);
+      }
+#else
+      [&controller = mounted.controller](ui::im::Frame &ui) {
+        controller->render(ui);
+      }
+#endif
+  );
+
+  mounted.last_render_version = render_version;
 }
 
 void WorkspaceShellSystem::apply_pending_requests() {
@@ -2451,12 +2525,13 @@ void WorkspaceShellSystem::set_panel_open(std::string_view panel_instance_id, bo
         mounted->second.controller->save_state(ctx);
         it->second.state_blob = m_store->encode_panel_state(ctx);
         mounted->second.controller->unmount();
+        reset_mounted_panel_runtime(mounted->second);
         m_panels.erase(mounted);
       }
 
       auto node_it = m_floating_panel_nodes.find(instance_id);
       if (node_it != m_floating_panel_nodes.end()) {
-        m_document->remove_child(node_it->second);
+        m_document->destroy_subtree(node_it->second);
         m_floating_panel_nodes.erase(node_it);
       }
     } else {
@@ -2493,11 +2568,7 @@ void WorkspaceShellSystem::set_panel_open(std::string_view panel_instance_id, bo
 
       auto mounted = m_panels.find(instance_id);
       if (mounted != m_panels.end() && mounted->second.controller != nullptr) {
-        mounted->second.controller->mount(PanelMountContext{
-            .document = m_document,
-            .default_font_id = m_default_font_id,
-            .default_font_size = m_default_font_size,
-        });
+        mount_rendered_panel(instance_id, mounted->second);
       }
     }
 
