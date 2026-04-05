@@ -3,6 +3,7 @@
 #include "assert.hpp"
 
 #include <algorithm>
+#include <vector>
 
 namespace astralix::ui {
 
@@ -74,6 +75,65 @@ void UIDocument::clear_children(UINodeId parent_id) {
   }
 
   parent->children.clear();
+  m_structure_dirty = true;
+  m_layout_dirty = true;
+  m_paint_dirty = true;
+}
+
+void UIDocument::destroy_subtree(UINodeId node_id) {
+  if (!is_valid_node(node_id)) {
+    return;
+  }
+
+  detach_from_parent(node_id);
+
+  std::vector<UINodeId> stack{node_id};
+  while (!stack.empty()) {
+    const UINodeId current_id = stack.back();
+    stack.pop_back();
+
+    if (!is_valid_node(current_id)) {
+      continue;
+    }
+
+    UINode &current = m_nodes[current_id].node;
+    for (const auto child_id : current.children) {
+      stack.push_back(child_id);
+    }
+
+    if (m_root_id == current_id) {
+      m_root_id = k_invalid_node_id;
+    }
+    if (m_hot_node == current_id) {
+      m_hot_node = k_invalid_node_id;
+    }
+    if (m_active_node == current_id) {
+      m_active_node = k_invalid_node_id;
+    }
+    if (m_focused_node == current_id) {
+      m_focused_node = k_invalid_node_id;
+    }
+    if (m_open_popup_node == current_id) {
+      m_open_popup_node = k_invalid_node_id;
+    }
+    if (m_requested_focus_node == current_id) {
+      m_requested_focus_node = k_invalid_node_id;
+    }
+
+    m_open_popover_stack.erase(
+        std::remove(
+            m_open_popover_stack.begin(),
+            m_open_popover_stack.end(),
+            current_id
+        ),
+        m_open_popover_stack.end()
+    );
+
+    current.children.clear();
+    current.parent = k_invalid_node_id;
+    m_nodes[current_id].alive = false;
+  }
+
   m_structure_dirty = true;
   m_layout_dirty = true;
   m_paint_dirty = true;

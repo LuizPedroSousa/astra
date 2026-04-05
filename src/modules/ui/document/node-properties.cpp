@@ -6,6 +6,39 @@
 
 namespace astralix::ui {
 
+namespace {
+
+bool vec4_equal(const glm::vec4 &lhs, const glm::vec4 &rhs) {
+  return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+}
+
+bool line_chart_series_equal(
+    const UILineChartSeries &lhs,
+    const UILineChartSeries &rhs
+) {
+  return lhs.values == rhs.values && vec4_equal(lhs.color, rhs.color) &&
+         lhs.thickness == rhs.thickness;
+}
+
+bool line_chart_series_equal(
+    const std::vector<UILineChartSeries> &lhs,
+    const std::vector<UILineChartSeries> &rhs
+) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+
+  for (size_t index = 0u; index < lhs.size(); ++index) {
+    if (!line_chart_series_equal(lhs[index], rhs[index])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+} // namespace
+
 void UIDocument::set_style(UINodeId node_id, const UIStyle &style) {
   UINode *target = node(node_id);
   if (target == nullptr) {
@@ -162,6 +195,10 @@ void UIDocument::set_line_chart_series(
     return;
   }
 
+  if (line_chart_series_equal(target->line_chart.series, series)) {
+    return;
+  }
+
   target->line_chart.series = std::move(series);
 
   if (target->line_chart.auto_range && !target->line_chart.series.empty()) {
@@ -192,6 +229,11 @@ void UIDocument::set_line_chart_range(
     return;
   }
 
+  if (target->line_chart.y_min == y_min && target->line_chart.y_max == y_max &&
+      !target->line_chart.auto_range) {
+    return;
+  }
+
   target->line_chart.y_min = y_min;
   target->line_chart.y_max = y_max;
   target->line_chart.auto_range = false;
@@ -201,6 +243,10 @@ void UIDocument::set_line_chart_range(
 void UIDocument::set_line_chart_auto_range(UINodeId node_id, bool auto_range) {
   UINode *target = node(node_id);
   if (target == nullptr) {
+    return;
+  }
+
+  if (target->line_chart.auto_range == auto_range) {
     return;
   }
 
