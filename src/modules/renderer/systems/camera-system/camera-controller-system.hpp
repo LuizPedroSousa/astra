@@ -1,8 +1,8 @@
 #pragma once
 
-#include "systems/transform-system/transform-system.hpp"
 #include "components/camera.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include "systems/transform-system/transform-system.hpp"
 #include "world.hpp"
 #include <algorithm>
 #include <cmath>
@@ -21,41 +21,31 @@ struct CameraControllerInput {
   float aspect_ratio = 1.0f;
 };
 
-inline void recalculate_camera_view_matrix(rendering::Camera &camera,
-                                           const Transform &transform,
-                                           float aspect_ratio) {
+inline void recalculate_camera_view_matrix(rendering::Camera &camera, const Transform &transform, float aspect_ratio) {
   const float clamped_aspect = std::max(aspect_ratio, 0.001f);
 
   camera.view_matrix = glm::lookAt(
-      transform.position, transform.position + camera.front, camera.up);
+      transform.position, transform.position + camera.front, camera.up
+  );
 }
 
-inline void recalculate_camera_projection_matrix(rendering::Camera &camera,
-                                                 const Transform &transform,
-                                                 float aspect_ratio) {
+inline void recalculate_camera_projection_matrix(rendering::Camera &camera, const Transform &transform, float aspect_ratio) {
   const float clamped_aspect = std::max(aspect_ratio, 0.001f);
 
   camera.projection_matrix =
-      glm::perspective(glm::radians(camera.fov_degrees), clamped_aspect,
-                       camera.near_plane, camera.far_plane);
+      glm::perspective(glm::radians(camera.fov_degrees), clamped_aspect, camera.near_plane, camera.far_plane);
 }
 
-inline void recalculate_camera_orthographic_matrix(rendering::Camera &camera,
-                                                   const Transform &transform,
-                                                   float aspect_ratio) {
+inline void recalculate_camera_orthographic_matrix(rendering::Camera &camera, const Transform &transform, float aspect_ratio) {
   const float clamped_aspect = std::max(aspect_ratio, 0.001f);
 
   const float half_width = camera.orthographic_scale * clamped_aspect;
   const float half_height = camera.orthographic_scale;
   camera.projection_matrix =
-      glm::ortho(-half_width, half_width, -half_height, half_height,
-                 camera.near_plane, camera.far_plane);
+      glm::ortho(-half_width, half_width, -half_height, half_height, camera.near_plane, camera.far_plane);
 }
 
-inline void update_camera_controller(ecs::World &world, EntityID entity_id,
-                                     Transform &transform, rendering::Camera &camera,
-                                     CameraController &controller,
-                                     const CameraControllerInput &input) {
+inline void update_camera_controller(ecs::World &world, EntityID entity_id, Transform &transform, rendering::Camera &camera, CameraController &controller, const CameraControllerInput &input) {
   controller.yaw += input.mouse_delta.x * controller.sensitivity;
   controller.pitch -= input.mouse_delta.y * controller.sensitivity;
   controller.pitch = std::clamp(controller.pitch, -89.0f, 89.0f);
@@ -126,26 +116,21 @@ inline void update_camera_controller(ecs::World &world, EntityID entity_id,
   recalculate_transform(transform);
   // recalculate_camera_matrices(camera, transform, input.aspect_ratio);
 
-  scene::recalculate_camera_view_matrix(camera, transform,
-                                            input.aspect_ratio);
+  scene::recalculate_camera_view_matrix(camera, transform, input.aspect_ratio);
 
   if (camera.orthographic) {
-    scene::recalculate_camera_orthographic_matrix(camera, transform,
-                                                      input.aspect_ratio);
+    scene::recalculate_camera_orthographic_matrix(camera, transform, input.aspect_ratio);
   } else {
-    scene::recalculate_camera_projection_matrix(camera, transform,
-                                                    input.aspect_ratio);
+    scene::recalculate_camera_projection_matrix(camera, transform, input.aspect_ratio);
   }
 }
 
-inline void update_camera_controllers(ecs::World &world,
-                                      const CameraControllerInput &input) {
+inline void update_camera_controllers(ecs::World &world, const CameraControllerInput &input) {
   world.each<Transform, rendering::Camera, CameraController>(
-      [&](EntityID entity_id, Transform &transform, rendering::Camera &camera,
-          CameraController &controller) {
-        update_camera_controller(world, entity_id, transform, camera,
-                                 controller, input);
-      });
+      [&](EntityID entity_id, Transform &transform, rendering::Camera &camera, CameraController &controller) {
+        update_camera_controller(world, entity_id, transform, camera, controller, input);
+      }
+  );
 }
 
 } // namespace astralix::scene

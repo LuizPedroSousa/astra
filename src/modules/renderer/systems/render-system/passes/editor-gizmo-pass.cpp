@@ -1,18 +1,16 @@
 #include "systems/render-system/passes/editor-gizmo-pass.hpp"
 
 #include "editor-gizmo-store.hpp"
-#include "trace.hpp"
 #include "editor-selection-store.hpp"
-#include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
-#include "path.hpp"
-#include "renderer-api.hpp"
-#include "resources/descriptors/shader-descriptor.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/scene-selection.hpp"
 #include "targets/render-target.hpp"
 #include "tools/viewport/gizmo-math.hpp"
+#include "vertex-buffer.hpp"
 
-#include <algorithm>
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
 
 namespace astralix {
 namespace {
@@ -59,78 +57,56 @@ glm::vec4 resolved_color(
 
 } // namespace
 
-void EditorGizmoPass::setup(
-    Ref<RenderTarget> render_target,
-    const std::vector<const RenderGraphResource *> &resources
-) {
-  m_render_target = render_target;
-  m_scene_color = nullptr;
-  set_enabled(true);
-
-  for (const auto *resource : resources) {
-    if (resource->desc.type == RenderGraphResourceType::Framebuffer &&
-        resource->desc.name == "scene_color") {
-      m_scene_color = resource->get_framebuffer();
-    }
-  }
-
-  if (m_scene_color == nullptr) {
-    set_enabled(false);
-    return;
-  }
-
-  Shader::create(
-      "shaders::editor_gizmo",
-      "shaders/editor_gizmo.axsl"_engine,
-      "shaders/editor_gizmo.axsl"_engine
-  );
-
-  resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-      m_render_target->renderer_api()->get_backend(),
-      {"shaders::editor_gizmo"}
-  );
-  m_shader =
-      resource_manager()->get_by_descriptor_id<Shader>("shaders::editor_gizmo");
+void EditorGizmoPass::setup(PassSetupContext &ctx) {
+  m_shader = ctx.require_shader("editor_gizmo_shader");
 
   if (m_shader == nullptr) {
+    LOG_WARN("[EditorGizmoPass::setup] missing graph dependency: editor_gizmo_shader");
     set_enabled(false);
   }
 }
 
-void EditorGizmoPass::begin(double) {}
+void EditorGizmoPass::record(
+    PassRecordContext &ctx, PassRecorder &recorder
+) {
+  ASTRA_PROFILE_N("EditorGizmoPass::record");
 
-void EditorGizmoPass::execute(double) {
-  ASTRA_PROFILE_N("EditorGizmoPass");
-  if (m_scene_color == nullptr || m_shader == nullptr) {
+  const auto *scene_color_resource = ctx.find_graph_image("present");
+  if (scene_color_resource == nullptr || m_shader == nullptr) {
+    LOG_WARN("[EditorGizmoPass::record] early exit: null image or shader");
     return;
   }
 
   auto *scene = SceneManager::get()->get_active_scene();
   if (scene == nullptr) {
+    LOG_WARN("[EditorGizmoPass::record] early exit: no active scene");
     return;
   }
 
   auto gizmo_store = editor_gizmo_store();
   const auto selected_entity_id = editor_selection_store()->selected_entity();
   const auto panel_rect = gizmo_store->panel_rect();
-  const auto window_rect = gizmo_store->window_rect();
-  const bool draw_window_target =
-      gizmo_store->window_capture_enabled() && window_rect.has_value();
   const bool draw_panel_target = panel_rect.has_value();
-  if ((!draw_panel_target && !draw_window_target) ||
-      !selected_entity_id.has_value()) {
+  if (!draw_panel_target || !selected_entity_id.has_value()) {
+    static int gizmo_skip_count = 0;
+    if (gizmo_skip_count++ < 5) {
+      LOG_WARN("[EditorGizmoPass::record] early exit: panel_rect=", draw_panel_target, " selected_entity=", selected_entity_id.has_value());
+    }
     return;
   }
 
   auto &world = scene->world();
   if (!world.contains(*selected_entity_id)) {
+    LOG_WARN("[EditorGizmoPass::record] early exit: selected entity not in world");
     return;
   }
 
   auto *transform = world.get<scene::Transform>(*selected_entity_id);
   auto camera_selection = rendering::select_main_camera(world);
   if (transform == nullptr || !camera_selection.has_value() ||
-      camera_selection->transform == nullptr || camera_selection->camera == nullptr) {
+      camera_selection->transform == nullptr ||
+      camera_selection->camera == nullptr) {
+    LOG_WARN("[EditorGizmoPass::record] early exit: missing transform or camera");
     return;
   }
 
@@ -138,115 +114,98 @@ void EditorGizmoPass::execute(double) {
       *camera_selection->transform,
       *camera_selection->camera
   );
-  auto renderer_api = m_render_target->renderer_api();
-  const auto draw_target = [&](const ui::UIRect &target_rect, bool to_default_framebuffer) {
-    const float gizmo_scale = gizmo::gizmo_scale_world(
-        camera_frame,
-        transform->position,
-        target_rect.height
-    );
 
-    const auto hovered_handle = gizmo_store->hovered_handle();
-    const auto active_handle = gizmo_store->active_handle();
-    const auto vertices = gizmo::build_gizmo_mesh(
-        gizmo_store->mode(),
-        transform->position,
-        gizmo_scale,
-        [&](EditorGizmoHandle handle) {
-          return resolved_color(handle, hovered_handle, active_handle);
-        }
-    );
-    if (vertices.empty()) {
-      return;
-    }
+  const float gizmo_scale = gizmo::gizmo_scale_world(
+      camera_frame,
+      transform->position,
+      panel_rect->height
+  );
 
-    ensure_mesh_resources(vertices.size());
-    if (m_vertex_buffer == nullptr || m_vertex_array == nullptr) {
-      return;
-    }
-
-    if (to_default_framebuffer) {
-      m_render_target->framebuffer()->bind(FramebufferBindType::Default, 0);
-    } else {
-      m_scene_color->bind();
-    }
-
-    renderer_api->disable_depth_test();
-    renderer_api->disable_depth_write();
-    renderer_api->enable_blend();
-    renderer_api->set_blend_func(
-        RendererAPI::BlendFactor::SrcAlpha,
-        RendererAPI::BlendFactor::OneMinusSrcAlpha
-    );
-
-    m_shader->bind();
-    m_shader->set_matrix("camera.view", camera_frame.view);
-    m_shader->set_matrix("camera.projection", camera_frame.projection);
-    m_vertex_buffer->set_data(
-        vertices.data(),
-        static_cast<uint32_t>(vertices.size() * sizeof(gizmo::GizmoMeshVertex))
-    );
-    renderer_api->draw_triangles(
-        m_vertex_array,
-        static_cast<uint32_t>(vertices.size())
-    );
-    m_shader->unbind();
-
-    renderer_api->disable_blend();
-    renderer_api->enable_depth_write();
-    renderer_api->enable_depth_test();
-
-    if (to_default_framebuffer) {
-      m_render_target->framebuffer()->unbind();
-    } else {
-      m_scene_color->unbind();
-    }
-  };
-
-  if (draw_panel_target) {
-    draw_target(*panel_rect, false);
-  }
-  if (draw_window_target) {
-    draw_target(*window_rect, true);
-  }
-}
-
-void EditorGizmoPass::end(double) {}
-
-void EditorGizmoPass::cleanup() {
-  m_scene_color = nullptr;
-  m_shader.reset();
-  m_vertex_array.reset();
-  m_vertex_buffer.reset();
-  m_vertex_capacity = 0u;
-}
-
-void EditorGizmoPass::ensure_mesh_resources(size_t required_vertices) {
-  if (required_vertices == 0u) {
+  const auto hovered_handle = gizmo_store->hovered_handle();
+  const auto active_handle = gizmo_store->active_handle();
+  const auto vertices = gizmo::build_gizmo_mesh(
+      gizmo_store->mode(),
+      transform->position,
+      gizmo_scale,
+      [&](EditorGizmoHandle handle) {
+        return resolved_color(handle, hovered_handle, active_handle);
+      }
+  );
+  if (vertices.empty()) {
+    LOG_WARN("[EditorGizmoPass::record] early exit: no gizmo vertices");
     return;
   }
 
-  if (m_vertex_array != nullptr && m_vertex_buffer != nullptr &&
-      required_vertices <= m_vertex_capacity) {
-    return;
-  }
+  LOG_INFO("[EditorGizmoPass::record] drawing ", vertices.size(), " vertices, scale=", gizmo_scale);
 
-  const auto backend = m_render_target->renderer_api()->get_backend();
-  m_vertex_capacity = std::max(required_vertices, size_t(8192u));
-  m_vertex_array = VertexArray::create(backend);
-  m_vertex_buffer = VertexBuffer::create(
-      backend,
-      static_cast<uint32_t>(m_vertex_capacity * sizeof(gizmo::GizmoMeshVertex))
+  auto &frame = ctx.frame();
+  const auto extent = ctx.graph_image_extent(*scene_color_resource);
+
+  auto scene_color = ctx.register_graph_image(
+      "editor-gizmo.scene-color", *scene_color_resource
   );
 
   BufferLayout layout(
-      {BufferElement(ShaderDataType::Float3, "a_position"),
-       BufferElement(ShaderDataType::Float3, "a_normal"),
-       BufferElement(ShaderDataType::Float4, "a_color")}
+      {BufferElement(ShaderDataType::Float3, "a_position").at_location(0),
+       BufferElement(ShaderDataType::Float3, "a_normal").at_location(1),
+       BufferElement(ShaderDataType::Float4, "a_color").at_location(2)}
   );
-  m_vertex_buffer->set_layout(layout);
-  m_vertex_array->add_vertex_buffer(m_vertex_buffer);
-  m_vertex_array->unbind();
+
+  const auto vertex_buffer = frame.register_transient_vertices(
+      "editor-gizmo.vertices",
+      vertices.data(),
+      static_cast<uint32_t>(vertices.size() * sizeof(gizmo::GizmoMeshVertex)),
+      static_cast<uint32_t>(vertices.size()),
+      layout
+  );
+
+  const auto bindings = frame.register_binding_group(
+      make_binding_group_desc(
+          "editor-gizmo-pass",
+          "editor-gizmo-pass",
+          m_shader,
+          0,
+          "editor-gizmo-pass",
+          RenderBindingScope::Pass,
+          RenderBindingCachePolicy::Reuse,
+          RenderBindingSharing::LocalOnly,
+          0,
+          RenderBindingStability::FrameLocal
+      )
+  );
+  rendering::record_shader_params(
+      frame, bindings,
+      shader_bindings::engine_shaders_editor_gizmo_axsl::CameraParams{
+          .view = camera_frame.view,
+          .projection = camera_frame.projection,
+      }
+  );
+
+  RenderPipelineDesc pipeline_desc;
+  pipeline_desc.debug_name = "editor-gizmo-pass";
+  pipeline_desc.depth_stencil.depth_test = false;
+  pipeline_desc.depth_stencil.depth_write = false;
+  pipeline_desc.blend_attachments = {
+      BlendAttachmentState::alpha_blend(),
+  };
+
+  const auto pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+
+  RenderingInfo info;
+  info.debug_name = "editor-gizmo-pass";
+  info.extent = extent;
+  info.color_attachments.push_back(ColorAttachmentRef{
+      .view = ImageViewRef{.image = scene_color},
+      .load_op = AttachmentLoadOp::Load,
+      .store_op = AttachmentStoreOp::Store,
+  });
+
+  recorder.begin_rendering(info);
+  recorder.bind_pipeline(pipeline);
+  recorder.bind_binding_group(bindings);
+  recorder.bind_vertex_buffer(vertex_buffer);
+  recorder.draw_vertices(static_cast<uint32_t>(vertices.size()));
+  recorder.end_rendering();
 }
 
 } // namespace astralix

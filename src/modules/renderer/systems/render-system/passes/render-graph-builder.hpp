@@ -343,6 +343,26 @@ public:
     );
   }
 
+  PassBuilder &use_audio_clip(
+      std::string slot, ResourceDescriptorID descriptor_id
+  ) {
+    return use_resource(
+        RenderPassDependencyType::AudioClip,
+        std::move(slot),
+        std::move(descriptor_id)
+    );
+  }
+
+  PassBuilder &use_terrain_recipe(
+      std::string slot, ResourceDescriptorID descriptor_id
+  ) {
+    return use_resource(
+        RenderPassDependencyType::TerrainRecipe,
+        std::move(slot),
+        std::move(descriptor_id)
+    );
+  }
+
   PassBuilder &export_image(const RenderImageExport &export_request) {
     m_pass->export_image(export_request);
     return *this;

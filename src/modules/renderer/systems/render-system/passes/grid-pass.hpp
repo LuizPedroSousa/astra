@@ -1,68 +1,43 @@
 #pragma once
 
-#include "events/key-codes.hpp"
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
-#include "managers/scene-manager.hpp"
-#include "managers/window-manager.hpp"
 #include "render-pass.hpp"
-#include "renderer-api.hpp"
-#include "resources/descriptors/shader-descriptor.hpp"
-#include "resources/mesh.hpp"
-#include "systems/render-system/mesh-resolution.hpp"
+#include "resources/shader.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include "systems/render-system/scene-selection.hpp"
+#include "systems/render-system/render-frame.hpp"
 #include "trace.hpp"
+#include <functional>
 
-#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
-#define ASTRALIX_HAS_ENGINE_BINDINGS
-#endif
 
 namespace astralix {
 
-class GridPass : public RenderPass {
+class GridPass : public FramePass {
 public:
-  GridPass() = default;
+  explicit GridPass(rendering::ResolvedMeshDraw grid_quad = {},
+                    std::function<bool()> toggle_requested = {})
+      : m_grid_quad(std::move(grid_quad)),
+        m_toggle_requested(std::move(toggle_requested)) {}
   ~GridPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override {
-    m_render_target = render_target;
-
-    for (auto resource : resources) {
-      if (resource->desc.type == RenderGraphResourceType::Framebuffer &&
-          resource->desc.name == "scene_color") {
-        m_scene_color = resource->get_framebuffer();
-      }
-    }
-
-    if (m_scene_color == nullptr) {
-      set_enabled(false);
-      LOG_WARN("[GridPass] Skipping setup: scene_color framebuffer is not "
-               "available");
+  void setup(PassSetupContext &ctx) override {
+    m_shader = ctx.require_shader("grid_shader");
+    if (m_shader == nullptr || m_grid_quad.vertex_array == nullptr ||
+        m_grid_quad.index_count == 0) {
       return;
     }
-
-    const auto backend = m_render_target->renderer_api()->get_backend();
-    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::grid"});
-    m_shader =
-        resource_manager()->get_by_descriptor_id<Shader>("shaders::grid");
-
-    rendering::ensure_mesh_uploaded(m_grid_quad, m_render_target);
   }
 
-  void begin(double dt) override {}
-
-  void execute(double dt) override {
-    ASTRA_PROFILE_N("GridPass");
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override {
+    ASTRA_PROFILE_N("GridPass::record");
     static constexpr int k_surface_render_mode = 0;
     static constexpr int k_y_axis_render_mode = 1;
 
-    if (input::IS_KEY_RELEASED(input::KeyCode::F1)) {
+    if (m_toggle_requested != nullptr && m_toggle_requested()) {
       m_active = !m_active;
     }
 
@@ -70,81 +45,137 @@ public:
       return;
     }
 
-    if (m_scene_color == nullptr) {
-      LOG_WARN("[GridPass] Skipping execute: scene_color framebuffer is not "
-               "available");
+    const auto *scene_color_resource = ctx.find_graph_image("scene_color");
+    const auto *scene_depth_resource = ctx.find_graph_image("scene_depth");
+
+    const auto *scene_frame = ctx.scene();
+    if (scene_color_resource == nullptr || m_shader == nullptr ||
+        m_grid_quad.vertex_array == nullptr || m_grid_quad.index_count == 0 ||
+        scene_frame == nullptr || !scene_frame->main_camera.has_value()) {
       return;
     }
 
-    if (m_shader == nullptr) {
-      LOG_WARN("[GridPass] Skipping execute: shaders::grid is not available");
-      return;
-    }
+    const auto &camera = *scene_frame->main_camera;
+    const auto extent = ctx.graph_image_extent(*scene_color_resource);
 
-    auto scene = SceneManager::get()->get_active_scene();
-    if (scene == nullptr) {
-      LOG_WARN("[GridPass] Skipping execute: no active scene");
-      return;
-    }
+    auto &frame = ctx.frame();
+    const auto scene_color = ctx.register_graph_image(
+        "grid.scene-color", *scene_color_resource
+    );
+    const auto scene_depth =
+        scene_depth_resource != nullptr
+            ? ctx.register_graph_image(
+                  "grid.scene-depth", *scene_depth_resource, ImageAspect::Depth
+              )
+            : ImageHandle{};
+    const auto grid_quad = frame.register_vertex_array(
+        "grid.quad", m_grid_quad.vertex_array
+    );
 
-    auto &world = scene->world();
-    auto camera = rendering::select_main_camera(world);
-    if (!camera.has_value()) {
-      LOG_WARN("[GridPass] Skipping execute: no main camera selected");
-      return;
-    }
+    RenderPipelineDesc surface_pipeline_desc;
+    surface_pipeline_desc.debug_name = "grid.surface";
+    surface_pipeline_desc.raster.cull_mode = CullMode::None;
+    surface_pipeline_desc.depth_stencil.depth_test = true;
+    surface_pipeline_desc.depth_stencil.depth_write = false;
+    surface_pipeline_desc.depth_stencil.compare_op = CompareOp::LessEqual;
+    surface_pipeline_desc.blend_attachments = {
+        BlendAttachmentState::alpha_blend()
+    };
 
-    auto renderer_api = m_render_target->renderer_api();
+    RenderPipelineDesc y_axis_pipeline_desc = surface_pipeline_desc;
+    y_axis_pipeline_desc.debug_name = "grid.y-axis";
+    y_axis_pipeline_desc.depth_stencil.depth_test = false;
 
-    m_scene_color->bind();
-    renderer_api->enable_buffer_testing();
-    renderer_api->enable_blend();
-    renderer_api->set_blend_func(RendererAPI::BlendFactor::SrcAlpha,
-                                 RendererAPI::BlendFactor::OneMinusSrcAlpha);
-    renderer_api->depth(RendererAPI::DepthMode::LessEqual);
-    renderer_api->disable_depth_write();
+    const auto surface_pipeline =
+        frame.register_pipeline(surface_pipeline_desc, m_shader);
+    const auto y_axis_pipeline =
+        frame.register_pipeline(y_axis_pipeline_desc, m_shader);
+    const glm::mat4 inverse_view = glm::inverse(camera.view);
+    const glm::mat4 inverse_projection = glm::inverse(camera.projection);
 
-    m_shader->bind();
+    const auto make_bindings = [&](const std::string &debug_name,
+                                   int render_mode) {
+      const auto bindings = frame.register_binding_group(
+          make_binding_group_desc(
+              debug_name,
+              "grid-pass",
+              m_shader,
+              0,
+              debug_name,
+              RenderBindingScope::Pass,
+              RenderBindingCachePolicy::Reuse,
+              RenderBindingSharing::LocalOnly,
+              0,
+              RenderBindingStability::FrameLocal
+          )
+      );
+      rendering::record_shader_params(
+          frame, bindings,
+          shader_bindings::engine_shaders_grid_axsl::GridParams{
+              .view = camera.view,
+              .projection = camera.projection,
+              .inverse_view = inverse_view,
+              .inverse_projection = inverse_projection,
+              .render_mode = render_mode,
+          }
+      );
+      return bindings;
+    };
 
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-    using namespace shader_bindings::engine_shaders_grid_axsl;
+    const auto surface_bindings =
+        make_bindings("grid.surface-bindings", k_surface_render_mode);
+    const auto y_axis_bindings =
+        make_bindings("grid.y-axis-bindings", k_y_axis_render_mode);
 
-    m_shader->set_all(GridParams{
-        .view = camera->camera->view_matrix,
-        .projection = camera->camera->projection_matrix,
-        .render_mode = k_surface_render_mode,
+    RenderingInfo info;
+    info.debug_name = "grid";
+    info.extent = extent;
+    info.color_attachments.push_back(ColorAttachmentRef{
+        .view = ImageViewRef{.image = scene_color},
+        .load_op = AttachmentLoadOp::Load,
+        .store_op = AttachmentStoreOp::Store,
     });
-#endif
+    if (scene_depth.valid()) {
+      info.depth_stencil_attachment = DepthStencilAttachmentRef{
+          .view = ImageViewRef{
+              .image = scene_depth,
+              .aspect = ImageAspect::Depth,
+          },
+          .depth_load_op = AttachmentLoadOp::Load,
+          .depth_store_op = AttachmentStoreOp::Store,
+          .clear_depth = 1.0f,
+          .stencil_load_op = AttachmentLoadOp::DontCare,
+          .stencil_store_op = AttachmentStoreOp::DontCare,
+          .clear_stencil = 0,
+      };
+    }
 
-    renderer_api->draw_indexed(m_grid_quad.vertex_array, m_grid_quad.draw_type);
+    recorder.begin_rendering(info);
+    recorder.bind_vertex_buffer(grid_quad);
+    recorder.bind_index_buffer(grid_quad, IndexType::Uint32);
 
-    renderer_api->disable_depth_test();
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-    m_shader->set(GridUniform::render_mode, k_y_axis_render_mode);
-#else
-    m_shader->set_int("grid.render_mode", k_y_axis_render_mode);
-#endif
-    renderer_api->draw_indexed(m_grid_quad.vertex_array, m_grid_quad.draw_type);
-    renderer_api->enable_depth_test();
+    recorder.bind_pipeline(surface_pipeline);
+    recorder.bind_binding_group(surface_bindings);
+    recorder.draw_indexed(DrawIndexedArgs{
+        .index_count = m_grid_quad.index_count,
+    });
 
-    m_shader->unbind();
-    renderer_api->enable_depth_write();
-    renderer_api->depth(RendererAPI::DepthMode::Less);
-    renderer_api->disable_blend();
-    m_scene_color->unbind();
+    recorder.bind_pipeline(y_axis_pipeline);
+    recorder.bind_binding_group(y_axis_bindings);
+    recorder.draw_indexed(DrawIndexedArgs{
+        .index_count = m_grid_quad.index_count,
+    });
+
+    recorder.end_rendering();
   }
-
-  void end(double dt) override {}
-
-  void cleanup() override {}
 
   std::string name() const override { return "GridPass"; }
 
 private:
-  Framebuffer *m_scene_color = nullptr;
-  Ref<Shader> m_shader;
-  Mesh m_grid_quad = Mesh::quad(1.0f);
+  Ref<Shader> m_shader = nullptr;
+  rendering::ResolvedMeshDraw m_grid_quad{};
   bool m_active = true;
+  std::function<bool()> m_toggle_requested;
 };
 
 } // namespace astralix

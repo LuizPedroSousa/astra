@@ -1,135 +1,133 @@
 #pragma once
 
 #include "framebuffer.hpp"
-#include "glm/vec2.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
 #include "render-pass.hpp"
-#include "resources/descriptors/shader-descriptor.hpp"
-#include "resources/mesh.hpp"
-#include "systems/render-system/mesh-resolution.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+#include "systems/render-system/render-frame.hpp"
+#include "targets/render-target.hpp"
 #include "trace.hpp"
+
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
 
 namespace astralix {
 
-class SSAOBlurPass : public RenderPass {
+class SSAOBlurPass : public FramePass {
 public:
-  SSAOBlurPass() = default;
+  explicit SSAOBlurPass(rendering::ResolvedMeshDraw fullscreen_quad = {})
+      : m_fullscreen_quad(std::move(fullscreen_quad)) {}
   ~SSAOBlurPass() override = default;
 
-  void setup(
-      Ref<RenderTarget> render_target,
-      const std::vector<const RenderGraphResource *> &resources
-  ) override {
-    m_render_target = render_target;
-    m_g_buffer = nullptr;
-    m_ssao = nullptr;
-    m_ssao_blur = nullptr;
+  void setup(PassSetupContext &ctx) override {
+    m_shader = ctx.require_shader("ssao_blur_shader");
 
-    for (auto resource : resources) {
-      switch (resource->desc.type) {
-        case RenderGraphResourceType::Framebuffer: {
-          if (resource->desc.name == "g_buffer") {
-            m_g_buffer = resource->get_framebuffer();
-          }
-
-          if (resource->desc.name == "ssao") {
-            m_ssao = resource->get_framebuffer();
-          }
-
-          if (resource->desc.name == "ssao_blur") {
-            m_ssao_blur = resource->get_framebuffer();
-          }
-          break;
-        }
-
-        default:
-          break;
-      }
-    }
-
-    if (m_g_buffer == nullptr || m_ssao == nullptr || m_ssao_blur == nullptr) {
+    if (m_shader == nullptr) {
+      LOG_WARN("[SSAOBlurPass] Missing graph dependency: ssao_blur_shader");
       set_enabled(false);
-      return;
     }
-
-    rendering::ensure_mesh_uploaded(m_fullscreen_quad, m_render_target);
   }
 
-  void begin(double) override {}
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override {
+    ASTRA_PROFILE_N("SSAOBlurPass::record");
+    const auto *g_position_resource = ctx.find_graph_image("g_position");
+    const auto *g_normal_resource = ctx.find_graph_image("g_normal");
+    const auto *ssao_resource = ctx.find_graph_image("ssao");
+    const auto *ssao_blur_resource = ctx.find_graph_image("ssao_blur");
 
-  void execute(double) override {
-    ASTRA_PROFILE_N("SSAOBlurPass");
-    if (m_g_buffer == nullptr || m_ssao == nullptr || m_ssao_blur == nullptr) {
-      LOG_WARN("[SSAOBlurPass] Skipping execute: required framebuffers are not available");
+    if (g_position_resource == nullptr || g_normal_resource == nullptr ||
+        ssao_resource == nullptr || ssao_blur_resource == nullptr ||
+        m_shader == nullptr || m_fullscreen_quad.vertex_array == nullptr ||
+        m_fullscreen_quad.index_count == 0) {
       return;
     }
 
-    auto renderer_api = m_render_target->renderer_api();
-    const auto backend = renderer_api->get_backend();
-    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::ssao_blur"}
+    using namespace shader_bindings::engine_shaders_ssao_blur_axsl;
+
+    auto &frame = ctx.frame();
+    const auto &blur_desc = ssao_blur_resource->get_graph_image()->desc;
+    const auto extent = ctx.graph_image_extent(*ssao_blur_resource);
+
+    auto ssao_input =
+        ctx.register_graph_image("ssao-blur.ssao-input", *ssao_resource);
+    auto g_position = ctx.register_graph_image(
+        "ssao-blur.g-position", *g_position_resource
+    );
+    auto g_normal = ctx.register_graph_image(
+        "ssao-blur.g-normal", *g_normal_resource
+    );
+    auto blur_output = ctx.register_graph_image(
+        "ssao-blur.output", *ssao_blur_resource
     );
 
-    auto shader =
-        resource_manager()->get_by_descriptor_id<Shader>("shaders::ssao_blur");
-    if (shader == nullptr) {
-      LOG_WARN("[SSAOBlurPass] Skipping execute: failed to load shaders::ssao_blur");
-      return;
-    }
-
-    shader->bind();
-
-    int32_t texture_unit = 0;
-    renderer_api->bind_texture_2d(m_ssao->get_color_attachment_id(), texture_unit);
-    ++texture_unit;
-
-    const auto &color_attachments = m_g_buffer->get_color_attachments();
-    if (color_attachments.size() < 2u) {
-      LOG_WARN("[SSAOBlurPass] Skipping execute: g_buffer is missing required attachments");
-      shader->unbind();
-      return;
-    }
-
-    renderer_api->bind_texture_2d(color_attachments[0], texture_unit);
-    ++texture_unit;
-    renderer_api->bind_texture_2d(color_attachments[1], texture_unit);
-
-    const auto &spec = m_ssao_blur->get_specification();
-    shader->set_int("blur.ssao_input", 0);
-    shader->set_int("blur.g_position", 1);
-    shader->set_int("blur.g_normal", 2);
-    shader->set_vec2(
-        "blur.texel_size",
-        glm::vec2(
-            1.0f / static_cast<float>(spec.width),
-            1.0f / static_cast<float>(spec.height)
+    const auto bindings = frame.register_binding_group(
+        make_binding_group_desc(
+            "ssao-blur-pass",
+            "ssao-blur-pass",
+            m_shader,
+            0,
+            "ssao-blur-pass",
+            RenderBindingScope::Pass,
+            RenderBindingCachePolicy::Reuse,
+            RenderBindingSharing::LocalOnly,
+            0,
+            RenderBindingStability::FrameLocal
         )
     );
 
-    m_ssao_blur->bind();
-    renderer_api->disable_depth_test();
-    renderer_api->draw_indexed(
-        m_fullscreen_quad.vertex_array, m_fullscreen_quad.draw_type
-    );
-    renderer_api->enable_depth_test();
-    m_ssao_blur->unbind();
+    frame.add_sampled_image_binding(
+        bindings, BlurResources::ssao_input.binding_id,
+        ImageViewRef{.image = ssao_input});
+    frame.add_sampled_image_binding(
+        bindings, BlurResources::g_position.binding_id,
+        ImageViewRef{.image = g_position});
+    frame.add_sampled_image_binding(
+        bindings, BlurResources::g_normal.binding_id,
+        ImageViewRef{.image = g_normal});
 
-    shader->unbind();
+    rendering::record_shader_params(frame, bindings, BlurParams{
+        .texel_size = glm::vec2(
+            1.0f / static_cast<float>(blur_desc.width),
+            1.0f / static_cast<float>(blur_desc.height)),
+    });
+
+    RenderPipelineDesc pipeline_desc;
+    pipeline_desc.debug_name = "ssao-blur-pass";
+    pipeline_desc.depth_stencil.depth_test = false;
+    pipeline_desc.depth_stencil.depth_write = false;
+
+    const auto pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+    const auto quad_buffer = frame.register_vertex_array(
+        "ssao-blur-pass.fullscreen-quad", m_fullscreen_quad.vertex_array);
+
+    RenderingInfo info;
+    info.debug_name = "ssao-blur-pass";
+    info.extent = extent;
+    info.color_attachments.push_back(ColorAttachmentRef{
+        .view = ImageViewRef{.image = blur_output},
+        .load_op = AttachmentLoadOp::Clear,
+        .store_op = AttachmentStoreOp::Store,
+        .clear_color = {1.0f, 1.0f, 1.0f, 1.0f},
+    });
+
+    recorder.begin_rendering(info);
+    recorder.bind_pipeline(pipeline);
+    recorder.bind_binding_group(bindings);
+    recorder.bind_vertex_buffer(quad_buffer);
+    recorder.bind_index_buffer(quad_buffer, IndexType::Uint32);
+    recorder.draw_indexed(DrawIndexedArgs{
+        .index_count = m_fullscreen_quad.index_count,
+    });
+    recorder.end_rendering();
   }
 
-  void end(double) override {}
-  void cleanup() override {}
-
-  std::string name() const noexcept override { return "SSAOBlurPass"; }
+  std::string name() const override { return "SSAOBlurPass"; }
 
 private:
-  Ref<RenderTarget> m_render_target = nullptr;
-  Framebuffer *m_g_buffer = nullptr;
-  Framebuffer *m_ssao = nullptr;
-  Framebuffer *m_ssao_blur = nullptr;
-  Mesh m_fullscreen_quad = Mesh::quad(1.0f);
+  Ref<Shader> m_shader = nullptr;
+  rendering::ResolvedMeshDraw m_fullscreen_quad{};
 };
 
 } // namespace astralix

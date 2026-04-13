@@ -1,27 +1,24 @@
 #pragma once
 
-#include "framebuffer.hpp"
 #include "render-pass.hpp"
 #include "resources/shader.hpp"
 #include "systems/render-system/core/compiled-frame.hpp"
 #include "systems/render-system/core/pass-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include "trace.hpp"
 
 namespace astralix {
 
-class EditorGizmoPass : public FramePass {
+class TerrainRenderPass : public FramePass {
 public:
-  EditorGizmoPass() = default;
-  ~EditorGizmoPass() override = default;
+  TerrainRenderPass() = default;
+  ~TerrainRenderPass() override = default;
 
   void setup(PassSetupContext &ctx) override;
   void record(PassRecordContext &ctx, PassRecorder &recorder) override;
-
-  std::string name() const override { return "EditorGizmoPass"; }
+  std::string name() const override { return "TerrainRenderPass"; }
 
 private:
-  Ref<Shader> m_shader = nullptr;
+  Ref<Shader> m_terrain_shader = nullptr;
 };
 
 } // namespace astralix

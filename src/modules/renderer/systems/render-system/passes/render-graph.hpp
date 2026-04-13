@@ -17,6 +17,7 @@ class RenderTarget;
 class RenderSystem;
 class RenderGraphExporter;
 class OpenGLExecutor;
+class VulkanExecutor;
 
 class RenderGraph {
 public:
@@ -43,6 +44,7 @@ public:
 
   const FrameStats &latest_frame_stats() const { return m_latest_frame_stats; }
 
+  VulkanExecutor *vulkan_executor() const { return m_vulkan_executor.get(); }
 
   const std::vector<CompiledExportImage> &compiled_exports() const {
     return m_compiled_exports;
@@ -51,6 +53,7 @@ public:
   const std::vector<CompiledPresentEdge> &compiled_present_edges() const {
     return m_compiled_present_edges;
   }
+
 private:
   void compute_resource_lifetimes();
   void infer_dependencies();
@@ -72,13 +75,13 @@ private:
   std::vector<RenderGraphResource> m_resources;
   std::vector<Scope<RenderGraphPass>> m_passes;
   std::vector<uint32_t> m_execution_order;
-  std::vector<Ref<Framebuffer>> m_transient_framebuffers;
   std::vector<Ref<StorageBuffer>> m_transient_storage_buffers;
 
   Ref<RenderTarget> m_render_target = nullptr;
   FrameStats m_latest_frame_stats;
   CompiledFrame m_latest_compiled_frame;
   Scope<OpenGLExecutor> m_opengl_executor;
+  Scope<VulkanExecutor> m_vulkan_executor;
   std::vector<CompiledExportImage> m_compiled_exports;
   std::vector<CompiledPresentEdge> m_compiled_present_edges;
 

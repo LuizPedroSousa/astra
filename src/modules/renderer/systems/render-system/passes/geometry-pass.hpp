@@ -2,185 +2,274 @@
 
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
-#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
-#include "renderer-api.hpp"
+#include "resources/shader.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/light-frame.hpp"
 #include "systems/render-system/material-binding.hpp"
-#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include "systems/render-system/scene-selection.hpp"
+#include "targets/render-target.hpp"
+#include "trace.hpp"
 
-#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
+#include <array>
+
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
-#define ASTRALIX_HAS_ENGINE_BINDINGS
-#endif
 
 namespace astralix {
 
-class GeometryPass : public RenderPass {
+class GeometryPass : public FramePass {
 public:
-  explicit GeometryPass(std::vector<EntityID> *pick_id_lut = nullptr)
-      : m_pick_id_lut(pick_id_lut) {}
+  GeometryPass() = default;
   ~GeometryPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override {
-    m_render_target = render_target;
-    for (auto resource : resources) {
-      switch (resource->desc.type) {
-        case RenderGraphResourceType::Framebuffer: {
-          if (resource->desc.name == "scene_color") {
-            m_scene_color = resource->get_framebuffer();
-          }
+  void setup(PassSetupContext &ctx) override {
+    m_shader = ctx.require_shader("geometry_shader");
 
-          if (resource->desc.name == "g_buffer") {
-            m_g_buffer = resource->get_framebuffer();
-          }
-          break;
-        }
-
-        default:
-          break;
-      }
-    }
-
-    if (m_scene_color == nullptr || m_g_buffer == nullptr) {
+    if (m_shader == nullptr) {
+      LOG_WARN("[GeometryPass] Missing graph dependency: geometry_shader");
       set_enabled(false);
     }
   }
 
-  void begin(double dt) override {}
-
-  void execute(double dt) override {
-    ASTRA_PROFILE_N("GeometryPass Update");
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-    auto scene = SceneManager::get()->get_active_scene();
-    if (scene == nullptr) {
-      LOG_WARN("[GeometryPass] Skipping execute: no active scene");
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override {
+    ASTRA_PROFILE_N("GeometryPass::record");
+    const auto *scene_frame = ctx.scene();
+    if (scene_frame == nullptr || !scene_frame->main_camera.has_value() ||
+        scene_frame->opaque_surfaces.empty()) {
       return;
     }
 
-    auto &world = scene->world();
-    if (!rendering::has_renderables(world)) {
-      LOG_WARN("[GeometryPass] Skipping execute: scene has no renderables");
-      return;
-    }
+    const auto *g_position = ctx.find_graph_image("g_position");
+    const auto *g_normal = ctx.find_graph_image("g_normal");
+    const auto *g_albedo = ctx.find_graph_image("g_albedo");
+    const auto *g_emissive = ctx.find_graph_image("g_emissive");
+    const auto *g_entity_id = ctx.find_graph_image("g_entity_id");
+    const auto *scene_depth_resource = ctx.find_graph_image("scene_depth");
 
-    auto camera = rendering::select_main_camera(world);
-    if (!camera.has_value()) {
-      LOG_WARN("[GeometryPass] Skipping execute: no main camera selected");
-      return;
-    }
-
-    auto renderer_api = m_render_target->renderer_api();
-    const auto light_frame = rendering::collect_light_frame(world);
-    const auto backend = renderer_api->get_backend();
-    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::g_buffer"});
-
-    auto shader =
-        resource_manager()->get_by_descriptor_id<Shader>("shaders::g_buffer");
-    if (shader == nullptr) {
-      LOG_WARN(
-          "[GeometryPass] Skipping execute: failed to load shaders::g_buffer");
+    if (g_position == nullptr || g_normal == nullptr || g_albedo == nullptr ||
+        g_emissive == nullptr || g_entity_id == nullptr ||
+        scene_depth_resource == nullptr || m_shader == nullptr) {
       return;
     }
 
     using namespace shader_bindings::engine_shaders_g_buffer_axsl;
+    const rendering::MaterialBindingLayout material_layout{
+        .diffuse = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::diffuse.logical_name,
+            .binding_id = MaterialResources::diffuse.binding_id,
+        },
+        .specular = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::specular.logical_name,
+            .binding_id = MaterialResources::specular.binding_id,
+        },
+        .normal_map = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::normal_map.logical_name,
+            .binding_id = MaterialResources::normal_map.binding_id,
+        },
+        .displacement_map = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::displacement_map.logical_name,
+            .binding_id = MaterialResources::displacement_map.binding_id,
+        },
+    };
 
-    m_g_buffer->bind();
-    m_render_target->renderer_api()->clear_buffers(ClearBufferType::Color |
-                                                   ClearBufferType::Depth);
-    if (m_pick_id_lut != nullptr) {
-      m_pick_id_lut->clear();
+    auto &frame = ctx.frame();
+    const auto extent = ctx.graph_image_extent(*g_position);
+
+    bool rendering_started = false;
+    std::array<ImageHandle, 5> gbuffer_colors{};
+    ImageHandle scene_depth{};
+    RenderPipelineHandle pipeline{};
+    RenderBindingGroupHandle scene_bindings{};
+    std::unordered_map<
+        rendering::MaterialGroupKey,
+        RenderBindingGroupHandle,
+        rendering::MaterialGroupKeyHash>
+        material_bindings;
+
+    RenderPipelineDesc pipeline_desc;
+    pipeline_desc.debug_name = "geometry-pass";
+    pipeline_desc.depth_stencil.depth_test = true;
+    pipeline_desc.depth_stencil.depth_write = true;
+    pipeline_desc.depth_stencil.compare_op = CompareOp::Less;
+
+    const auto ensure_rendering_started = [&] {
+      if (rendering_started) {
+        return;
+      }
+
+      gbuffer_colors[0] = ctx.register_graph_image(
+          "geometry.g-position", *g_position
+      );
+      gbuffer_colors[1] = ctx.register_graph_image(
+          "geometry.g-normal", *g_normal
+      );
+      gbuffer_colors[2] = ctx.register_graph_image(
+          "geometry.g-albedo", *g_albedo
+      );
+      gbuffer_colors[3] = ctx.register_graph_image(
+          "geometry.g-emissive", *g_emissive
+      );
+      gbuffer_colors[4] = ctx.register_graph_image(
+          "geometry.g-entity-id", *g_entity_id
+      );
+      scene_depth = ctx.register_graph_image(
+          "geometry.scene-depth", *scene_depth_resource, ImageAspect::Depth
+      );
+
+      RenderingInfo info;
+      info.debug_name = "geometry-pass";
+      info.extent = extent;
+      for (ImageHandle attachment : gbuffer_colors) {
+        info.color_attachments.push_back(ColorAttachmentRef{
+            .view = ImageViewRef{.image = attachment},
+            .load_op = AttachmentLoadOp::Clear,
+            .store_op = AttachmentStoreOp::Store,
+            .clear_color = {0.0f, 0.0f, 0.0f, 0.0f},
+        });
+      }
+      info.depth_stencil_attachment = DepthStencilAttachmentRef{
+          .view = ImageViewRef{
+              .image = scene_depth,
+              .aspect = ImageAspect::Depth,
+          },
+          .depth_load_op = AttachmentLoadOp::Clear,
+          .depth_store_op = AttachmentStoreOp::Store,
+          .clear_depth = 1.0f,
+          .stencil_load_op = AttachmentLoadOp::DontCare,
+          .stencil_store_op = AttachmentStoreOp::DontCare,
+          .clear_stencil = 0,
+      };
+
+      recorder.begin_rendering(info);
+      rendering_started = true;
+    };
+
+    const auto ensure_pipeline_and_scene_bindings = [&] {
+      ensure_rendering_started();
+
+      if (!pipeline.valid()) {
+        pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+      }
+
+      if (scene_bindings.valid()) {
+        return;
+      }
+
+      scene_bindings = frame.register_binding_group(
+          make_binding_group_desc(
+              "geometry-pass.scene",
+              "geometry-pass",
+              m_shader,
+              0,
+              "geometry-pass.scene",
+              RenderBindingScope::Pass,
+              RenderBindingCachePolicy::Reuse,
+              RenderBindingSharing::LocalOnly,
+              0,
+              RenderBindingStability::FrameLocal
+          )
+      );
+      rendering::record_shader_params(frame, scene_bindings, CameraParams{
+                                                                .view = scene_frame->main_camera->view,
+                                                                .projection = scene_frame->main_camera->projection,
+                                                                .position = scene_frame->main_camera->position,
+                                                            });
+      rendering::record_shader_params(
+          frame,
+          scene_bindings,
+          rendering::build_gbuffer_scene_params(scene_frame->light_frame)
+      );
+    };
+
+    for (const auto &surface : scene_frame->opaque_surfaces) {
+      if (surface.mesh.vertex_array == nullptr ||
+          surface.mesh.index_count == 0) {
+        continue;
+      }
+
+      ensure_pipeline_and_scene_bindings();
+
+      const auto material_key =
+          rendering::make_material_group_key(surface.material);
+      auto material_it = material_bindings.find(material_key);
+      if (material_it == material_bindings.end()) {
+        const auto material_group = frame.register_binding_group(
+            make_binding_group_desc(
+                "geometry-pass.material",
+                "geometry-pass",
+                m_shader,
+                1,
+                "geometry-pass.material",
+                RenderBindingScope::Material,
+                RenderBindingCachePolicy::Reuse,
+                RenderBindingSharing::LocalOnly,
+                0,
+                RenderBindingStability::FrameLocal
+            )
+        );
+        const auto material_binding =
+            rendering::record_resolved_material_bindings(
+                frame, material_group, surface.material, material_layout
+            );
+        rendering::record_shader_params(
+            frame,
+            material_group,
+            rendering::build_gbuffer_material_params(material_binding)
+        );
+        material_it =
+            material_bindings.emplace(material_key, material_group).first;
+      }
+
+      const auto draw_bindings = frame.register_binding_group(
+          make_binding_group_desc(
+              "geometry-pass.draw",
+              "geometry-pass",
+              m_shader,
+              2,
+              "geometry-pass.draw",
+              RenderBindingScope::Draw,
+              RenderBindingCachePolicy::Ephemeral,
+              RenderBindingSharing::LocalOnly,
+              0,
+              RenderBindingStability::Transient
+          )
+      );
+      rendering::record_shader_params(
+          frame, draw_bindings, DrawParams{
+                                    .use_instancing = false,
+                                    .g_model = surface.model,
+                                    .bloom_enabled = surface.bloom_enabled,
+                                    .bloom_layer = surface.bloom_layer,
+                                    .entity_id = static_cast<int>(surface.pick_id),
+                                }
+      );
+
+      const auto mesh_buffer = frame.register_vertex_array(
+          "geometry-pass.mesh", surface.mesh.vertex_array
+      );
+
+      recorder.bind_pipeline(pipeline);
+      recorder.bind_binding_group(scene_bindings);
+      recorder.bind_binding_group(material_it->second);
+      recorder.bind_binding_group(draw_bindings);
+      recorder.bind_vertex_buffer(mesh_buffer);
+      recorder.bind_index_buffer(mesh_buffer, IndexType::Uint32);
+      recorder.draw_indexed(DrawIndexedArgs{
+          .index_count = surface.mesh.index_count,
+      });
     }
 
-    world.each<rendering::Renderable, scene::Transform>(
-        [&](EntityID entity_id, rendering::Renderable &,
-            scene::Transform &transform) {
-          if (!world.active(entity_id)) {
-            return;
-          }
-
-          auto entity = world.entity(entity_id);
-          auto *model_ref = entity.get<rendering::ModelRef>();
-          auto *mesh_set = entity.get<rendering::MeshSet>();
-          if (model_ref == nullptr && mesh_set == nullptr) {
-            return;
-          }
-
-          auto *materials = entity.get<rendering::MaterialSlots>();
-          auto *textures = entity.get<rendering::TextureBindings>();
-          const auto bloom_settings =
-              rendering::resolve_bloom_settings(
-                  entity.get<rendering::BloomSettings>());
-          int pick_id = 0;
-          if (m_pick_id_lut != nullptr) {
-            m_pick_id_lut->push_back(entity_id);
-            pick_id = static_cast<int>(m_pick_id_lut->size());
-          }
-
-          shader->bind();
-
-          const auto material_binding = rendering::bind_material_slots(
-              renderer_api, shader, model_ref, materials, textures);
-          if (material_binding.diffuse_slot < 0 ||
-              material_binding.specular_slot < 0) {
-            shader->unbind();
-            return;
-          }
-
-          shader->set_all(CameraParams{
-              .view = camera->camera->view_matrix,
-              .projection = camera->camera->projection_matrix,
-              .position = camera->transform->position,
-          });
-
-          shader->set_all(EntityParams{
-              .use_instancing = false,
-              .g_model = transform.matrix,
-              .bloom_enabled = bloom_settings.enabled,
-              .bloom_layer = bloom_settings.render_layer,
-              .entity_id = pick_id,
-          });
-
-          shader->set_all(rendering::build_gbuffer_light_params(
-              light_frame, material_binding));
-
-          rendering::for_each_render_mesh(
-              model_ref, mesh_set, m_render_target, [&](Mesh &mesh) {
-                m_render_target->renderer_api()->draw_indexed(mesh.vertex_array,
-                                                              mesh.draw_type);
-              });
-
-          shader->unbind();
-        });
-
-    m_g_buffer->bind(FramebufferBindType::Read);
-    m_scene_color->bind(FramebufferBindType::Draw);
-
-    const FramebufferSpecification &spec = m_g_buffer->get_specification();
-    m_scene_color->blit(spec.width, spec.height, FramebufferBlitType::Depth);
-
-    m_g_buffer->unbind();
-    m_scene_color->unbind();
-#endif
+    if (rendering_started) {
+      recorder.end_rendering();
+    }
   }
 
-  void end(double dt) override {}
-
-  void cleanup() override {}
-
-  std::string name() const noexcept override { return "GeometryPass"; }
+  std::string name() const override { return "GeometryPass"; }
 
 private:
-  Framebuffer *m_scene_color = nullptr;
-  Framebuffer *m_g_buffer = nullptr;
-  std::vector<EntityID> *m_pick_id_lut = nullptr;
+  Ref<Shader> m_shader = nullptr;
 };
 
 } // namespace astralix

@@ -6,6 +6,7 @@
 #include "managers/resource-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "platform/OpenGL/opengl-executor.hpp"
+#include "platform/Vulkan/vulkan-executor.hpp"
 #include "render-graph-compiled.hpp"
 #include "render-graph-usage.hpp"
 #include "renderer-api.hpp"
@@ -85,6 +86,8 @@ void append_pass_dependency_requests(
     case RenderPassDependencyType::Svg:
       rendering::request_svg(requests, dependency.descriptor_id);
       return;
+    case RenderPassDependencyType::AudioClip:
+    case RenderPassDependencyType::TerrainRecipe:
     case RenderPassDependencyType::Opaque:
       return;
   }
@@ -130,6 +133,9 @@ ResolvedRenderPassDependency resolve_pass_dependency(
       resolved.resource =
           resource_manager()->get_by_descriptor_id<Svg>(
               dependency.descriptor_id);
+      return resolved;
+    case RenderPassDependencyType::AudioClip:
+    case RenderPassDependencyType::TerrainRecipe:
       return resolved;
     case RenderPassDependencyType::Opaque:
       return resolved;
@@ -177,6 +183,17 @@ void RenderGraph::compile(Ref<RenderTarget> target) {
       m_opengl_executor = create_scope<OpenGLExecutor>(*m_render_target);
       break;
     }
+    case RendererBackend::Vulkan: {
+      m_vulkan_executor.reset();
+
+      auto window = window_manager()->get_window_by_id(m_render_target->window_id());
+      m_vulkan_executor = create_scope<VulkanExecutor>(
+          window->handle(),
+          static_cast<uint32_t>(window->width()),
+          static_cast<uint32_t>(window->height())
+      );
+      break;
+    }
     default:
       ASTRA_ENSURE(m_render_target == nullptr, "[RenderGraph] RenderTarget must create a RenderBackend first");
       break;
@@ -191,22 +208,24 @@ void RenderGraph::resize(uint32_t width, uint32_t height) {
       auto spec = std::get_if<ImageDesc>(&resource.desc.spec);
       const auto image = resource.get_graph_image();
       if (spec == nullptr || image == nullptr) {
-      continue;
-    }
+        continue;
+      }
 
-    auto [resolved_width, resolved_height] =
+      auto [resolved_width, resolved_height] =
           resolve_image_extent(*spec, width, height);
 
-    if (resolved_width == 0 || resolved_height == 0) {
-      continue;
-    }
+      if (resolved_width == 0 || resolved_height == 0) {
+        continue;
+      }
 
-    spec->width = resolved_width;
-    spec->height = resolved_height;
+      spec->width = resolved_width;
+      spec->height = resolved_height;
       image->update_desc(*spec);
     }
   }
 
+  if (m_vulkan_executor != nullptr) {
+    m_vulkan_executor->handle_resize(width, height);
   }
 }
 
@@ -400,10 +419,10 @@ void RenderGraph::cull_passes() {
             access.resource_index < m_resources.size() &&
             m_resources[access.resource_index].is_persistent()) {
           needed[pass_idx] = true;
-            break;
-          }
+          break;
         }
       }
+    }
   }
 
   bool changed = true;
@@ -413,7 +432,7 @@ void RenderGraph::cull_passes() {
       if (!needed[pass_idx]) {
         continue;
       }
-          for (uint32_t dep_idx :
+      for (uint32_t dep_idx :
            m_passes[pass_idx]->get_computed_dependency_indices()) {
         if (!needed[dep_idx]) {
           needed[dep_idx] = true;
@@ -425,8 +444,8 @@ void RenderGraph::cull_passes() {
 
   for (uint32_t pass_idx = 0; pass_idx < num_passes; ++pass_idx) {
     m_passes[pass_idx]->set_culled(!needed[pass_idx]);
-            }
-          }
+  }
+}
 
 void RenderGraph::alias_resources() {
   std::unordered_set<uint32_t> export_or_present_resources;
@@ -438,8 +457,8 @@ void RenderGraph::alias_resources() {
       export_or_present_resources.insert(
           pass->get_present()->source.resource_index()
       );
-      }
     }
+  }
 
   int32_t next_alias_group = 0;
 
@@ -453,13 +472,13 @@ void RenderGraph::alias_resources() {
       m_resources[i].alias_group = next_alias_group++;
       continue;
     }
-      transient_indices.push_back(i);
+    transient_indices.push_back(i);
   }
 
   std::sort(transient_indices.begin(), transient_indices.end(), [this](uint32_t a, uint32_t b) {
-              return m_resources[a].first_write_pass <
-                     m_resources[b].first_write_pass;
-            });
+    return m_resources[a].first_write_pass <
+           m_resources[b].first_write_pass;
+  });
   std::unordered_map<int32_t, std::vector<uint32_t>> alias_groups;
 
   for (uint32_t res_idx : transient_indices) {
@@ -706,6 +725,8 @@ void RenderGraph::execute(double dt, const rendering::SceneFrame *scene_frame) {
 
   if (m_opengl_executor != nullptr && !m_latest_compiled_frame.empty()) {
     m_opengl_executor->execute(m_latest_compiled_frame);
+  } else if (m_vulkan_executor != nullptr) {
+    m_vulkan_executor->execute(m_latest_compiled_frame);
   }
 
   if (m_render_target != nullptr &&
@@ -728,6 +749,7 @@ void RenderGraph::cleanup() {
 
   m_transient_storage_buffers.clear();
   m_opengl_executor.reset();
+  m_vulkan_executor.reset();
 }
 
 bool RenderGraph::has_lifetime_overlap(const RenderGraphResource &a, const RenderGraphResource &b) const {
