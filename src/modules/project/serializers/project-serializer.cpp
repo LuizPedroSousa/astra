@@ -9,6 +9,7 @@
 #include "resources/model.hpp"
 #include "resources/shader.hpp"
 #include "resources/svg.hpp"
+#include "resources/terrain-recipe.hpp"
 #include "resources/texture.hpp"
 #include "serialization-context.hpp"
 #include "serializer.hpp"
@@ -31,6 +32,7 @@ enum class ResourceType {
   Model,
   Svg,
   AudioClip,
+  TerrainRecipe,
   Unknown
 };
 
@@ -39,7 +41,6 @@ Ref<Path> ProjectSerializer::parse_path(ContextProxy ctx) {
   BaseDirectory base_directory = BaseDirectory::Project;
 
   switch (ctx.kind()) {
-
     case SerializationTypeKind::String: {
       auto full_path_str = ctx.as<std::string>();
 
@@ -155,6 +156,8 @@ ResourceType asset_type_from_string(const std::string &type) {
     return ResourceType::Svg;
   if (type == "AudioClip")
     return ResourceType::AudioClip;
+  if (type == "TerrainRecipe")
+    return ResourceType::TerrainRecipe;
 
   return ResourceType::Unknown;
 }
@@ -248,6 +251,8 @@ static SystemType system_type_from_string(const std::string &name) {
     return SystemType::Render;
   if (name == "audio")
     return SystemType::Audio;
+  if (name == "terrain")
+    return SystemType::Terrain;
 
   ASTRA_EXCEPTION("Unknown system type:", name);
 }
@@ -471,6 +476,14 @@ void ProjectSerializer::deserialize() {
         AudioClip::create(id, path);
         break;
       }
+      case ResourceType::TerrainRecipe: {
+        auto path = parse_path(asset["path"]);
+
+        ASTRA_ENSURE(path == nullptr, "TerrainRecipe path is required");
+
+        TerrainRecipe::create(id, path);
+        break;
+      }
       default:
         ASTRA_EXCEPTION("Unknown asset type", type_str);
     }
@@ -547,6 +560,26 @@ void ProjectSerializer::deserialize() {
         break;
       }
 
+      case SystemType::Terrain: {
+        TerrainSystemConfig terrain;
+
+        terrain.default_resolution = static_cast<uint32_t>(
+            read_number(sys["content"]["default_resolution"], 1025.0f)
+        );
+        terrain.clipmap_levels = static_cast<uint32_t>(
+            read_number(sys["content"]["clipmap_levels"], 6.0f)
+        );
+        terrain.tile_world_size =
+            read_number(sys["content"]["tile_world_size"], 256.0f);
+
+        config.systems.push_back({
+            .name = name,
+            .type = system_type,
+            .content = terrain,
+        });
+
+        break;
+      }
 
       default:
         ASTRA_EXCEPTION("Unkown system type", name)

@@ -18,6 +18,7 @@ target_link_libraries(
   window
   shared::ecs
   physics
+  terrain
   renderer
   ui
   streams
