@@ -43,6 +43,9 @@ set(glfw3_DIR "${VCPKG_INSTALLED_ROOT}/share/glfw3")
 set(uwebsockets_DIR "${VCPKG_INSTALLED_ROOT}/share/unofficial-uwebsockets")
 set(glad_DIR "${VCPKG_INSTALLED_ROOT}/share/glad")
 set(glm_DIR "${VCPKG_INSTALLED_ROOT}/share/glm")
+set(unofficial-shaderc_DIR "${VCPKG_INSTALLED_ROOT}/share/unofficial-shaderc")
+
+find_package(unofficial-shaderc CONFIG REQUIRED)
 
 find_path(USOCKET_LIB_A "${VCPKG_INSTALLED_ROOT}/lib/libuSockets.a")
 find_path(GLAD_LIB_A "${VCPKG_INSTALLED_ROOT}/lib/libglad.a")

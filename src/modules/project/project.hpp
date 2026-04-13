@@ -99,6 +99,8 @@ struct RenderSystemConfig {
   RendererBackend backend_to_api() {
     if (backend == "opengl")
       return RendererBackend::OpenGL;
+    if (backend == "vulkan")
+      return RendererBackend::Vulkan;
 
     return RendererBackend::None;
   }

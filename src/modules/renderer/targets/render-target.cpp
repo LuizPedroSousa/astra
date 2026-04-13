@@ -57,6 +57,29 @@ Ref<RenderTarget> RenderTarget::create(RendererBackend api, MSAA msaa, WindowID 
       return create_ref<RenderTarget>(std::move(renderer_api), std::move(framebuffer), msaa, window_id);
     }
 
+    case RendererBackend::Vulkan: {
+      auto window = window_manager()->get_window_by_id(window_id);
+
+      FramebufferSpecification framebuffer_spec;
+      framebuffer_spec.attachments = {
+          FramebufferTextureFormat::RGBA32F,
+          FramebufferTextureFormat::RGBA32F,
+          FramebufferTextureFormat::RED_INTEGER,
+          FramebufferTextureFormat::Depth,
+      };
+      framebuffer_spec.width = window->width();
+      framebuffer_spec.height = window->height();
+      framebuffer_spec.extent = {
+          .mode = RenderExtentMode::WindowRelative,
+      };
+
+      auto framebuffer = Framebuffer::create(api, framebuffer_spec);
+      auto target = create_ref<RenderTarget>(
+          nullptr, std::move(framebuffer), msaa, window_id
+      );
+      target->m_backend = RendererBackend::Vulkan;
+      return target;
+    }
 
     default: {
       ASTRA_EXCEPTION("NONE ins't a valid renderer api");

@@ -1,4 +1,5 @@
 #include "managers/project-manager.hpp"
+#include "project.hpp"
 #include "window.hpp"
 
 #include "assert.hpp"
@@ -46,22 +47,42 @@ void WindowManager::set_active_window_by_id(WindowID id) {
   m_active_window = window;
 }
 
+WindowGraphicsAPI WindowManager::resolve_graphics_api(
+    const ProjectConfig &config, const WindowID &window_id) {
+  for (const auto &system : config.systems) {
+    if (system.type != SystemType::Render) {
+      continue;
+    }
+    const auto *render_config = std::get_if<RenderSystemConfig>(&system.content);
+    if (render_config == nullptr) {
+      continue;
+    }
+    if (WindowID(render_config->window_id) == window_id) {
+      auto backend = render_config->backend;
+      if (backend == "vulkan") {
+        return WindowGraphicsAPI::Vulkan;
+      }
+      return WindowGraphicsAPI::OpenGL;
+    }
+  }
+  return WindowGraphicsAPI::OpenGL;
+}
+
 void WindowManager::start() {
   ASTRA_PROFILE_N("WindowManager::start");
   auto project_config = active_project()->get_config();
 
-
   for (auto window : project_config.windows) {
-  auto created_win  =  load_window(Window::create(window.id, window.title, window.width,
-                                   window.height, window.headless));
-    if(m_active_window == nullptr){
+    auto created_win = load_window(Window::create(
+        window.id, window.title, window.width, window.height, window.headless));
+    if (m_active_window == nullptr) {
       m_active_window = created_win;
     }
-
   }
 
-  for (auto &[_, window] : m_window_table) {
-    window->start();
+  for (auto &[window_id, window] : m_window_table) {
+    auto api = resolve_graphics_api(project_config, window_id);
+    window->start(api);
   }
 };
 

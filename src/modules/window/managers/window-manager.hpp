@@ -9,6 +9,7 @@
 
 namespace astralix {
 
+struct ProjectConfig;
 class Window;
 
 class WindowManager : public BaseManager<WindowManager> {
@@ -32,6 +33,9 @@ public:
 
   void load_windows(std::initializer_list<Ref<Window>> windows);
   Ref<Window> load_window(Ref<Window> window);
+
+  static WindowGraphicsAPI resolve_graphics_api(
+      const ProjectConfig &config, const WindowID &window_id);
 
 private:
   std::unordered_map<WindowID, Ref<Window>> m_window_table;

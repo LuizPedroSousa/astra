@@ -9,7 +9,7 @@
 
 namespace astralix {
 
-enum class RendererBackend { None = 0, OpenGL = 1 };
+enum class RendererBackend { None = 0, OpenGL = 1, Vulkan = 2 };
 
 enum class ClearBufferType : uint32_t {
   None = 0,
@@ -128,6 +128,9 @@ Ref<T> create_renderer_component_ref(RendererBackend backend,
   case RendererBackend::OpenGL:
     return create_ref<O>(std::forward<Args>(params)...);
 
+  case RendererBackend::Vulkan:
+    ASTRA_EXCEPTION("Vulkan resource creation through legacy factories is not supported");
+
   default:
     ASTRA_EXCEPTION("NONE ins't a valid renderer api");
   }
@@ -139,6 +142,9 @@ Scope<T> create_renderer_component_scope(RendererBackend api,
   switch (api) {
   case RendererBackend::OpenGL:
     return create_scope<O>(std::forward<Args>(params)...);
+
+  case RendererBackend::Vulkan:
+    ASTRA_EXCEPTION("Vulkan resource creation through legacy factories is not supported");
 
   default:
     ASTRA_EXCEPTION("NONE ins't a valid renderer api");
