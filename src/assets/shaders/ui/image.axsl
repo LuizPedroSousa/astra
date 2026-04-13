@@ -2,8 +2,11 @@
 
 @uniform
 interface Image {
+  @set(1)
   sampler2D texture;
+  @set(1)
   vec4 tint;
+  @set(1)
   float sample_flip_y;
 }
 

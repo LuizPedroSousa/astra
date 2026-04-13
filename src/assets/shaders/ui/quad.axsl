@@ -10,11 +10,13 @@ interface Mesh {
 
 @uniform
 interface Camera {
+  @set(0)
   mat4 projection;
 }
 
 @uniform
 interface Quad {
+  @set(1)
   vec4 rect;
 }
 

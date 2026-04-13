@@ -2,7 +2,7 @@
 
 @include "helpers/light.axsl";
 
-struct Material {
+struct MaterialLayer {
   sampler2D diffuse;
   sampler2D specular;
   float shininess;
@@ -26,36 +26,56 @@ interface Mesh {
 }
 
 @std430
+@set(2)
 @binding(0)
 in InstanceBuffer {
     mat4 models[];
 } instance;
 
 @uniform
-interface Entity {
+interface Draw {
+  @set(2)
   bool use_instancing = false;
+  @set(2)
   mat4 g_model;
+  @set(2)
   bool bloom_enabled = true;
+  @set(2)
   int bloom_layer = 0;
+  @set(2)
   int entity_id = 0;
 }
 
 @uniform
 interface Camera {
+  @set(0)
   mat4 view;
+  @set(0)
   mat4 projection;
+  @set(0)
   vec3 position;
 }
 
 @uniform
-interface Light {
+interface SceneLight {
+  @set(0)
   DirectionalLight directional;
+  @set(0)
   mat4 light_space_matrix;
-  Material materials[1];
-  sampler2D normal_map;
-  sampler2D displacement_map;
-  float height_scale = 0.1;
+  @set(0)
   int bloom_layer = 0;
+}
+
+@uniform
+interface Material {
+  @set(1)
+  MaterialLayer materials[1];
+  @set(1)
+  sampler2D normal_map;
+  @set(1)
+  sampler2D displacement_map;
+  @set(1)
+  float height_scale = 0.1;
 }
 
 interface VertexOutput {
@@ -69,8 +89,8 @@ interface VertexOutput {
 }
 
 @vertex
-fn main(Entity entity, Mesh mesh, Camera camera, Light light) -> VertexOutput {
-  mat4 model = entity.use_instancing ? instance.models[gl_InstanceID] : entity.g_model;
+fn main(Draw draw, Mesh mesh, Camera camera) -> VertexOutput {
+  mat4 model = draw.use_instancing ? instance.models[gl_InstanceID] : draw.g_model;
 
   mat3 normal_matrix = transpose(inverse(mat3(model)));
 
@@ -120,19 +140,17 @@ interface FragmentOutput {
 }
 
 @fragment
-fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
+fn main(VertexOutput vertex, Draw draw, SceneLight scene_light, Material material) -> FragmentOutput {
   vec3 view_direction = normalize(vertex.tangent_view_position - vertex.tangent_fragment);
 
-  // vec2 texture_coordinates = parallax_mapping(
-  //     light.displacement_map,
-  //     vertex.texture,
-  //     view_direction,
-  //     light.height_scale
-  // );
+  vec2 texture_coordinates = parallax_mapping(
+      material.displacement_map,
+      vertex.texture_coordinates,
+      view_direction,
+      material.height_scale
+  );
 
-  vec2 texture_coordinates = vertex.texture_coordinates;
-
-  vec3 tangent_normal = normalize(texture(light.normal_map, texture_coordinates).rgb * 2.0 - 1.0);
+  vec3 tangent_normal = normalize(texture(material.normal_map, texture_coordinates).rgb * 2.0 - 1.0);
 
   vec3 T = normalize(vertex.tangent_world);
   vec3 N = normalize(vertex.normal);
@@ -144,16 +162,17 @@ fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
 
   FragmentOutput frag_output;
 
-  frag_output.g_position = vec4(vertex.fragment_world, light.materials[0].shininess);
+  frag_output.g_position = vec4(vertex.fragment_world, material.materials[0].shininess);
   frag_output.g_normal = vec4(world_normal, 1.0);
-  frag_output.g_albedo.rgb = texture(light.materials[0].diffuse, texture_coordinates).rgb;
-  frag_output.g_albedo.a = texture(light.materials[0].specular, texture_coordinates).r;
-  frag_output.g_emissive.rgb = light.materials[0].emissive;
+  frag_output.g_albedo.rgb =
+      texture(material.materials[0].diffuse, texture_coordinates).rgb;
+  frag_output.g_albedo.a = texture(material.materials[0].specular, texture_coordinates).r;
+  frag_output.g_emissive.rgb = material.materials[0].emissive;
   frag_output.g_emissive.a =
-      entity.bloom_enabled && entity.bloom_layer == light.bloom_layer
-          ? light.materials[0].bloom_intensity
+      draw.bloom_enabled && draw.bloom_layer == scene_light.bloom_layer
+          ? material.materials[0].bloom_intensity
           : 0.0;
-  frag_output.g_entity_id = entity.entity_id;
+  frag_output.g_entity_id = draw.entity_id;
 
   return frag_output;
 }

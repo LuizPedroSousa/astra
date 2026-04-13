@@ -3,7 +3,7 @@
 @include "helpers/light.axsl";
 @include "helpers/shadow.axsl";
 
-struct Material {
+struct MaterialLayer {
   sampler2D diffuse;
   sampler2D specular;
   float shininess;
@@ -27,41 +27,66 @@ interface Mesh {
 }
 
 @std430
+@set(2)
 @binding(0)
 in InstanceBuffer {
     mat4 models[];
 } instance;
 
 @uniform
-interface Entity {
+interface Draw {
+  @set(2)
   bool use_instancing = false;
+  @set(2)
   mat4 g_model;
+  @set(2)
   bool bloom_enabled = true;
+  @set(2)
   int bloom_layer = 0;
+  @set(2)
   int entity_id = 0;
 }
 
 @uniform
 interface Camera {
+  @set(0)
   mat4 view;
+  @set(0)
   mat4 projection;
+  @set(0)
   vec3 position;
 }
 
 @uniform
-interface Light {
+interface SceneLight {
+  @set(0)
   DirectionalLight directional;
+  @set(0)
   mat4 light_space_matrix;
+  @set(0)
   SpotLight spot_light;
+  @set(0)
   PointLight point_lights[4];
-  Material materials[1];
+  @set(0)
   float near_plane = -10.0;
+  @set(0)
   float far_plane = 20.0;
-  sampler2D normal_map;
-  sampler2D displacement_map;
+  @set(0)
   sampler2D shadow_map;
-  float height_scale = 0.1;
+  @set(0)
   int bloom_layer = 0;
+}
+
+@uniform
+interface Material {
+  @set(1)
+  MaterialLayer materials[1];
+  @set(1)
+  sampler2D normal_map;
+  @set(1)
+  sampler2D displacement_map;
+  @set(1)
+  float height_scale = 0.1;
 }
 
 interface VertexOutput {
@@ -80,8 +105,8 @@ interface VertexOutput {
 }
 
 @vertex
-fn main(Entity entity, Mesh mesh, Camera camera, Light light) -> VertexOutput {
-  mat4 model = entity.use_instancing ? instance.models[gl_InstanceID] : entity.g_model;
+fn main(Draw draw, Mesh mesh, Camera camera, SceneLight scene_light) -> VertexOutput {
+  mat4 model = draw.use_instancing ? instance.models[gl_InstanceID] : draw.g_model;
 
   mat3 normal_matrix = transpose(inverse(mat3(model)));
 
@@ -104,12 +129,12 @@ fn main(Entity entity, Mesh mesh, Camera camera, Light light) -> VertexOutput {
   vertex_output.tangent_world = T;
   vertex_output.bitangent_world = B;
   vertex_output.tangent_view_position = world_to_tangent * camera.position;
-  vertex_output.tangent_light_direction = normalize(world_to_tangent * (-light.directional.direction));
+  vertex_output.tangent_light_direction = normalize(world_to_tangent * (-scene_light.directional.direction));
   vertex_output.tangent_view_direction = normalize(world_to_tangent * (camera.position - fragment_world));
 
   vertex_output.texture = mesh.texture_coordinates;
-  vertex_output.fragment_light_space = light.light_space_matrix * vec4(vertex_output.fragment_world, 1.0);
-  vertex_output.tangent_fragment_light_space = light.light_space_matrix * vec4(vertex_output.tangent_fragment, 1.0);
+  vertex_output.fragment_light_space = scene_light.light_space_matrix * vec4(vertex_output.fragment_world, 1.0);
+  vertex_output.tangent_fragment_light_space = scene_light.light_space_matrix * vec4(vertex_output.tangent_fragment, 1.0);
 
   vertex_output.normal = transpose(inverse(mat3(model))) * mesh.normal;
 
@@ -130,16 +155,16 @@ interface FragmentOutput {
 }
 
 @fragment
-fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
+fn main(VertexOutput vertex, Draw draw, SceneLight scene_light, Material material) -> FragmentOutput {
   vec3 view_direction = normalize(vertex.tangent_view_position - vertex.tangent_fragment);
   vec2 texture_coordinates = parallax_mapping(
-      light.displacement_map,
+      material.displacement_map,
       vertex.texture,
       view_direction,
-      light.height_scale
+      material.height_scale
   );
   vec3 point_normal =
-      normalize(texture(light.normal_map, texture_coordinates).rgb * 2.0 - 1.0);
+      normalize(texture(material.normal_map, texture_coordinates).rgb * 2.0 - 1.0);
   vec3 T = normalize(vertex.tangent_world);
   vec3 N = normalize(vertex.normal);
   T = normalize(T - dot(T, N) * N);
@@ -149,13 +174,13 @@ fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
   vec3 result = vec3(0.);
 
   result += calc_directional_light(
-      light.shadow_map,
-      light.materials[0].diffuse,
-      light.materials[0].specular,
-      light.normal_map,
-      light.directional,
+      scene_light.shadow_map,
+      material.materials[0].diffuse,
+      material.materials[0].specular,
+      material.normal_map,
+      scene_light.directional,
       texture_coordinates,
-      light.materials[0].shininess,
+      material.materials[0].shininess,
       vertex.tangent_light_direction,
       vertex.tangent_view_position,
       vertex.tangent_fragment,
@@ -164,16 +189,16 @@ fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
 
   for (int i = 0; i < 4; ++i) {
     vec3 tangent_point_light_position =
-        world_to_tangent * light.point_lights[i].position;
+        world_to_tangent * scene_light.point_lights[i].position;
 
     result += calc_point_light(
-        light.point_lights[i],
-        light.materials[0].diffuse,
-        light.materials[0].specular,
+        scene_light.point_lights[i],
+        material.materials[0].diffuse,
+        material.materials[0].specular,
         view_direction,
         point_normal,
         texture_coordinates,
-        light.materials[0].shininess,
+        material.materials[0].shininess,
         tangent_point_light_position,
         vertex.tangent_fragment
     );
@@ -181,17 +206,17 @@ fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
 
   FragmentOutput frag_output;
 
-  frag_output.color = vec4(result + light.materials[0].emissive, 1);
+  frag_output.color = vec4(result + material.materials[0].emissive, 1);
 
-  if (entity.bloom_enabled && entity.bloom_layer == light.bloom_layer &&
-      light.materials[0].bloom_intensity > 0.0) {
+  if (draw.bloom_enabled && draw.bloom_layer == scene_light.bloom_layer &&
+      material.materials[0].bloom_intensity > 0.0) {
     frag_output.bright_color =
-        vec4(light.materials[0].emissive * light.materials[0].bloom_intensity, 1.0);
+        vec4(material.materials[0].emissive * material.materials[0].bloom_intensity, 1.0);
   } else {
     frag_output.bright_color = vec4(0.0, 0.0, 0.0, 1.0);
   }
 
-  frag_output.entity_id = entity.entity_id;
+  frag_output.entity_id = draw.entity_id;
 
   return frag_output;
 }
