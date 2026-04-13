@@ -34,6 +34,28 @@ TEST(UIFoundationsTest, RenderImageViewDocumentAndDslStoreRendererExportKeys) {
   );
 }
 
+TEST(UIFoundationsTest, RenderImageViewDslSupportsSemanticGBufferAspects) {
+  using namespace dsl;
+
+  auto document = UIDocument::create();
+  UINodeId viewport = k_invalid_node_id;
+
+  mount(*document, column().children(render_image_view(GBufferAspect::Normal).bind(viewport)));
+
+  const auto *viewport_node = document->node(viewport);
+  ASSERT_NE(viewport_node, nullptr);
+  EXPECT_EQ(viewport_node->type, NodeType::RenderImageView);
+  ASSERT_TRUE(viewport_node->render_image_key.has_value());
+  EXPECT_EQ(
+      viewport_node->render_image_key->resource,
+      RenderImageResource::GBuffer
+  );
+  EXPECT_EQ(
+      viewport_node->render_image_key->aspect,
+      RenderImageAspect::Color1
+  );
+}
+
 TEST(UIFoundationsTest, ImageNodesKeepArbitraryImageResourceIds) {
   using namespace dsl;
 

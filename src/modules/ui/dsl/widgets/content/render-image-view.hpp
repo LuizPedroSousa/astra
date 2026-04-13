@@ -19,7 +19,11 @@ inline NodeSpec render_image_view(
     RenderImageResource resource,
     RenderImageAspect aspect
 ) {
-  return render_image_view(RenderImageExportKey{.resource = resource, .aspect = aspect});
+  return render_image_view(make_render_image_export_key(resource, aspect));
+}
+
+inline NodeSpec render_image_view(GBufferAspect aspect) {
+  return render_image_view(make_g_buffer_export_key(aspect));
 }
 
 namespace detail {

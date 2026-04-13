@@ -253,5 +253,38 @@ TEST(UIFoundationsTest, FlexShrinkPreservesResolvedMinimumWidths) {
   EXPECT_FLOAT_EQ(second_node->layout.bounds.width, 240.0f);
 }
 
+TEST(UIFoundationsTest, TextNodesFallbackToEstimatedSizeWithoutLoadedFont) {
+  using namespace dsl;
+  using namespace dsl::styles;
+
+  auto document = UIDocument::create();
+  UINodeId label = k_invalid_node_id;
+
+  mount(
+      *document,
+      column()
+          .style(fill(), items_start())
+          .children(text("Workspace Shell").bind(label))
+  );
+
+  const UILayoutContext context{
+      .viewport_size = glm::vec2(400.0f, 120.0f),
+      .default_font_id = "fonts::definitely_missing",
+      .default_font_size = 16.0f,
+  };
+
+  layout_document(*document, context);
+
+  const auto *label_node = document->node(label);
+  ASSERT_NE(label_node, nullptr);
+  EXPECT_GT(label_node->layout.measured_size.x, 0.0f);
+  EXPECT_GT(label_node->layout.measured_size.y, 0.0f);
+
+  build_draw_list(*document, context);
+  ASSERT_FALSE(document->draw_list().commands.empty());
+  EXPECT_EQ(document->draw_list().commands.back().type, DrawCommandType::Text);
+  EXPECT_EQ(document->draw_list().commands.back().font_id, "fonts::definitely_missing");
+}
+
 } // namespace
 } // namespace astralix::ui
