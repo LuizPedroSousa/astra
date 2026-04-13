@@ -233,6 +233,9 @@ void serialize_resource(ContextProxy ctx, const ResourceReflection &resource) {
   ASTRA_ASSIGN_CONTEXT_MEMBER(ctx, resource, declared_name);
   serialize_type_ref(ctx["type"], resource.type);
   ctx["array_size"].assign_if_defined<int>(resource.array_size);
+  if (resource.binding_id != 0) {
+    ctx["binding_id"] = binding_id_to_string(resource.binding_id);
+  }
   serialize_backend_layout(ctx["glsl"], resource.glsl);
 
   for (size_t i = 0; i < resource.members.size(); ++i) {
@@ -254,6 +257,9 @@ ResourceReflection deserialize_resource(ContextProxy ctx) {
   resource.type = deserialize_type_ref(ctx["type"]);
   ASTRA_ASSIGN_CONTEXT_MEMBER_IF_KIND(ctx, resource, array_size, int,
                                       SerializationTypeKind::Int);
+  if (auto resource_binding_id = binding_id_from_context(ctx["binding_id"])) {
+    resource.binding_id = *resource_binding_id;
+  }
   resource.glsl = deserialize_backend_layout(ctx["glsl"]);
 
   auto member_count = ctx["members"].size();

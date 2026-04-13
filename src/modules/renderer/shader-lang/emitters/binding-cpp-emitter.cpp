@@ -188,7 +188,7 @@ std::optional<std::string> cpp_scalar_type(const TypeRef &type) {
     case TokenKind::TypeSampler2DShadow:
     case TokenKind::TypeIsampler2D:
     case TokenKind::TypeUsampler2D:
-      return "int";
+      return std::nullopt;
     default:
       return std::nullopt;
   }
@@ -785,6 +785,94 @@ void emit_apply_shader_params(std::ostringstream &out,
   emit_line(out, 1, "}");
 }
 
+bool is_sampler_type(TokenKind kind) {
+  switch (kind) {
+    case TokenKind::TypeSampler2D:
+    case TokenKind::TypeSamplerCube:
+    case TokenKind::TypeSampler2DShadow:
+    case TokenKind::TypeIsampler2D:
+    case TokenKind::TypeUsampler2D:
+      return true;
+    default:
+      return false;
+  }
+}
+
+struct MergedResourceBinding {
+  std::string container_logical_name;
+  std::string declared_name;
+  std::string field_name;
+  std::string logical_name;
+  uint64_t binding_id = 0;
+  uint32_t descriptor_set = 0;
+  uint32_t binding = 0;
+  uint32_t stage_mask = 0;
+  TokenKind type_kind = TokenKind::TypeSampler2D;
+};
+
+void collect_resource_fields(const std::vector<DeclaredFieldReflection> &fields,
+                             uint32_t stage_mask,
+                             std::vector<MergedResourceBinding> &result,
+                             const std::string &container_logical_name,
+                             const std::string &declared_name) {
+  for (const auto &field : fields) {
+    if (is_sampler_type(field.type.kind)) {
+      result.push_back(MergedResourceBinding{
+          .container_logical_name = container_logical_name,
+          .declared_name = declared_name,
+          .field_name = field.name,
+          .logical_name = field.logical_name,
+          .binding_id = field.binding_id,
+          .stage_mask = stage_mask | field.active_stage_mask,
+          .type_kind = field.type.kind,
+      });
+    } else if (!field.fields.empty()) {
+      collect_resource_fields(field.fields, stage_mask | field.active_stage_mask,
+                              result, container_logical_name, declared_name);
+    }
+  }
+}
+
+struct MergedResourceContainer {
+  std::string logical_name;
+  std::string declared_name;
+  std::vector<MergedResourceBinding> bindings;
+};
+
+void emit_resource_container(std::ostringstream &out,
+                             const MergedResourceContainer &container,
+                             const std::string &container_name) {
+  emit_line(out, 1, "struct " + container_name + " {");
+
+  for (const auto &binding : container.bindings) {
+    const std::string tag_name = sanitize_identifier(binding.field_name);
+    const std::string tag_type_name = tag_name + "_t";
+
+    emit_line(out, 2, "struct " + tag_type_name + " {");
+    emit_line(out, 3,
+              "static constexpr uint64_t binding_id = " +
+                  std::to_string(binding.binding_id) + "ull;");
+    emit_line(out, 3,
+              "static constexpr std::string_view logical_name = \"" +
+                  binding.logical_name + "\";");
+    emit_line(out, 3,
+              "static constexpr uint32_t descriptor_set = " +
+                  std::to_string(binding.descriptor_set) + "u;");
+    emit_line(out, 3,
+              "static constexpr uint32_t binding = " +
+                  std::to_string(binding.binding) + "u;");
+    emit_line(out, 3,
+              "static constexpr uint32_t stage_mask = " +
+                  std::to_string(binding.stage_mask) + "u;");
+    emit_line(out, 2, "};");
+    emit_line(out, 2,
+              "static inline constexpr " + tag_type_name + " " + tag_name +
+                  "{};");
+  }
+
+  emit_line(out, 1, "};");
+}
+
 std::optional<std::vector<MergedUniformInterface>>
 merge_uniform_interfaces(const ShaderReflection &reflection,
                          std::string *error) {
@@ -827,6 +915,121 @@ merge_uniform_interfaces(const ShaderReflection &reflection,
   return merged;
 }
 
+std::optional<std::vector<MergedResourceContainer>>
+merge_resource_containers(const ShaderReflection &reflection,
+                          std::string *error) {
+  std::vector<MergedResourceContainer> containers;
+  std::unordered_map<std::string, size_t> index_by_logical_name;
+
+  for (const auto &[stage_kind, stage] : reflection.stages) {
+    for (const auto &resource : stage.resources) {
+      if (resource.kind == ShaderResourceKind::UniformInterface) {
+        std::vector<MergedResourceBinding> bindings;
+        collect_resource_fields(resource.declared_fields,
+                                shader_stage_mask(stage_kind), bindings,
+                                resource.logical_name, resource.declared_name);
+
+        if (bindings.empty()) {
+          continue;
+        }
+
+        auto [it, inserted] =
+            index_by_logical_name.emplace(resource.logical_name, containers.size());
+        if (inserted) {
+          containers.push_back(MergedResourceContainer{
+              resource.logical_name, resource.declared_name,
+              std::move(bindings)});
+        } else {
+          auto &existing = containers[it->second];
+          for (auto &binding : bindings) {
+            bool found = false;
+            for (auto &existing_binding : existing.bindings) {
+              if (existing_binding.logical_name == binding.logical_name) {
+                existing_binding.stage_mask |= binding.stage_mask;
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              existing.bindings.push_back(std::move(binding));
+            }
+          }
+        }
+        continue;
+      }
+
+      if (resource.kind == ShaderResourceKind::UniformValue &&
+          is_sampler_type(resource.type.kind)) {
+        auto [it, inserted] =
+            index_by_logical_name.emplace("__globals", containers.size());
+        if (inserted) {
+          containers.push_back(MergedResourceContainer{
+              "__globals", "Globals", {}});
+        }
+
+        auto &globals = containers[it->second];
+        bool found = false;
+        for (auto &existing : globals.bindings) {
+          if (existing.logical_name == resource.logical_name) {
+            existing.stage_mask |= shader_stage_mask(stage_kind);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          globals.bindings.push_back(MergedResourceBinding{
+              .container_logical_name = "__globals",
+              .declared_name = "Globals",
+              .field_name = resource.logical_name,
+              .logical_name = resource.logical_name,
+              .binding_id = resource.binding_id != 0
+                                ? resource.binding_id
+                                : shader_binding_id(resource.logical_name),
+              .stage_mask = shader_stage_mask(stage_kind),
+              .type_kind = resource.type.kind,
+          });
+        }
+        continue;
+      }
+
+      if (resource.kind == ShaderResourceKind::Sampler) {
+        auto [it, inserted] =
+            index_by_logical_name.emplace("__globals", containers.size());
+        if (inserted) {
+          containers.push_back(MergedResourceContainer{
+              "__globals", "Globals", {}});
+        }
+
+        auto &globals = containers[it->second];
+        bool found = false;
+        for (auto &existing : globals.bindings) {
+          if (existing.logical_name == resource.logical_name) {
+            existing.stage_mask |= shader_stage_mask(stage_kind);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          globals.bindings.push_back(MergedResourceBinding{
+              .container_logical_name = "__globals",
+              .declared_name = "Globals",
+              .field_name = resource.logical_name,
+              .logical_name = resource.logical_name,
+              .binding_id = resource.binding_id != 0
+                                ? resource.binding_id
+                                : shader_binding_id(resource.logical_name),
+              .stage_mask = shader_stage_mask(stage_kind),
+              .type_kind = resource.type.kind,
+          });
+        }
+      }
+    }
+  }
+
+  (void)error;
+  return containers;
+}
+
 } // namespace
 
 std::string BindingCppEmitter::sanitize_namespace(std::string_view input_path) {
@@ -843,9 +1046,66 @@ BindingCppEmitter::emit(const ShaderReflection &reflection,
     return std::nullopt;
   }
 
+  auto merged_resources = merge_resource_containers(reflection, error);
+  if (!merged_resources) {
+    return std::nullopt;
+  }
+
+  MergedUniformInterface globals_value_interface;
+  globals_value_interface.logical_name = "__globals";
+  globals_value_interface.declared_name = "Globals";
+  bool has_globals_values = false;
+
+  for (const auto &[stage_kind, stage] : reflection.stages) {
+    for (const auto &resource : stage.resources) {
+      if (resource.kind != ShaderResourceKind::UniformValue) {
+        continue;
+      }
+      if (is_sampler_type(resource.type.kind)) {
+        continue;
+      }
+
+      bool already_exists = false;
+      for (const auto &existing : globals_value_interface.declared_fields) {
+        if (existing.logical_name == resource.logical_name) {
+          already_exists = true;
+          break;
+        }
+      }
+      if (already_exists) {
+        continue;
+      }
+
+      DeclaredFieldReflection field;
+      field.name = resource.logical_name;
+      field.logical_name = resource.logical_name;
+      field.type = resource.type;
+      field.array_size = resource.array_size;
+      field.active_stage_mask = shader_stage_mask(stage_kind);
+      field.binding_id = resource.binding_id != 0
+                             ? resource.binding_id
+                             : shader_binding_id(resource.logical_name);
+
+      for (const auto &member : resource.members) {
+        if (member.binding_id != 0) {
+          field.binding_id = member.binding_id;
+          break;
+        }
+      }
+
+      globals_value_interface.declared_fields.push_back(std::move(field));
+      has_globals_values = true;
+    }
+  }
+
   std::unordered_map<std::string, size_t> interface_counts;
   for (const auto &resource : *merged_uniforms) {
     interface_counts[resource.declared_name]++;
+  }
+
+  std::unordered_map<std::string, size_t> resource_container_counts;
+  for (const auto &container : *merged_resources) {
+    resource_container_counts[container.declared_name]++;
   }
 
   std::ostringstream out;
@@ -886,6 +1146,45 @@ BindingCppEmitter::emit(const ShaderReflection &reflection,
     out << '\n';
 
     emit_apply_shader_params(out, resource, uniform_name, params_name);
+    out << '\n';
+  }
+
+  if (has_globals_values) {
+    const std::string globals_uniform_name = "GlobalsUniform";
+    const std::string globals_params_name = "GlobalsParams";
+
+    if (!emit_uniform_container(out, globals_value_interface,
+                                globals_uniform_name, error)) {
+      return std::nullopt;
+    }
+    out << '\n';
+
+    if (!emit_params_struct(out, globals_value_interface,
+                            globals_params_name, error)) {
+      return std::nullopt;
+    }
+    out << '\n';
+
+    emit_validate_shader_params(out, globals_value_interface, globals_params_name);
+    out << '\n';
+
+    emit_apply_shader_params(out, globals_value_interface,
+                             globals_uniform_name, globals_params_name);
+    out << '\n';
+  }
+
+  for (const auto &container : *merged_resources) {
+    if (container.bindings.empty()) {
+      continue;
+    }
+
+    std::string base_name = sanitize_identifier(container.declared_name);
+    if (resource_container_counts[container.declared_name] > 1) {
+      base_name += to_pascal_case(container.logical_name);
+    }
+
+    const std::string resources_name = base_name + "Resources";
+    emit_resource_container(out, container, resources_name);
     out << '\n';
   }
 

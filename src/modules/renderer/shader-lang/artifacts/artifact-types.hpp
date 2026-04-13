@@ -12,6 +12,7 @@ namespace astralix {
 enum class ShaderUnitArtifactKind {
   BindingCppHeader,
   ReflectionIR,
+  PipelineLayoutIR,
   CacheMetadata,
 };
 
@@ -38,6 +39,7 @@ struct ShaderArtifactInput {
 struct ShaderArtifactBuildOptions {
   std::vector<ShaderUnitArtifactSpec> unit_artifacts = {
       {.kind = ShaderUnitArtifactKind::BindingCppHeader},
+      {.kind = ShaderUnitArtifactKind::PipelineLayoutIR},
       {.kind = ShaderUnitArtifactKind::CacheMetadata},
   };
   std::vector<ShaderBatchArtifactSpec> batch_artifacts = {

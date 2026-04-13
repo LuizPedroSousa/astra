@@ -176,7 +176,7 @@ TEST(BindingCppEmitter, RejectsConflictingSchemasForSameLogicalResource) {
   EXPECT_NE(error.find("conflicting typed uniform schema"), std::string::npos);
 }
 
-TEST(BindingCppEmitter, EmitsSamplerFieldsAsIntBindings) {
+TEST(BindingCppEmitter, EmitsSamplerFieldsAsResourceBindings) {
   static constexpr std::string_view src = R"axsl(
 @version 450;
 
@@ -207,15 +207,12 @@ fn main(VertexOutput vertex, FragmentInput fragment) -> FragmentOutput {
   auto header = emitter.emit(result.reflection, "skybox.axsl", &error);
   ASSERT_TRUE(header.has_value()) << error;
 
-  EXPECT_NE(header->find("struct FragmentInputUniform"), std::string::npos);
-  EXPECT_NE(header->find("struct FragmentInputParams"), std::string::npos);
+  EXPECT_NE(header->find("struct FragmentInputResources"), std::string::npos);
   EXPECT_NE(header->find("struct skybox_t"), std::string::npos);
-  EXPECT_NE(header->find("using value_type = int;"), std::string::npos);
   EXPECT_NE(header->find("static constexpr std::string_view logical_name = \"fragment.skybox\""),
             std::string::npos);
-  EXPECT_NE(header->find("int skybox = -1;"), std::string::npos);
-  EXPECT_NE(header->find("shader.set(FragmentInputUniform::skybox, params.skybox);"),
-            std::string::npos);
+  EXPECT_EQ(header->find("int skybox = -1;"), std::string::npos);
+  EXPECT_EQ(header->find("using value_type = int;"), std::string::npos);
 }
 
 TEST(BindingCppEmitter, CompilerCanOptionallyEmitBindingHeader) {
