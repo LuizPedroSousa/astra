@@ -23,7 +23,8 @@ namespace astralix {
 
 class ResourceManager : public BaseManager<ResourceManager> {
 public:
-  template <typename T, typename D> struct ResourcePool {
+  template <typename T, typename D>
+  struct ResourcePool {
     struct Slot {
       Ref<T> resource;
       uint32_t generation = 0;
@@ -39,8 +40,8 @@ public:
       auto it = descriptor_to_id.find(desc_id);
 
       ASTRA_ENSURE_WITH_SUGGESTIONS(
-          it == descriptor_to_id.end(), descriptor_to_id, desc_id,
-          RESOURCE_MANAGER_SUGGESTION_NAME, type_name<T>());
+          it == descriptor_to_id.end(), descriptor_to_id, desc_id, RESOURCE_MANAGER_SUGGESTION_NAME, type_name<T>()
+      );
 
       return it->second;
     }
@@ -75,10 +76,7 @@ public:
 
       Handle handle{slot_idx, gen};
 
-      if constexpr (std::is_same_v<D, ShaderDescriptor> ||
-                    std::is_same_v<D, Texture2DDescriptor> ||
-                    std::is_same_v<D, Texture3DDescriptor> ||
-                    std::is_same_v<D, FontDescriptor>) {
+      if constexpr (std::is_same_v<D, ShaderDescriptor> || std::is_same_v<D, Texture2DDescriptor> || std::is_same_v<D, Texture3DDescriptor> || std::is_same_v<D, FontDescriptor>) {
         desc->backend = backend;
       }
 
@@ -124,7 +122,8 @@ public:
     }
   };
 
-  template <typename T> struct ResourceDescriptorPool {
+  template <typename T>
+  struct ResourceDescriptorPool {
     struct Slot {
       Ref<T> descriptor;
       uint32_t generation = 0;
@@ -146,8 +145,8 @@ public:
       auto it = descriptor_to_id.find(desc_id);
 
       ASTRA_ENSURE_WITH_SUGGESTIONS(
-          it == descriptor_to_id.end(), descriptor_to_id, desc_id,
-          RESOURCE_MANAGER_SUGGESTION_NAME, type_name<T>());
+          it == descriptor_to_id.end(), descriptor_to_id, desc_id, RESOURCE_MANAGER_SUGGESTION_NAME, type_name<T>()
+      );
 
       return it->second;
     }
@@ -267,9 +266,22 @@ public:
   }
 
   template <class Descriptor>
+  Ref<Descriptor>
+  get_descriptor_by_id(const ResourceDescriptorID &id) {
+    auto &pool = get_pool_for<Descriptor>();
+
+    if (pool.slots.empty() || !pool.has_handle_by_id(id)) {
+      return nullptr;
+    }
+
+    return pool.get(pool.find_handle_strict_by_id(id));
+  }
+
+  template <class Descriptor>
   void load_from_descriptors_by_ids(
       RendererBackend backend,
-      std::initializer_list<ResourceDescriptorID> ids) {
+      std::initializer_list<ResourceDescriptorID> ids
+  ) {
     auto &descriptor_pool = get_pool_for<Descriptor>();
     auto &resource_pool = get_resource_pool_of<Descriptor>();
 
@@ -343,67 +355,73 @@ private:
   ResourcePool<Font, FontDescriptor> m_font_pool;
   ResourcePool<Svg, SvgDescriptor> m_svg_pool;
 
-  template <class T> auto &get_pool_for();
-  template <class T> auto &get_resource_pool_of();
+  template <class T>
+  auto &get_pool_for();
+  template <class T>
+  auto &get_resource_pool_of();
 
-  template <class T> static std::string_view type_name();
+  template <class T>
+  static std::string_view type_name();
 };
 
-#define RESOURCE_POOL_LIST(MAP)                                                \
-  MAP(MaterialDescriptor, m_material_descriptor_pool)                          \
-  MAP(Texture2DDescriptor, m_texture_2d_descriptor_pool)                       \
-  MAP(Texture3DDescriptor, m_texture_3d_descriptor_pool)                       \
-  MAP(ShaderDescriptor, m_shader_descriptor_pool)                              \
-  MAP(ModelDescriptor, m_model_descriptor_pool)                                \
-  MAP(FontDescriptor, m_font_descriptor_pool)                                  \
-  MAP(SvgDescriptor, m_svg_descriptor_pool)                                    \
-                                                                               \
-  MAP(Material, m_material_pool)                                               \
-  MAP(Texture2D, m_texture_2d_pool)                                            \
-  MAP(Texture3D, m_texture_3d_pool)                                            \
-  MAP(Shader, m_shader_pool)                                                   \
-  MAP(Model, m_model_pool)                                                     \
-  MAP(Font, m_font_pool)                                                       \
+#define RESOURCE_POOL_LIST(MAP)                          \
+  MAP(MaterialDescriptor, m_material_descriptor_pool)    \
+  MAP(Texture2DDescriptor, m_texture_2d_descriptor_pool) \
+  MAP(Texture3DDescriptor, m_texture_3d_descriptor_pool) \
+  MAP(ShaderDescriptor, m_shader_descriptor_pool)        \
+  MAP(ModelDescriptor, m_model_descriptor_pool)          \
+  MAP(FontDescriptor, m_font_descriptor_pool)            \
+  MAP(SvgDescriptor, m_svg_descriptor_pool)              \
+                                                         \
+  MAP(Material, m_material_pool)                         \
+  MAP(Texture2D, m_texture_2d_pool)                      \
+  MAP(Texture3D, m_texture_3d_pool)                      \
+  MAP(Shader, m_shader_pool)                             \
+  MAP(Model, m_model_pool)                               \
+  MAP(Font, m_font_pool)                                 \
   MAP(Svg, m_svg_pool)
 
-#define RESOURCE_TYPENAME_LIST(MAP)                                            \
-  MAP(MaterialDescriptor)                                                      \
-  MAP(Texture2DDescriptor)                                                     \
-  MAP(Texture3DDescriptor)                                                     \
-  MAP(ShaderDescriptor)                                                        \
-  MAP(ModelDescriptor)                                                         \
-  MAP(FontDescriptor)                                                          \
-  MAP(SvgDescriptor)                                                           \
-  MAP(Material)                                                                \
-  MAP(Texture2D)                                                               \
-  MAP(Texture3D)                                                               \
-  MAP(Shader)                                                                  \
-  MAP(Model)                                                                   \
-  MAP(Font)                                                                    \
+#define RESOURCE_TYPENAME_LIST(MAP) \
+  MAP(MaterialDescriptor)           \
+  MAP(Texture2DDescriptor)          \
+  MAP(Texture3DDescriptor)          \
+  MAP(ShaderDescriptor)             \
+  MAP(ModelDescriptor)              \
+  MAP(FontDescriptor)               \
+  MAP(SvgDescriptor)                \
+  MAP(Material)                     \
+  MAP(Texture2D)                    \
+  MAP(Texture3D)                    \
+  MAP(Shader)                       \
+  MAP(Model)                        \
+  MAP(Font)                         \
   MAP(Svg)
 
-#define DESCRIPTOR_TO_RESOURCE_POOL_LIST(MAP)                                  \
-  MAP(MaterialDescriptor, m_material_pool)                                     \
-  MAP(Texture2DDescriptor, m_texture_2d_pool)                                  \
-  MAP(Texture3DDescriptor, m_texture_3d_pool)                                  \
-  MAP(ShaderDescriptor, m_shader_pool)                                         \
-  MAP(ModelDescriptor, m_model_pool)                                           \
-  MAP(FontDescriptor, m_font_pool)                                             \
+#define DESCRIPTOR_TO_RESOURCE_POOL_LIST(MAP) \
+  MAP(MaterialDescriptor, m_material_pool)    \
+  MAP(Texture2DDescriptor, m_texture_2d_pool) \
+  MAP(Texture3DDescriptor, m_texture_3d_pool) \
+  MAP(ShaderDescriptor, m_shader_pool)        \
+  MAP(ModelDescriptor, m_model_pool)          \
+  MAP(FontDescriptor, m_font_pool)            \
   MAP(SvgDescriptor, m_svg_pool)
 
-#define MAP_TYPE_WITH_POOL(type, pool)                                         \
-  template <> inline auto &ResourceManager::get_pool_for<type>() {             \
-    return pool;                                                               \
+#define MAP_TYPE_WITH_POOL(type, pool)                 \
+  template <>                                          \
+  inline auto &ResourceManager::get_pool_for<type>() { \
+    return pool;                                       \
   }
 
-#define MAP_DESCRIPTOR_POOL_WITH_RESOURCE_POOL(type, pool)                     \
-  template <> inline auto &ResourceManager::get_resource_pool_of<type>() {     \
-    return pool;                                                               \
+#define MAP_DESCRIPTOR_POOL_WITH_RESOURCE_POOL(type, pool)     \
+  template <>                                                  \
+  inline auto &ResourceManager::get_resource_pool_of<type>() { \
+    return pool;                                               \
   }
 
-#define MAP_TYPE_WITH_TYPENAME(type)                                           \
-  template <> inline std::string_view ResourceManager::type_name<type>() {     \
-    return #type;                                                              \
+#define MAP_TYPE_WITH_TYPENAME(type)                           \
+  template <>                                                  \
+  inline std::string_view ResourceManager::type_name<type>() { \
+    return #type;                                              \
   }
 
 RESOURCE_POOL_LIST(MAP_TYPE_WITH_POOL)

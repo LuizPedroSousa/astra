@@ -133,6 +133,7 @@ glm::vec2 Font::measure_text(const std::string &text, float pixel_size) const {
   const auto &glyph_set = m_glyph_sets.at(resolved_size);
 
   float width = 0.0f;
+  float cursor_x = 0.0f;
   for (const char character : text) {
     const GlyphHandle handle =
         glyph_set.glyph_lut[static_cast<unsigned char>(character)];
@@ -140,9 +141,16 @@ glm::vec2 Font::measure_text(const std::string &text, float pixel_size) const {
       continue;
     }
 
-    width += static_cast<float>(glyph_set.glyphs[handle].advance >> 6);
+    const auto &glyph = glyph_set.glyphs[handle];
+    const float glyph_left =
+        cursor_x + static_cast<float>(glyph.bearing.x);
+    const float glyph_right =
+        glyph_left + static_cast<float>(glyph.size.x);
+    width = std::max(width, glyph_right);
+    cursor_x += static_cast<float>(glyph.advance >> 6);
   }
 
+  width = std::max(width, cursor_x);
   return glm::vec2(width, line_height(resolved_size));
 }
 

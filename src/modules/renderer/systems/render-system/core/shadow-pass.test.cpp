@@ -149,7 +149,10 @@ TEST(ShadowPassTest, RecordsDepthOnlyDrawsFromSceneFrame) {
   const auto &pipeline = frame.pipelines[0];
   EXPECT_EQ(pipeline.debug_name, "shadow-pass");
   EXPECT_EQ(pipeline.desc.depth_format, ImageFormat::Depth32F);
-  EXPECT_EQ(pipeline.desc.raster.cull_mode, CullMode::Back);
+  EXPECT_EQ(pipeline.desc.raster.cull_mode, CullMode::None);
+  EXPECT_TRUE(pipeline.desc.raster.depth_bias.enabled);
+  EXPECT_FLOAT_EQ(pipeline.desc.raster.depth_bias.constant_factor, 1.0f);
+  EXPECT_FLOAT_EQ(pipeline.desc.raster.depth_bias.slope_factor, 1.75f);
   EXPECT_TRUE(pipeline.desc.depth_stencil.depth_test);
   EXPECT_TRUE(pipeline.desc.depth_stencil.depth_write);
 

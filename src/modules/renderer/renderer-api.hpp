@@ -71,6 +71,10 @@ public:
   virtual void disable_depth_test() = 0;
   virtual void enable_depth_write() = 0;
   virtual void disable_depth_write() = 0;
+  virtual void enable_depth_bias() = 0;
+  virtual void disable_depth_bias() = 0;
+  virtual void set_depth_bias(float slope_factor,
+                              float constant_factor) = 0;
   virtual void enable_blend() = 0;
   virtual void disable_blend() = 0;
   virtual void set_blend_func(BlendFactor src, BlendFactor dst) = 0;

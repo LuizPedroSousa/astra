@@ -26,6 +26,33 @@ bool is_depth_image_format(ImageFormat format) {
   return format == ImageFormat::Depth24Stencil8 || format == ImageFormat::Depth32F;
 }
 
+bool same_buffer_layout(const BufferLayout &lhs, const BufferLayout &rhs) {
+  if (lhs.get_stride() != rhs.get_stride()) {
+    return false;
+  }
+
+  const auto &lhs_elements = lhs.get_elements();
+  const auto &rhs_elements = rhs.get_elements();
+  if (lhs_elements.size() != rhs_elements.size()) {
+    return false;
+  }
+
+  for (size_t index = 0; index < lhs_elements.size(); ++index) {
+    const auto &lhs_element = lhs_elements[index];
+    const auto &rhs_element = rhs_elements[index];
+    if (lhs_element.name != rhs_element.name ||
+        lhs_element.type != rhs_element.type ||
+        lhs_element.size != rhs_element.size ||
+        lhs_element.offset != rhs_element.offset ||
+        lhs_element.normalized != rhs_element.normalized ||
+        lhs_element.location != rhs_element.location) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 GLenum gl_internal_format(ImageFormat format) {
   switch (format) {
     case ImageFormat::RGBA8:
@@ -112,6 +139,8 @@ void OpenGLExecutor::OpenGLStateCache::reset() {
 
   depth_test_valid = false;
   depth_write_valid = false;
+  depth_bias_valid = false;
+  depth_bias_value_valid = false;
   blend_valid = false;
   cull_valid = false;
   depth_mode_valid = false;
@@ -143,6 +172,9 @@ void OpenGLExecutor::execute(const CompiledFrame &frame) {
   m_bound_pipeline = nullptr;
   m_state.reset();
   m_active_render_extent = {};
+  m_api.disable_scissor();
+  m_state.scissor_enabled = false;
+  m_state.scissor_valid = true;
 
   for (const auto &pass : frame.passes) {
 #ifdef ASTRA_TRACE
@@ -249,6 +281,19 @@ void OpenGLExecutor::dispatch(const BeginRenderingCmd &cmd) {
   m_api.set_viewport(0, 0, cmd.info.extent.width, cmd.info.extent.height);
 
   if (default_target) {
+    if (cmd.info.depth_stencil_attachment.has_value() &&
+        (cmd.info.depth_stencil_attachment->depth_load_op ==
+             AttachmentLoadOp::Clear ||
+         cmd.info.depth_stencil_attachment->stencil_load_op ==
+             AttachmentLoadOp::Clear)) {
+      // BeginRendering clears happen before any pipeline state is rebound.
+      // Force depth writes on so depth clears cannot inherit a stale GL_FALSE
+      // depth mask from the previous frame.
+      m_api.enable_depth_write();
+      m_state.depth_write = true;
+      m_state.depth_write_valid = true;
+    }
+
     if (!cmd.info.color_attachments.empty() &&
         cmd.info.color_attachments.front().load_op == AttachmentLoadOp::Clear) {
       const auto &first_color = cmd.info.color_attachments.front();
@@ -295,6 +340,13 @@ void OpenGLExecutor::dispatch(const BeginRenderingCmd &cmd) {
 
   if (cmd.info.depth_stencil_attachment.has_value() && depth_image.has_value()) {
     const auto &attachment_ref = *cmd.info.depth_stencil_attachment;
+    if (attachment_ref.depth_load_op == AttachmentLoadOp::Clear ||
+        attachment_ref.stencil_load_op == AttachmentLoadOp::Clear) {
+      m_api.enable_depth_write();
+      m_state.depth_write = true;
+      m_state.depth_write_valid = true;
+    }
+
     if (depth_image->format == ImageFormat::Depth24Stencil8 &&
         (attachment_ref.depth_load_op == AttachmentLoadOp::Clear ||
          attachment_ref.stencil_load_op == AttachmentLoadOp::Clear)) {
@@ -343,6 +395,25 @@ void OpenGLExecutor::dispatch(const BindPipelineCmd &cmd) {
     depth_write ? m_api.enable_depth_write() : m_api.disable_depth_write();
     m_state.depth_write = depth_write;
     m_state.depth_write_valid = true;
+  }
+
+  const auto &depth_bias = pipeline.desc.raster.depth_bias;
+  if (!m_state.depth_bias_valid || m_state.depth_bias != depth_bias.enabled) {
+    depth_bias.enabled ? m_api.enable_depth_bias() : m_api.disable_depth_bias();
+    m_state.depth_bias = depth_bias.enabled;
+    m_state.depth_bias_valid = true;
+  }
+
+  if (depth_bias.enabled &&
+      (!m_state.depth_bias_value_valid ||
+       m_state.depth_bias_slope != depth_bias.slope_factor ||
+       m_state.depth_bias_constant != depth_bias.constant_factor)) {
+    m_api.set_depth_bias(
+        depth_bias.slope_factor, depth_bias.constant_factor
+    );
+    m_state.depth_bias_slope = depth_bias.slope_factor;
+    m_state.depth_bias_constant = depth_bias.constant_factor;
+    m_state.depth_bias_value_valid = true;
   }
 
   const auto depth_mode =
@@ -851,7 +922,7 @@ void OpenGLExecutor::bind_draw_framebuffer(
   }
 
   if (default_target) {
-    m_render_target.framebuffer()->bind(FramebufferBindType::Default, 0);
+    m_render_target.framebuffer()->bind(FramebufferBindType::Draw, 0);
   } else {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer_id);
   }
@@ -875,7 +946,7 @@ void OpenGLExecutor::bind_read_framebuffer(
   }
 
   if (default_target) {
-    m_render_target.framebuffer()->bind(FramebufferBindType::Default, 0);
+    m_render_target.framebuffer()->bind(FramebufferBindType::Read, 0);
   } else {
     glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer_id);
   }
@@ -989,9 +1060,12 @@ void OpenGLExecutor::ensure_transient_buffer_uploaded(
 
   const auto backend = m_render_target.renderer_api()->get_backend();
   const size_t required_bytes = buffer.transient_data.size();
+  const bool layout_changed =
+      !m_transient_layout.has_value() ||
+      !same_buffer_layout(*m_transient_layout, buffer.transient_layout);
 
   if (m_transient_vertex_array == nullptr ||
-      required_bytes > m_transient_capacity) {
+      required_bytes > m_transient_capacity || layout_changed) {
     m_transient_capacity = std::max(required_bytes, size_t(4096u));
     m_transient_vertex_array = VertexArray::create(backend);
     m_transient_vertex_buffer = VertexBuffer::create(
@@ -999,6 +1073,7 @@ void OpenGLExecutor::ensure_transient_buffer_uploaded(
     m_transient_vertex_buffer->set_layout(buffer.transient_layout);
     m_transient_vertex_array->add_vertex_buffer(m_transient_vertex_buffer);
     m_transient_vertex_array->unbind();
+    m_transient_layout = buffer.transient_layout;
   }
 
   m_transient_vertex_buffer->set_data(

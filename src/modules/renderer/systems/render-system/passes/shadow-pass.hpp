@@ -61,7 +61,10 @@ public:
     pipeline_desc.debug_name = "shadow-pass";
     pipeline_desc.depth_format =
         shadow_map_resource->get_graph_image()->desc.format;
-    pipeline_desc.raster.cull_mode = CullMode::Back;
+    pipeline_desc.raster.cull_mode = CullMode::None;
+    pipeline_desc.raster.depth_bias.enabled = true;
+    pipeline_desc.raster.depth_bias.constant_factor = 1.0f;
+    pipeline_desc.raster.depth_bias.slope_factor = 1.75f;
     pipeline_desc.depth_stencil.depth_test = true;
     pipeline_desc.depth_stencil.depth_write = true;
     pipeline_desc.depth_stencil.compare_op = CompareOp::Less;

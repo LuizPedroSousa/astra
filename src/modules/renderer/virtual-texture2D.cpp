@@ -70,6 +70,31 @@ std::vector<uint8_t> copy_loaded_image_pixels(const Image &image) {
   return bytes;
 }
 
+void flip_rows_in_place(std::vector<uint8_t> &bytes, uint32_t width,
+                        uint32_t height, TextureFormat format) {
+  if (height <= 1 || width == 0 || bytes.empty()) {
+    return;
+  }
+
+  const size_t row_stride = static_cast<size_t>(width) *
+                            static_cast<size_t>(bytes_per_pixel(format));
+  if (row_stride == 0 || bytes.size() < row_stride * static_cast<size_t>(height)) {
+    return;
+  }
+
+  std::vector<uint8_t> scratch(row_stride, 0);
+  for (uint32_t y = 0; y < height / 2; ++y) {
+    const size_t top_offset = static_cast<size_t>(y) * row_stride;
+    const size_t bottom_offset =
+        static_cast<size_t>(height - 1u - y) * row_stride;
+
+    std::memcpy(scratch.data(), bytes.data() + top_offset, row_stride);
+    std::memcpy(bytes.data() + top_offset, bytes.data() + bottom_offset,
+                row_stride);
+    std::memcpy(bytes.data() + bottom_offset, scratch.data(), row_stride);
+  }
+}
+
 std::vector<uint8_t> copy_descriptor_buffer(Ref<Texture2DDescriptor> descriptor,
                                             uint32_t width, uint32_t height) {
   const size_t byte_count =
@@ -94,6 +119,10 @@ VirtualTexture2D::VirtualTexture2D(const ResourceHandle &id,
     m_width = static_cast<uint32_t>(std::max(image.width, 1));
     m_height = static_cast<uint32_t>(std::max(image.height, 1));
     m_bytes = copy_loaded_image_pixels(image);
+    // OpenGL's texture upload path effectively consumes stb rows upside-down
+    // relative to Vulkan buffer-to-image copies. Flip Vulkan-backed texture
+    // rows here so sampled material textures match across backends.
+    flip_rows_in_place(m_bytes, m_width, m_height, m_format);
     if (image.data != nullptr) {
       free_image(image.data);
     }

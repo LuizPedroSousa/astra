@@ -15,7 +15,6 @@
 #include <unordered_set>
 
 namespace astralix {
-
 OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
                            Ref<ShaderDescriptor> descriptor)
     : Shader(resource_id, descriptor->id) {
@@ -111,7 +110,8 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
           read_shader_reflection(reflection_path, SerializationFormat::Json,
                                  &reflection_error);
 
-      if (cached_reflection.has_value() && cached_reflection->version >= 2 && cached_reflection->version <= 3) {
+      if (cached_reflection.has_value() &&
+          cached_reflection->version == k_shader_reflection_version) {
         cached_result.reflection = std::move(*cached_reflection);
         axsl_results[key] = std::move(cached_result);
         return;
@@ -240,7 +240,8 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
       auto reflection =
           read_shader_reflection(base, SerializationFormat::Json,
                                  &reflection_error);
-      if (reflection && reflection->version >= 2) {
+      if (reflection &&
+          reflection->version == k_shader_reflection_version) {
         merge_reflection(*reflection);
       }
       return;

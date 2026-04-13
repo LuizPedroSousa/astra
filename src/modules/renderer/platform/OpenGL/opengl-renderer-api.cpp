@@ -39,6 +39,22 @@ namespace astralix {
     m_frame_stats.state_change_count++;
   }
 
+  void OpenGLRendererAPI::enable_depth_bias() {
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    m_frame_stats.state_change_count++;
+  }
+
+  void OpenGLRendererAPI::disable_depth_bias() {
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    m_frame_stats.state_change_count++;
+  }
+
+  void OpenGLRendererAPI::set_depth_bias(float slope_factor,
+                                         float constant_factor) {
+    glPolygonOffset(slope_factor, constant_factor);
+    m_frame_stats.state_change_count++;
+  }
+
   void OpenGLRendererAPI::enable_blend() {
     glEnable(GL_BLEND);
     m_frame_stats.state_change_count++;

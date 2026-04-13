@@ -8,7 +8,7 @@ fn get_shadow(
     projection_coordinates = projection_coordinates * 0.5 + 0.5;
 
     float current_depth = projection_coordinates.z;
-    float bias = max(0.05 * (1.0 - dot(normal, light_direction)), 0.005);
+    float bias = max(0.002 * (1.0 - dot(normal, light_direction)), 0.0005);
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
 

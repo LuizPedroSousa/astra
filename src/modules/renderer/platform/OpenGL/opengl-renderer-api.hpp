@@ -16,6 +16,9 @@ public:
   void disable_depth_test() override;
   void enable_depth_write() override;
   void disable_depth_write() override;
+  void enable_depth_bias() override;
+  void disable_depth_bias() override;
+  void set_depth_bias(float slope_factor, float constant_factor) override;
   void enable_blend() override;
   void disable_blend() override;
   void set_blend_func(BlendFactor src, BlendFactor dst) override;

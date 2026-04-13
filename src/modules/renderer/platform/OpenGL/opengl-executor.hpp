@@ -59,6 +59,11 @@ private:
     bool depth_test_valid = false;
     bool depth_write = false;
     bool depth_write_valid = false;
+    bool depth_bias = false;
+    bool depth_bias_valid = false;
+    float depth_bias_slope = 0.0f;
+    float depth_bias_constant = 0.0f;
+    bool depth_bias_value_valid = false;
     bool blend = false;
     bool blend_valid = false;
     bool cull = false;
@@ -133,6 +138,7 @@ private:
   Ref<VertexArray> m_transient_vertex_array;
   Ref<VertexBuffer> m_transient_vertex_buffer;
   size_t m_transient_capacity = 0;
+  std::optional<BufferLayout> m_transient_layout;
   ImageExtent m_active_render_extent{};
 };
 

@@ -243,9 +243,16 @@ struct RenderBindingSetDesc {
   std::vector<RenderBindingImageDesc> images;
 };
 
+struct DepthBiasState {
+  bool enabled = false;
+  float constant_factor = 0.0f;
+  float slope_factor = 0.0f;
+};
+
 struct RasterState {
   CullMode cull_mode = CullMode::Back;
   FrontFace front_face = FrontFace::CounterClockwise;
+  DepthBiasState depth_bias{};
 };
 
 struct DepthStencilState {

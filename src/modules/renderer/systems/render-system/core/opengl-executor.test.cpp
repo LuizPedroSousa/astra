@@ -209,6 +209,13 @@ public:
   void disable_depth_test() override { ++disable_depth_test_calls; }
   void enable_depth_write() override { ++enable_depth_write_calls; }
   void disable_depth_write() override { ++disable_depth_write_calls; }
+  void enable_depth_bias() override { ++enable_depth_bias_calls; }
+  void disable_depth_bias() override { ++disable_depth_bias_calls; }
+  void set_depth_bias(float slope_factor, float constant_factor) override {
+    last_depth_bias_slope = slope_factor;
+    last_depth_bias_constant = constant_factor;
+    ++set_depth_bias_calls;
+  }
   void enable_blend() override { ++enable_blend_calls; }
   void disable_blend() override { ++disable_blend_calls; }
 
@@ -294,6 +301,8 @@ public:
   BlendFactor last_blend_dst = BlendFactor::Zero;
   CullFaceMode last_cull_face = CullFaceMode::Back;
   DepthMode last_depth_mode = DepthMode::Less;
+  float last_depth_bias_slope = 0.0f;
+  float last_depth_bias_constant = 0.0f;
   const VertexArray *last_vertex_array = nullptr;
   DrawPrimitive last_primitive = DrawPrimitive::TRIANGLES;
   uint32_t last_index_count = 0;
@@ -308,6 +317,9 @@ public:
   uint32_t disable_depth_test_calls = 0;
   uint32_t enable_depth_write_calls = 0;
   uint32_t disable_depth_write_calls = 0;
+  uint32_t enable_depth_bias_calls = 0;
+  uint32_t disable_depth_bias_calls = 0;
+  uint32_t set_depth_bias_calls = 0;
   uint32_t enable_blend_calls = 0;
   uint32_t disable_blend_calls = 0;
   uint32_t set_blend_func_calls = 0;
@@ -479,7 +491,7 @@ TEST(OpenGLExecutorTest, ExecutesRecordedPassAndCachesStateAcrossPasses) {
 
   ASSERT_EQ(helper_framebuffer->bind_records.size(), 1u);
   EXPECT_EQ(helper_framebuffer->bind_records[0].type,
-            FramebufferBindType::Default);
+            FramebufferBindType::Draw);
   EXPECT_EQ(helper_framebuffer->bind_records[0].id, 0u);
 
   EXPECT_EQ(api->clear_color_calls, 2u);
@@ -501,6 +513,67 @@ TEST(OpenGLExecutorTest, ExecutesRecordedPassAndCachesStateAcrossPasses) {
   EXPECT_EQ(shader->typed_uploads[0].binding_id, 103u);
   EXPECT_EQ(shader->typed_uploads[1].binding_id, 101u);
   EXPECT_EQ(shader->typed_uploads[2].binding_id, 102u);
+}
+
+TEST(OpenGLExecutorTest, AppliesDepthBiasStateOncePerPipelineConfiguration) {
+  auto renderer_api = create_scope<FakeRendererAPI>();
+  auto *api = renderer_api.get();
+  auto helper_framebuffer =
+      create_ref<FakeFramebuffer>(64, 32, std::vector<uint32_t>{77u});
+  RenderTarget target(std::move(renderer_api), helper_framebuffer,
+                      RenderTarget::MSAA{.samples = 1, .is_enabled = false},
+                      "test-window");
+
+  auto shader = create_ref<FakeShader>();
+  auto vertex_array = create_ref<FakeVertexArray>();
+
+  CompiledFrame frame;
+  const auto backbuffer = frame.register_default_color_target(
+      "backbuffer", ImageExtent{.width = 64, .height = 32, .depth = 1}
+  );
+
+  RenderPipelineDesc pipeline_desc;
+  pipeline_desc.debug_name = "shadow-like-pass";
+  pipeline_desc.raster.cull_mode = CullMode::None;
+  pipeline_desc.raster.depth_bias.enabled = true;
+  pipeline_desc.raster.depth_bias.slope_factor = 1.75f;
+  pipeline_desc.raster.depth_bias.constant_factor = 1.0f;
+  pipeline_desc.depth_stencil.depth_test = true;
+  pipeline_desc.depth_stencil.depth_write = true;
+  pipeline_desc.blend_attachments = {BlendAttachmentState::replace()};
+  const auto pipeline = frame.register_pipeline(pipeline_desc, shader);
+
+  const auto bindings = frame.register_binding_group(
+      make_binding_group_desc(
+          "depth-bias-pass",
+          "opengl-executor-test",
+          shader,
+          0,
+          "depth-bias-pass",
+          RenderBindingScope::Pass,
+          RenderBindingCachePolicy::Reuse,
+          RenderBindingSharing::LocalOnly,
+          0,
+          RenderBindingStability::FrameLocal
+      )
+  );
+
+  const auto geometry = frame.register_vertex_array("quad", vertex_array);
+  frame.passes.push_back(
+      make_fullscreen_pass(frame, pipeline, bindings, geometry, backbuffer)
+  );
+  frame.passes.push_back(
+      make_fullscreen_pass(frame, pipeline, bindings, geometry, backbuffer)
+  );
+
+  OpenGLExecutor executor(target);
+  executor.execute(frame);
+
+  EXPECT_EQ(api->enable_depth_bias_calls, 1u);
+  EXPECT_EQ(api->disable_depth_bias_calls, 0u);
+  EXPECT_EQ(api->set_depth_bias_calls, 1u);
+  EXPECT_FLOAT_EQ(api->last_depth_bias_slope, 1.75f);
+  EXPECT_FLOAT_EQ(api->last_depth_bias_constant, 1.0f);
 }
 
 TEST(OpenGLExecutorTest, ConvertsTopLeftScissorCoordsToOpenGLCoords) {
