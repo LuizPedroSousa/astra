@@ -25,8 +25,12 @@ Ref<ShaderDescriptor> Shader::define(const ResourceDescriptorID &id,
 
 Ref<Shader> Shader::from_descriptor(const ResourceHandle &id,
                                     Ref<ShaderDescriptor> descriptor) {
-  return create_renderer_component_ref<Shader, OpenGLShader>(
-      descriptor->backend, id, descriptor);
+  switch (descriptor->backend) {
+  case RendererBackend::OpenGL:
+    return create_ref<OpenGLShader>(id, descriptor);
+  default:
+    ASTRA_EXCEPTION("NONE ins't a valid renderer api");
+  }
 }
 
 } // namespace astralix

@@ -19,6 +19,8 @@ enum class FramebufferTextureFormat {
   RGB16F,
   RGB32F,
 
+  R32F,
+
   DEPTH_ONLY,
   RED_INTEGER,
 

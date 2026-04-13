@@ -63,7 +63,7 @@ Mesh Model::process_mesh(aiMesh *node_mesh, const aiScene *scene,
   std::vector<unsigned int> indices;
 
   for (u_int i = 0; i < node_mesh->mNumVertices; i++) {
-    Vertex vertex;
+    Vertex vertex{};
 
     vertex.position =
         glm::vec3(node_mesh->mVertices[i].x, node_mesh->mVertices[i].y,

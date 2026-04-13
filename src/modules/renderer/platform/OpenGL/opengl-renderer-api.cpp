@@ -200,6 +200,16 @@ namespace astralix {
               static_cast<int>(height));
   }
 
+  void OpenGLRendererAPI::enable_cull() {
+    glEnable(GL_CULL_FACE);
+    m_frame_stats.state_change_count++;
+  }
+
+  void OpenGLRendererAPI::disable_cull() {
+    glDisable(GL_CULL_FACE);
+    m_frame_stats.state_change_count++;
+  }
+
   void OpenGLRendererAPI::bind_texture_2d(uint32_t texture_id, uint32_t slot) {
     glActiveTexture(GL_TEXTURE0 + slot);
     glBindTexture(GL_TEXTURE_2D, texture_id);

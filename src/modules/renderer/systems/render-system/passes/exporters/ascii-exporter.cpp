@@ -1,4 +1,5 @@
 #include "ascii-exporter.hpp"
+#include "../render-graph-usage.hpp"
 #include "../render-graph.hpp"
 #include "log.hpp"
 #include <algorithm>
@@ -7,7 +8,7 @@
 
 namespace astralix {
 
-void AsciiExporter::export_graph(const RenderGraph& graph, const std::string& filename) const {
+void AsciiExporter::export_graph(const RenderGraph &graph, const std::string &filename) const {
   std::ofstream file(filename);
   if (!file.is_open()) {
     LOG_ERROR("[RenderGraph] Failed to open file for ASCII export");
@@ -22,13 +23,14 @@ void AsciiExporter::export_graph(const RenderGraph& graph, const std::string& fi
   write_resources_list(file, graph);
   write_execution_order(file, graph);
   write_resource_flow(file, graph);
+  write_compiled_transitions(file, graph);
   write_statistics(file, graph);
 
   file.close();
   LOG_INFO("[RenderGraph] Exported graph to ASCII file");
 }
 
-void AsciiExporter::write_visual_graph(std::ofstream& file, const RenderGraph& graph) const {
+void AsciiExporter::write_visual_graph(std::ofstream &file, const RenderGraph &graph) const {
   file << "VISUAL FLOW GRAPH:\n";
   file << "------------------\n\n";
 
@@ -45,7 +47,7 @@ void AsciiExporter::write_visual_graph(std::ofstream& file, const RenderGraph& g
 
   const size_t passes_section_height = [&]() {
     size_t max_layer_size = 0;
-    for (const auto& layer : layers) {
+    for (const auto &layer : layers) {
       max_layer_size = std::max(max_layer_size, layer.size());
     }
     return max_layer_size * (config.box_height + config.vertical_spacing) + 2;
@@ -56,12 +58,13 @@ void AsciiExporter::write_visual_graph(std::ofstream& file, const RenderGraph& g
   const size_t canvas_width = layers.size() * (config.box_width + config.horizontal_spacing) + 4;
 
   const auto resource_positions = compute_resource_positions(
-    graph, active_passes, config, resources_section_y, canvas_width);
+      graph, active_passes, config, resources_section_y, canvas_width
+  );
 
   Canvas canvas(canvas_height, std::string(canvas_width, ' '));
   BoxMask box_mask(canvas_height, std::vector<bool>(canvas_width, false));
 
-  for (const auto& [pass_idx, pos] : pass_positions) {
+  for (const auto &[pass_idx, pos] : pass_positions) {
     for (size_t dy = 0; dy < pos.height; ++dy) {
       for (size_t dx = 0; dx < pos.width; ++dx) {
         if (pos.box_y + dy < canvas_height && pos.box_x + dx < canvas_width) {
@@ -71,7 +74,7 @@ void AsciiExporter::write_visual_graph(std::ofstream& file, const RenderGraph& g
     }
   }
 
-  for (const auto& [res_idx, pos] : resource_positions) {
+  for (const auto &[res_idx, pos] : resource_positions) {
     for (size_t dy = 0; dy < pos.height; ++dy) {
       for (size_t dx = 0; dx < pos.width; ++dx) {
         if (pos.box_y + dy < canvas_height && pos.box_x + dx < canvas_width) {
@@ -83,40 +86,56 @@ void AsciiExporter::write_visual_graph(std::ofstream& file, const RenderGraph& g
 
   std::vector<EdgeInfo> edges;
   for (uint32_t pass_idx : active_passes) {
-    if (pass_positions.find(pass_idx) == pass_positions.end()) continue;
-    const auto& pass_pos = pass_positions.at(pass_idx);
+    if (pass_positions.find(pass_idx) == pass_positions.end())
+      continue;
+    const auto &pass_pos = pass_positions.at(pass_idx);
+    const auto &pass = graph.m_passes[pass_idx];
 
-    for (const auto& access : graph.m_passes[pass_idx]->get_resource_accesses()) {
-      if (resource_positions.find(access.resource_index) == resource_positions.end()) continue;
-      const auto& res_pos = resource_positions.at(access.resource_index);
+    const auto &usages = pass->get_image_usages();
+    if (!usages.empty()) {
+      for (const auto &usage : usages) {
+        if (resource_positions.find(usage.view.resource_index()) ==
+            resource_positions.end())
+          continue;
+        const auto &res_pos =
+            resource_positions.at(usage.view.resource_index());
 
-      std::string mode;
-      if (access.mode == RenderGraphResourceAccessMode::Write) {
-        mode = "W";
-      } else if (access.mode == RenderGraphResourceAccessMode::Read) {
-        mode = "R";
-      } else {
-        mode = "RW";
+        std::string mode = render_usage_label(usage.usage);
+        edges.push_back({pass_pos.center_x, pass_pos.box_y + pass_pos.height, res_pos.center_x, res_pos.box_y, mode});
       }
+    } else {
+      for (const auto &access : pass->get_resource_accesses()) {
+        if (resource_positions.find(access.resource_index) == resource_positions.end())
+          continue;
+        const auto &res_pos = resource_positions.at(access.resource_index);
 
-      edges.push_back({pass_pos.center_x, pass_pos.box_y + pass_pos.height,
-                      res_pos.center_x, res_pos.box_y, mode});
+        std::string mode;
+        if (access.mode == RenderGraphResourceAccessMode::Write) {
+          mode = "W";
+        } else if (access.mode == RenderGraphResourceAccessMode::Read) {
+          mode = "R";
+        } else {
+          mode = "RW";
+        }
+
+        edges.push_back({pass_pos.center_x, pass_pos.box_y + pass_pos.height, res_pos.center_x, res_pos.box_y, mode});
+      }
     }
   }
 
   draw_edges(canvas, box_mask, edges);
 
-  for (const auto& [pass_idx, pos] : pass_positions) {
-    const auto& pass = graph.m_passes[pass_idx];
+  for (const auto &[pass_idx, pos] : pass_positions) {
+    const auto &pass = graph.m_passes[pass_idx];
     draw_pass_box(canvas, pos, pass->get_name());
   }
 
-  for (const auto& [res_idx, pos] : resource_positions) {
-    const auto& resource = graph.m_resources[res_idx];
+  for (const auto &[res_idx, pos] : resource_positions) {
+    const auto &resource = graph.m_resources[res_idx];
     draw_resource_box(canvas, pos, resource.desc.name);
   }
 
-  for (const auto& line : canvas) {
+  for (const auto &line : canvas) {
     size_t end = line.find_last_not_of(' ');
     if (end != std::string::npos) {
       file << "  " << line.substr(0, end + 1) << "\n";
@@ -129,7 +148,7 @@ void AsciiExporter::write_visual_graph(std::ofstream& file, const RenderGraph& g
   file << "          Labels: [W]=Write, [R]=Read, [RW]=ReadWrite\n";
 }
 
-void AsciiExporter::write_passes_list(std::ofstream& file, const RenderGraph& graph) const {
+void AsciiExporter::write_passes_list(std::ofstream &file, const RenderGraph &graph) const {
   file << "\n";
   file << "PASSES (" << graph.m_passes.size() << "):\n";
   file << "-----------\n";
@@ -147,7 +166,7 @@ void AsciiExporter::write_passes_list(std::ofstream& file, const RenderGraph& gr
   }
 }
 
-void AsciiExporter::write_resources_list(std::ofstream& file, const RenderGraph& graph) const {
+void AsciiExporter::write_resources_list(std::ofstream &file, const RenderGraph &graph) const {
   file << "\n";
   file << "RESOURCES (" << graph.m_resources.size() << "):\n";
   file << "--------------\n";
@@ -183,7 +202,8 @@ void AsciiExporter::write_resources_list(std::ofstream& file, const RenderGraph&
       file << "      - Written by: ";
       for (size_t j = 0; j < writers.size(); ++j) {
         file << graph.m_passes[writers[j]]->get_name();
-        if (j < writers.size() - 1) file << ", ";
+        if (j < writers.size() - 1)
+          file << ", ";
       }
       file << "\n";
     }
@@ -192,7 +212,8 @@ void AsciiExporter::write_resources_list(std::ofstream& file, const RenderGraph&
       file << "      - Read by: ";
       for (size_t j = 0; j < readers.size(); ++j) {
         file << graph.m_passes[readers[j]]->get_name();
-        if (j < readers.size() - 1) file << ", ";
+        if (j < readers.size() - 1)
+          file << ", ";
       }
       file << "\n";
     }
@@ -204,7 +225,7 @@ void AsciiExporter::write_resources_list(std::ofstream& file, const RenderGraph&
   }
 }
 
-void AsciiExporter::write_execution_order(std::ofstream& file, const RenderGraph& graph) const {
+void AsciiExporter::write_execution_order(std::ofstream &file, const RenderGraph &graph) const {
   file << "\n";
   file << "EXECUTION ORDER:\n";
   file << "----------------\n";
@@ -212,7 +233,8 @@ void AsciiExporter::write_execution_order(std::ofstream& file, const RenderGraph
     uint32_t pass_idx = graph.m_execution_order[i];
     const auto &pass = graph.m_passes[pass_idx];
 
-    if (pass->is_culled()) continue;
+    if (pass->is_culled())
+      continue;
 
     file << "  " << (i + 1) << ". " << pass->get_name();
 
@@ -221,7 +243,8 @@ void AsciiExporter::write_execution_order(std::ofstream& file, const RenderGraph
       file << " (depends on: ";
       for (size_t j = 0; j < deps.size(); ++j) {
         file << graph.m_passes[deps[j]]->get_name();
-        if (j < deps.size() - 1) file << ", ";
+        if (j < deps.size() - 1)
+          file << ", ";
       }
       file << ")";
     }
@@ -229,7 +252,7 @@ void AsciiExporter::write_execution_order(std::ofstream& file, const RenderGraph
   }
 }
 
-void AsciiExporter::write_resource_flow(std::ofstream& file, const RenderGraph& graph) const {
+void AsciiExporter::write_resource_flow(std::ofstream &file, const RenderGraph &graph) const {
   file << "\n";
   file << "RESOURCE FLOW:\n";
   file << "--------------\n";
@@ -238,26 +261,59 @@ void AsciiExporter::write_resource_flow(std::ofstream& file, const RenderGraph& 
 
   for (uint32_t pass_idx = 0; pass_idx < graph.m_passes.size(); ++pass_idx) {
     const auto &pass = graph.m_passes[pass_idx];
-    if (pass->is_culled()) continue;
+    if (pass->is_culled())
+      continue;
 
-    for (const auto &access : pass->get_resource_accesses()) {
-      const auto &resource = graph.m_resources[access.resource_index];
-      std::string flow;
+    const auto &usages = pass->get_image_usages();
+    if (!usages.empty()) {
+      for (const auto &usage : usages) {
+        if (usage.view.resource_index() >= graph.m_resources.size())
+          continue;
+        const auto &resource =
+            graph.m_resources[usage.view.resource_index()];
+        std::string label = render_usage_label(usage.usage);
+        std::string flow;
 
-      if (access.mode == RenderGraphResourceAccessMode::Write) {
-        flow = pass->get_name() + " --[write]--> " + resource.desc.name;
-      } else if (access.mode == RenderGraphResourceAccessMode::Read) {
-        flow = resource.desc.name + " --[read]--> " + pass->get_name();
-      } else {
-        flow = pass->get_name() + " <--[read/write]--> " + resource.desc.name;
+        if (is_write_usage(usage.usage)) {
+          flow = pass->get_name() + " --[" + label + "]--> " + resource.desc.name;
+        } else {
+          flow = resource.desc.name + " --[" + label + "]--> " + pass->get_name();
+        }
+        pass_flows[pass_idx].push_back(flow);
       }
+    } else {
+      for (const auto &access : pass->get_resource_accesses()) {
+        const auto &resource = graph.m_resources[access.resource_index];
+        std::string flow;
 
-      pass_flows[pass_idx].push_back(flow);
+        if (access.mode == RenderGraphResourceAccessMode::Write) {
+          flow = pass->get_name() + " --[write]--> " + resource.desc.name;
+        } else if (access.mode == RenderGraphResourceAccessMode::Read) {
+          flow = resource.desc.name + " --[read]--> " + pass->get_name();
+        } else {
+          flow = pass->get_name() + " <--[read/write]--> " + resource.desc.name;
+        }
+        pass_flows[pass_idx].push_back(flow);
+      }
+    }
+
+    if (pass->has_present()) {
+      pass_flows[pass_idx].push_back(
+          pass->get_name() + " --[present]--> screen"
+      );
+    }
+
+    for (const auto &export_request : pass->get_exports()) {
+      pass_flows[pass_idx].push_back(
+          pass->get_name() + " --[export]--> " +
+          std::to_string(static_cast<int>(export_request.key.resource))
+      );
     }
   }
 
   for (uint32_t pass_idx : graph.m_execution_order) {
-    if (graph.m_passes[pass_idx]->is_culled()) continue;
+    if (graph.m_passes[pass_idx]->is_culled())
+      continue;
 
     if (pass_flows.find(pass_idx) != pass_flows.end()) {
       for (const auto &flow : pass_flows[pass_idx]) {
@@ -265,9 +321,66 @@ void AsciiExporter::write_resource_flow(std::ofstream& file, const RenderGraph& 
       }
     }
   }
+
+  if (!graph.compiled_exports().empty()) {
+    file << "\n  EXPORTS:\n";
+    for (const auto &compiled_export : graph.compiled_exports()) {
+      file << "    - resource=" << static_cast<int>(compiled_export.key.resource)
+           << " aspect=" << static_cast<int>(compiled_export.key.aspect)
+           << (compiled_export.direct_bind ? " (direct)" : " (materialize)")
+           << "\n";
+    }
+  }
+
+  if (!graph.compiled_present_edges().empty()) {
+    file << "\n  PRESENT EDGES:\n";
+    for (const auto &edge : graph.compiled_present_edges()) {
+      file << "    - resource=" << edge.resource_index
+           << " producer_pass=" << edge.producer_pass_index << "\n";
+    }
+  }
 }
 
-void AsciiExporter::write_statistics(std::ofstream& file, const RenderGraph& graph) const {
+void AsciiExporter::write_compiled_transitions(std::ofstream &file, const RenderGraph &graph) const {
+  file << "\n";
+  file << "COMPILED TRANSITIONS:\n";
+  file << "---------------------\n";
+
+  bool any_transitions = false;
+  for (uint32_t pass_idx : graph.m_execution_order) {
+    const auto &pass = graph.m_passes[pass_idx];
+    if (pass->is_culled() || !pass->is_enabled()) {
+      continue;
+    }
+
+    const auto &transitions = pass->get_compiled_transitions();
+    if (transitions.empty()) {
+      continue;
+    }
+
+    any_transitions = true;
+    file << "  Pass " << pass->get_name() << ":\n";
+
+    for (const auto &transition : transitions) {
+      std::string resource_name = "?";
+      if (transition.view.resource_index() < graph.m_resources.size()) {
+        resource_name =
+            graph.m_resources[transition.view.resource_index()].desc.name;
+      }
+
+      file << "    " << resource_name << "("
+           << static_cast<int>(transition.view.aspect) << "): "
+           << resource_state_label(transition.before) << " -> "
+           << resource_state_label(transition.after) << "\n";
+    }
+  }
+
+  if (!any_transitions) {
+    file << "  (none)\n";
+  }
+}
+
+void AsciiExporter::write_statistics(std::ofstream &file, const RenderGraph &graph) const {
   file << "\n";
   file << "STATISTICS:\n";
   file << "-----------\n";
@@ -301,8 +414,9 @@ void AsciiExporter::write_statistics(std::ofstream& file, const RenderGraph& gra
 }
 
 std::vector<std::vector<uint32_t>> AsciiExporter::compute_pass_layers(
-  const RenderGraph& graph,
-  const std::vector<uint32_t>& active_passes) const {
+    const RenderGraph &graph,
+    const std::vector<uint32_t> &active_passes
+) const {
 
   std::vector<std::vector<uint32_t>> layers;
   std::vector<int32_t> pass_layer(graph.m_passes.size(), -1);
@@ -312,7 +426,7 @@ std::vector<std::vector<uint32_t>> AsciiExporter::compute_pass_layers(
       return pass_layer[pass_idx];
     }
 
-    const auto& deps = graph.m_passes[pass_idx]->get_computed_dependency_indices();
+    const auto &deps = graph.m_passes[pass_idx]->get_computed_dependency_indices();
     if (deps.empty()) {
       pass_layer[pass_idx] = 0;
       return 0;
@@ -342,13 +456,14 @@ std::vector<std::vector<uint32_t>> AsciiExporter::compute_pass_layers(
 }
 
 std::unordered_map<uint32_t, AsciiExporter::NodePosition> AsciiExporter::compute_pass_positions(
-  const std::vector<std::vector<uint32_t>>& layers,
-  const LayoutConfig& config) const {
+    const std::vector<std::vector<uint32_t>> &layers,
+    const LayoutConfig &config
+) const {
 
   std::unordered_map<uint32_t, NodePosition> positions;
 
   for (size_t layer_idx = 0; layer_idx < layers.size(); ++layer_idx) {
-    const auto& layer = layers[layer_idx];
+    const auto &layer = layers[layer_idx];
     size_t x = layer_idx * (config.box_width + config.horizontal_spacing) + 2;
     size_t start_y = 2;
 
@@ -371,11 +486,12 @@ std::unordered_map<uint32_t, AsciiExporter::NodePosition> AsciiExporter::compute
 }
 
 std::unordered_map<uint32_t, AsciiExporter::NodePosition> AsciiExporter::compute_resource_positions(
-  const RenderGraph& graph,
-  const std::vector<uint32_t>& active_passes,
-  const LayoutConfig& config,
-  size_t resources_y,
-  size_t canvas_width) const {
+    const RenderGraph &graph,
+    const std::vector<uint32_t> &active_passes,
+    const LayoutConfig &config,
+    size_t resources_y,
+    size_t canvas_width
+) const {
 
   const auto used_resources = get_used_resources(graph, active_passes);
   std::unordered_map<uint32_t, NodePosition> positions;
@@ -403,11 +519,11 @@ std::unordered_map<uint32_t, AsciiExporter::NodePosition> AsciiExporter::compute
   return positions;
 }
 
-void AsciiExporter::draw_edges(Canvas& canvas, BoxMask& mask, const std::vector<EdgeInfo>& edges) const {
+void AsciiExporter::draw_edges(Canvas &canvas, BoxMask &mask, const std::vector<EdgeInfo> &edges) const {
   const size_t canvas_height = canvas.size();
   const size_t canvas_width = canvas.empty() ? 0 : canvas[0].size();
 
-  for (const auto& edge : edges) {
+  for (const auto &edge : edges) {
     size_t from_x = edge.from_x;
     size_t from_y = edge.from_y;
     size_t to_x = edge.to_x;
@@ -456,8 +572,7 @@ void AsciiExporter::draw_edges(Canvas& canvas, BoxMask& mask, const std::vector<
   }
 }
 
-void AsciiExporter::draw_box(Canvas& canvas, const NodePosition& pos, const std::string& name,
-                              char h_border, char v_border, char corner) const {
+void AsciiExporter::draw_box(Canvas &canvas, const NodePosition &pos, const std::string &name, char h_border, char v_border, char corner) const {
   const std::string truncated_name = truncate_name(name, pos.width);
 
   for (size_t i = 0; i < pos.width; ++i) {
@@ -481,11 +596,11 @@ void AsciiExporter::draw_box(Canvas& canvas, const NodePosition& pos, const std:
   }
 }
 
-void AsciiExporter::draw_pass_box(Canvas& canvas, const NodePosition& pos, const std::string& name) const {
+void AsciiExporter::draw_pass_box(Canvas &canvas, const NodePosition &pos, const std::string &name) const {
   draw_box(canvas, pos, name, '-', '|', '+');
 }
 
-void AsciiExporter::draw_resource_box(Canvas& canvas, const NodePosition& pos, const std::string& name) const {
+void AsciiExporter::draw_resource_box(Canvas &canvas, const NodePosition &pos, const std::string &name) const {
   const std::string truncated_name = truncate_name(name, pos.width);
 
   for (size_t i = 0; i < pos.width; ++i) {
@@ -504,7 +619,7 @@ void AsciiExporter::draw_resource_box(Canvas& canvas, const NodePosition& pos, c
   }
 }
 
-std::vector<uint32_t> AsciiExporter::get_active_passes(const RenderGraph& graph) const {
+std::vector<uint32_t> AsciiExporter::get_active_passes(const RenderGraph &graph) const {
   std::vector<uint32_t> active_passes;
   for (uint32_t pass_idx : graph.m_execution_order) {
     if (!graph.m_passes[pass_idx]->is_culled()) {
@@ -515,14 +630,14 @@ std::vector<uint32_t> AsciiExporter::get_active_passes(const RenderGraph& graph)
 }
 
 std::vector<uint32_t> AsciiExporter::get_used_resources(
-  const RenderGraph& graph,
-  const std::vector<uint32_t>& active_passes) const {
+    const RenderGraph &graph,
+    const std::vector<uint32_t> &active_passes
+) const {
 
   std::vector<uint32_t> used_resources;
   for (uint32_t pass_idx : active_passes) {
-    for (const auto& access : graph.m_passes[pass_idx]->get_resource_accesses()) {
-      if (std::find(used_resources.begin(), used_resources.end(),
-                   access.resource_index) == used_resources.end()) {
+    for (const auto &access : graph.m_passes[pass_idx]->get_resource_accesses()) {
+      if (std::find(used_resources.begin(), used_resources.end(), access.resource_index) == used_resources.end()) {
         used_resources.push_back(access.resource_index);
       }
     }
@@ -530,11 +645,11 @@ std::vector<uint32_t> AsciiExporter::get_used_resources(
   return used_resources;
 }
 
-std::string AsciiExporter::truncate_name(const std::string& name, size_t max_width) const {
+std::string AsciiExporter::truncate_name(const std::string &name, size_t max_width) const {
   if (name.length() > max_width - 4) {
     return name.substr(0, max_width - 7) + "...";
   }
   return name;
 }
 
-}
+} // namespace astralix

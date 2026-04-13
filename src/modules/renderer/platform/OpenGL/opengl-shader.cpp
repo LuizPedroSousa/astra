@@ -111,7 +111,7 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
           read_shader_reflection(reflection_path, SerializationFormat::Json,
                                  &reflection_error);
 
-      if (cached_reflection.has_value() && cached_reflection->version >= 2) {
+      if (cached_reflection.has_value() && cached_reflection->version >= 2 && cached_reflection->version <= 3) {
         cached_result.reflection = std::move(*cached_reflection);
         axsl_results[key] = std::move(cached_result);
         return;
@@ -126,6 +126,8 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
         {
             .emit_reflection_ir = true,
             .reflection_ir_format = SerializationFormat::Json,
+            .emit_pipeline_layout_ir = true,
+            .pipeline_layout_ir_format = SerializationFormat::Json,
         });
 
     if (result.ok()) {
@@ -351,10 +353,14 @@ void OpenGLShader::build_reflection_bindings(
             continue;
           }
 
-          register_binding(ProgramBinding{ProgramBinding::Kind::Uniform,
-                                          member.logical_name,
-                                          *member.glsl.emitted_name},
-                           member.binding_id);
+          register_binding(
+              ProgramBinding{
+                  .kind = ProgramBinding::Kind::UniformValue,
+                  .binding_id = member.binding_id,
+                  .logical_name = member.logical_name,
+                  .emitted_name = *member.glsl.emitted_name,
+              },
+              member.binding_id);
           register_alias(member.compatibility_alias, member.logical_name);
         }
         continue;
@@ -372,9 +378,31 @@ void OpenGLShader::build_reflection_bindings(
                                 ? ProgramBinding::Kind::UniformBlock
                                 : ProgramBinding::Kind::StorageBlock;
 
-        register_binding(ProgramBinding{binding_kind, resource.logical_name,
-                                        name, -1, static_cast<uint32_t>(-1),
-                                        resource.glsl.binding.value_or(0)});
+        register_binding(ProgramBinding{
+            .kind = binding_kind,
+            .binding_id = resource.binding_id,
+            .logical_name = resource.logical_name,
+            .emitted_name = name,
+            .binding = resource.glsl.binding.value_or(0),
+        });
+        continue;
+      }
+
+      if (resource.kind == ShaderResourceKind::Sampler) {
+        if (!resource.glsl.emitted_name) {
+          continue;
+        }
+
+        register_binding(
+            ProgramBinding{
+                .kind = ProgramBinding::Kind::SampledImage,
+                .binding_id = resource.binding_id,
+                .logical_name = resource.logical_name,
+                .emitted_name = *resource.glsl.emitted_name,
+                .descriptor_set = resource.glsl.descriptor_set.value_or(0),
+                .binding = resource.glsl.binding.value_or(0),
+            },
+            resource.binding_id);
         continue;
       }
 
@@ -383,9 +411,12 @@ void OpenGLShader::build_reflection_bindings(
           continue;
         }
 
-        register_binding(ProgramBinding{ProgramBinding::Kind::Uniform,
-                                        resource.logical_name,
-                                        *resource.glsl.emitted_name});
+        register_binding(ProgramBinding{
+            .kind = ProgramBinding::Kind::UniformValue,
+            .binding_id = resource.binding_id,
+            .logical_name = resource.logical_name,
+            .emitted_name = *resource.glsl.emitted_name,
+        });
         continue;
       }
 
@@ -394,9 +425,14 @@ void OpenGLShader::build_reflection_bindings(
           continue;
         }
 
-        register_binding(ProgramBinding{ProgramBinding::Kind::Uniform,
-                                        member.logical_name,
-                                        *member.glsl.emitted_name});
+        register_binding(
+            ProgramBinding{
+                .kind = ProgramBinding::Kind::UniformValue,
+                .binding_id = member.binding_id,
+                .logical_name = member.logical_name,
+                .emitted_name = *member.glsl.emitted_name,
+            },
+            member.binding_id);
         register_alias(member.compatibility_alias, member.logical_name);
       }
     }
@@ -422,7 +458,6 @@ void OpenGLShader::initialize_reflection_bindings(
     const ShaderReflection &reflection) {
   build_reflection_bindings(reflection, m_program_bindings,
                             m_program_bindings_by_id);
-  m_uniform_locations.clear();
 
   if (reflection.empty()) {
     return;
@@ -430,7 +465,11 @@ void OpenGLShader::initialize_reflection_bindings(
 
   for (auto &[logical_name, binding] : m_program_bindings) {
     switch (binding.kind) {
-      case ProgramBinding::Kind::Uniform:
+      case ProgramBinding::Kind::UniformValue:
+        binding.location =
+            glGetUniformLocation(m_renderer_id, binding.emitted_name.c_str());
+        break;
+      case ProgramBinding::Kind::SampledImage:
         binding.location =
             glGetUniformLocation(m_renderer_id, binding.emitted_name.c_str());
         break;
@@ -451,17 +490,12 @@ void OpenGLShader::initialize_reflection_bindings(
                                       binding.binding);
         }
         break;
-    }
-  }
-
-  for (const auto &[logical_name, binding] : m_program_bindings) {
-    if (binding.kind == ProgramBinding::Kind::Uniform) {
-      m_uniform_locations.emplace(logical_name, binding.location);
-    }
+      }
   }
 
   for (auto &[binding_id, binding] : m_program_bindings_by_id) {
-    if (binding.kind != ProgramBinding::Kind::Uniform) {
+    if (binding.kind != ProgramBinding::Kind::UniformValue &&
+        binding.kind != ProgramBinding::Kind::SampledImage) {
       continue;
     }
 
@@ -474,47 +508,6 @@ void OpenGLShader::initialize_reflection_bindings(
   }
 }
 
-int32_t OpenGLShader::resolve_uniform_location(const std::string &name) const {
-  auto cached = m_uniform_locations.find(name);
-  if (cached != m_uniform_locations.end()) {
-    return cached->second;
-  }
-
-  int32_t location = glGetUniformLocation(m_renderer_id, name.c_str());
-  m_uniform_locations.emplace(name, location);
-  return location;
-}
-
-void OpenGLShader::set_bool(const std::string &name, bool value) const {
-  glUniform1i(resolve_uniform_location(name), (int)value);
-}
-
-void OpenGLShader::set_int(const std::string &name, int value) const {
-  glUniform1i(resolve_uniform_location(name), (int)value);
-}
-
-void OpenGLShader::set_matrix(const std::string &name, glm::mat4 matrix) const {
-  glUniformMatrix4fv(resolve_uniform_location(name), 1, GL_FALSE,
-                     glm::value_ptr(matrix));
-}
-
-void OpenGLShader::set_float(const std::string &name, float value) const {
-  glUniform1f(resolve_uniform_location(name), value);
-}
-
-void OpenGLShader::set_vec2(const std::string &name, glm::vec2 value) const {
-  glUniform2f(resolve_uniform_location(name), value.x, value.y);
-}
-
-void OpenGLShader::set_vec3(const std::string &name, glm::vec3 value) const {
-  glUniform3f(resolve_uniform_location(name), value.x, value.y, value.z);
-}
-
-void OpenGLShader::set_vec4(const std::string &name, glm::vec4 value) const {
-  glUniform4f(resolve_uniform_location(name), value.x, value.y, value.z,
-              value.w);
-}
-
 void OpenGLShader::set_typed_value(uint64_t binding_id, ShaderValueKind kind,
                                    const void *value) const {
   auto binding_it = m_program_bindings_by_id.find(binding_id);
@@ -523,7 +516,11 @@ void OpenGLShader::set_typed_value(uint64_t binding_id, ShaderValueKind kind,
   }
 
   const auto &binding = binding_it->second;
-  if (binding.kind != ProgramBinding::Kind::Uniform || binding.location < 0) {
+  if (binding.kind != ProgramBinding::Kind::UniformValue &&
+      binding.kind != ProgramBinding::Kind::SampledImage) {
+    return;
+  }
+  if (binding.location < 0) {
     return;
   }
 

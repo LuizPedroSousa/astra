@@ -45,7 +45,9 @@ void Font::ensure_size_loaded(uint32_t pixel_size) const {
 
   ASTRA_ENSURE(FT_Load_Char(face, 'X', FT_LOAD_RENDER), "ERROR::FREETYTPE: Failed to load Glyph");
 
-  glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  if (m_backend == RendererBackend::OpenGL) {
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+  }
 
   GlyphSet glyph_set;
   glyph_set.glyphs.reserve(128u);

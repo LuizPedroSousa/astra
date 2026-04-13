@@ -60,6 +60,7 @@ struct BufferElement {
   uint32_t size;
   size_t offset;
   bool normalized;
+  uint32_t location = UINT32_MAX;
 
   BufferElement() = default;
 
@@ -67,6 +68,13 @@ struct BufferElement {
                 bool normalized = false)
       : name(name), type(type), size(shader_data_type_size(type)), offset(0),
         normalized(normalized) {}
+
+  bool has_explicit_location() const { return location != UINT32_MAX; }
+
+  BufferElement &at_location(uint32_t loc) {
+    location = loc;
+    return *this;
+  }
 
   uint32_t get_component_count() const {
     switch (type) {
@@ -118,6 +126,20 @@ public:
   }
   std::vector<BufferElement>::const_iterator end() const {
     return m_elements.end();
+  }
+
+  uint32_t location_span() const {
+    uint32_t span = 0;
+    for (const auto &element : m_elements) {
+      if (element.type == ShaderDataType::Mat4) {
+        span += 4;
+      } else if (element.type == ShaderDataType::Mat3) {
+        span += 3;
+      } else {
+        span += 1;
+      }
+    }
+    return span;
   }
 
 private:

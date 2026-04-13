@@ -5,23 +5,48 @@
 #include "guid.hpp"
 #include "resources/texture.hpp"
 #include "storage-buffer.hpp"
+#include "systems/render-system/core/render-types.hpp"
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <variant>
 
 namespace astralix {
 
 enum class RenderGraphResourceType {
+  Image,
+  Buffer,
   Texture2D,
   Texture3D,
-  Framebuffer,
   StorageBuffer,
-  DepthStencil,
   LogicalBuffer
 };
 
 enum class RenderGraphResourceLifetime { Transient, Persistent };
+
+struct RenderGraphImageResource {
+  ImageDesc desc{};
+  uint32_t generation = 1;
+
+  [[nodiscard]] ImageExtent extent() const noexcept {
+    return ImageExtent{
+        .width = desc.width,
+        .height = desc.height,
+        .depth = desc.depth,
+    };
+  }
+
+  void update_desc(const ImageDesc &next_desc) {
+    if (desc.width != next_desc.width || desc.height != next_desc.height ||
+        desc.depth != next_desc.depth || desc.mip_levels != next_desc.mip_levels ||
+        desc.samples != next_desc.samples || desc.format != next_desc.format ||
+        desc.usage != next_desc.usage) {
+      ++generation;
+    }
+    desc = next_desc;
+  }
+};
 
 struct TextureSpec {
   uint32_t width = 0;
@@ -47,13 +72,14 @@ struct RenderGraphResourceDescriptor {
   RenderGraphResourceType type;
   std::string name;
   RenderGraphResourceLifetime lifetime;
+  uint32_t explicit_handle_id = 0;
 
-  std::variant<TextureSpec, FramebufferSpecification, LogicalBufferSpec,
+  std::variant<ImageDesc, BufferDesc, TextureSpec, LogicalBufferSpec,
                StorageBufferSpec>
       spec;
 
-  std::variant<std::monostate, Framebuffer *, StorageBuffer *, ResourceHandle,
-               void *>
+  std::variant<std::monostate, std::shared_ptr<RenderGraphImageResource>,
+               StorageBuffer *, ResourceHandle, void *>
       external_resource;
 };
 
@@ -67,8 +93,8 @@ struct RenderGraphResource {
 
   int32_t alias_group = -1;
 
-  std::variant<std::monostate, Framebuffer *, StorageBuffer *, ResourceHandle,
-               void *>
+  std::variant<std::monostate, std::shared_ptr<RenderGraphImageResource>,
+               StorageBuffer *, ResourceHandle, void *>
       content;
 
   explicit RenderGraphResource(const RenderGraphResourceDescriptor &d)
@@ -98,10 +124,12 @@ struct RenderGraphResource {
     ASTRA_EXCEPTION("Resource content is not a StorageBuffer");
   }
 
-  Framebuffer *get_framebuffer() const {
-    if (auto *fb = std::get_if<Framebuffer *>(&content)) {
-      return *fb;
+  std::shared_ptr<RenderGraphImageResource> get_graph_image() const {
+    if (auto *image = std::get_if<std::shared_ptr<RenderGraphImageResource>>(
+            &content)) {
+      return *image;
     }
+
     return nullptr;
   }
 
@@ -113,6 +141,9 @@ struct RenderGraphResource {
   }
 
   void set_content(ResourceHandle handle) { content = handle; }
+  void set_content(std::shared_ptr<RenderGraphImageResource> image) {
+    content = std::move(image);
+  }
 
   template <typename T> void set_content(T value) { content = value; }
 };
