@@ -1,4 +1,4 @@
-#include "shader-lang/emitters/opengl-glsl-emitter.hpp"
+#include "shader-lang/emitters/glsl-text-emitter.hpp"
 
 #include <cstdio>
 
@@ -36,7 +36,7 @@ std::string array_suffix(std::optional<uint32_t> array_size) {
 
 } // namespace
 
-std::string OpenGLGLSLEmitter::emit(const GLSLStage &stage) {
+std::string GLSLTextEmitter::emit(const GLSLStage &stage) {
   m_out.clear();
   m_indent.clear();
 
@@ -50,7 +50,7 @@ std::string OpenGLGLSLEmitter::emit(const GLSLStage &stage) {
   return m_out;
 }
 
-void OpenGLGLSLEmitter::emit_decl(const GLSLDecl &decl) {
+void GLSLTextEmitter::emit_decl(const GLSLDecl &decl) {
   std::visit(
       Overloaded{
           [&](const GLSLStructDecl &value) { emit_struct(value); },
@@ -59,10 +59,11 @@ void OpenGLGLSLEmitter::emit_decl(const GLSLDecl &decl) {
             emit_interface_block(value);
           },
           [&](const GLSLFunctionDecl &value) { emit_function(value); }},
-      decl);
+      decl
+  );
 }
 
-void OpenGLGLSLEmitter::emit_struct(const GLSLStructDecl &decl) {
+void GLSLTextEmitter::emit_struct(const GLSLStructDecl &decl) {
   writeln("struct " + decl.name + " {");
   push_indent();
   for (const auto &field : decl.fields) {
@@ -73,7 +74,7 @@ void OpenGLGLSLEmitter::emit_struct(const GLSLStructDecl &decl) {
   writeln();
 }
 
-void OpenGLGLSLEmitter::emit_global_var(const GLSLGlobalVarDecl &decl) {
+void GLSLTextEmitter::emit_global_var(const GLSLGlobalVarDecl &decl) {
   std::string layout = layout_quals(decl.annotations);
   std::string prefix = layout.empty() ? "" : layout + " ";
 
@@ -99,8 +100,7 @@ void OpenGLGLSLEmitter::emit_global_var(const GLSLGlobalVarDecl &decl) {
   write(";\n");
 }
 
-void OpenGLGLSLEmitter::emit_interface_block(
-    const GLSLInterfaceBlockDecl &decl) {
+void GLSLTextEmitter::emit_interface_block(const GLSLInterfaceBlockDecl &decl) {
   std::string layout = layout_quals(decl.annotations);
   std::string prefix = layout.empty() ? "" : layout + " ";
 
@@ -114,8 +114,8 @@ void OpenGLGLSLEmitter::emit_interface_block(
   writeln();
 }
 
-void OpenGLGLSLEmitter::emit_field(const GLSLFieldDecl &decl,
-                                   bool emit_initializer) {
+void GLSLTextEmitter::emit_field(const GLSLFieldDecl &decl,
+                                 bool emit_initializer) {
   write(m_indent);
 
   std::string layout = layout_quals(decl.annotations);
@@ -135,7 +135,7 @@ void OpenGLGLSLEmitter::emit_field(const GLSLFieldDecl &decl,
   write(";\n");
 }
 
-void OpenGLGLSLEmitter::emit_function(const GLSLFunctionDecl &decl) {
+void GLSLTextEmitter::emit_function(const GLSLFunctionDecl &decl) {
   write(m_indent + type_str(decl.ret) + array_suffix(decl.ret) + " " +
         decl.name + "(");
 
@@ -156,7 +156,7 @@ void OpenGLGLSLEmitter::emit_function(const GLSLFunctionDecl &decl) {
   writeln();
 }
 
-void OpenGLGLSLEmitter::emit_param(const GLSLParamDecl &decl) {
+void GLSLTextEmitter::emit_param(const GLSLParamDecl &decl) {
   if (decl.qual != ParamQualifier::None) {
     write(std::string(param_qual_str(decl.qual)) + " ");
   }
@@ -164,88 +164,91 @@ void OpenGLGLSLEmitter::emit_param(const GLSLParamDecl &decl) {
   write(type_str(decl.type) + " " + decl.name + array_suffix(decl.type));
 }
 
-void OpenGLGLSLEmitter::emit_stmt(const GLSLStmt &stmt) {
-  std::visit(Overloaded{[&](const GLSLBlockStmt &value) {
-                          write("{\n");
-                          push_indent();
-                          for (const auto &child : value.stmts) {
-                            emit_stmt(*child);
-                          }
-                          pop_indent();
-                          write(m_indent + "}\n");
-                        },
-                        [&](const GLSLIfStmt &value) {
-                          write(m_indent + "if (");
-                          emit_expr(*value.cond);
-                          write(") ");
-                          emit_body_stmt(*value.then_br);
-                          if (value.else_br) {
-                            write(m_indent + "else ");
-                            emit_body_stmt(*value.else_br);
-                          }
-                        },
-                        [&](const GLSLForStmt &value) {
-                          write(m_indent + "for (");
-                          emit_for_init(value.init.get());
-                          write(" ");
-                          if (value.cond) {
-                            emit_expr(*value.cond);
-                          }
-                          write("; ");
-                          if (value.step) {
-                            emit_expr(*value.step);
-                          }
-                          write(") ");
-                          emit_body_stmt(*value.body);
-                        },
-                        [&](const GLSLWhileStmt &value) {
-                          write(m_indent + "while (");
-                          emit_expr(*value.cond);
-                          write(") ");
-                          emit_body_stmt(*value.body);
-                        },
-                        [&](const GLSLReturnStmt &value) {
-                          write(m_indent + "return");
-                          if (value.value) {
-                            write(" ");
-                            emit_expr(*value.value);
-                          }
-                          write(";\n");
-                        },
-                        [&](const GLSLExprStmt &value) {
-                          write(m_indent);
-                          emit_expr(*value.expr);
-                          write(";\n");
-                        },
-                        [&](const GLSLVarDeclStmt &value) {
-                          write(m_indent);
-                          if (value.is_const) {
-                            write("const ");
-                          }
-                          write(type_str(value.type) + " " + value.name +
-                                array_suffix(value.type));
-                          if (value.init) {
-                            write(" = ");
-                            emit_expr(*value.init);
-                          }
-                          write(";\n");
-                        },
-                        [&](const GLSLOutputAssignStmt &value) {
-                          write(m_indent);
-                          emit_expr(*value.lhs);
-                          write(" ");
-                          write(op_str(value.op));
-                          write(" ");
-                          emit_expr(*value.rhs);
-                          write(";\n");
-                        },
-                        [&](const GLSLBreakStmt &) { writeln("break;"); },
-                        [&](const GLSLContinueStmt &) { writeln("continue;"); },
-                        [&](const GLSLDiscardStmt &) { writeln("discard;"); }},
-             stmt.data);
+void GLSLTextEmitter::emit_stmt(const GLSLStmt &stmt) {
+  std::visit(
+      Overloaded{
+          [&](const GLSLBlockStmt &value) {
+            write("{\n");
+            push_indent();
+            for (const auto &child : value.stmts) {
+              emit_stmt(*child);
+            }
+            pop_indent();
+            write(m_indent + "}\n");
+          },
+          [&](const GLSLIfStmt &value) {
+            write(m_indent + "if (");
+            emit_expr(*value.cond);
+            write(") ");
+            emit_body_stmt(*value.then_br);
+            if (value.else_br) {
+              write(m_indent + "else ");
+              emit_body_stmt(*value.else_br);
+            }
+          },
+          [&](const GLSLForStmt &value) {
+            write(m_indent + "for (");
+            emit_for_init(value.init.get());
+            write(" ");
+            if (value.cond) {
+              emit_expr(*value.cond);
+            }
+            write("; ");
+            if (value.step) {
+              emit_expr(*value.step);
+            }
+            write(") ");
+            emit_body_stmt(*value.body);
+          },
+          [&](const GLSLWhileStmt &value) {
+            write(m_indent + "while (");
+            emit_expr(*value.cond);
+            write(") ");
+            emit_body_stmt(*value.body);
+          },
+          [&](const GLSLReturnStmt &value) {
+            write(m_indent + "return");
+            if (value.value) {
+              write(" ");
+              emit_expr(*value.value);
+            }
+            write(";\n");
+          },
+          [&](const GLSLExprStmt &value) {
+            write(m_indent);
+            emit_expr(*value.expr);
+            write(";\n");
+          },
+          [&](const GLSLVarDeclStmt &value) {
+            write(m_indent);
+            if (value.is_const) {
+              write("const ");
+            }
+            write(type_str(value.type) + " " + value.name +
+                  array_suffix(value.type));
+            if (value.init) {
+              write(" = ");
+              emit_expr(*value.init);
+            }
+            write(";\n");
+          },
+          [&](const GLSLOutputAssignStmt &value) {
+            write(m_indent);
+            emit_expr(*value.lhs);
+            write(" ");
+            write(op_str(value.op));
+            write(" ");
+            emit_expr(*value.rhs);
+            write(";\n");
+          },
+          [&](const GLSLBreakStmt &) { writeln("break;"); },
+          [&](const GLSLContinueStmt &) { writeln("continue;"); },
+          [&](const GLSLDiscardStmt &) { writeln("discard;"); }},
+      stmt.data
+  );
 }
 
-void OpenGLGLSLEmitter::emit_body_stmt(const GLSLStmt &stmt) {
+void GLSLTextEmitter::emit_body_stmt(const GLSLStmt &stmt) {
   if (std::holds_alternative<GLSLBlockStmt>(stmt.data)) {
     emit_stmt(stmt);
     return;
@@ -258,7 +261,7 @@ void OpenGLGLSLEmitter::emit_body_stmt(const GLSLStmt &stmt) {
   write(m_indent + "}\n");
 }
 
-void OpenGLGLSLEmitter::emit_for_init(const GLSLStmt *stmt) {
+void GLSLTextEmitter::emit_for_init(const GLSLStmt *stmt) {
   if (!stmt) {
     write(";");
     return;
@@ -289,67 +292,69 @@ void OpenGLGLSLEmitter::emit_for_init(const GLSLStmt *stmt) {
   write(";");
 }
 
-void OpenGLGLSLEmitter::emit_expr(const GLSLExpr &expr) {
+void GLSLTextEmitter::emit_expr(const GLSLExpr &expr) {
   std::visit(
-      Overloaded{[&](const GLSLLiteralExpr &value) { emit_literal(value); },
-                 [&](const GLSLIdentifierExpr &value) { write(value.name); },
-                 [&](const GLSLBinaryExpr &value) {
-                   emit_expr_paren(*value.lhs);
-                   write(" ");
-                   write(op_str(value.op));
-                   write(" ");
-                   emit_expr_paren(*value.rhs);
-                 },
-                 [&](const GLSLUnaryExpr &value) {
-                   if (value.prefix) {
-                     write(op_str(value.op));
-                     emit_expr(*value.operand);
-                   } else {
-                     emit_expr(*value.operand);
-                     write(op_str(value.op));
-                   }
-                 },
-                 [&](const GLSLTernaryExpr &value) {
-                   emit_expr(*value.cond);
-                   write(" ? ");
-                   emit_expr(*value.then_expr);
-                   write(" : ");
-                   emit_expr(*value.else_expr);
-                 },
-                 [&](const GLSLCallExpr &value) {
-                   emit_expr(*value.callee);
-                   write("(");
-                   emit_call_args(value.args);
-                   write(")");
-                 },
-                 [&](const GLSLIndexExpr &value) {
-                   emit_expr(*value.array);
-                   write("[");
-                   emit_expr(*value.index);
-                   write("]");
-                 },
-                 [&](const GLSLFieldExpr &value) {
-                   emit_expr(*value.object);
-                   write(".");
-                   write(value.field);
-                 },
-                 [&](const GLSLConstructExpr &value) {
-                   write(type_str(value.type) + array_suffix(value.type));
-                   write("(");
-                   emit_call_args(value.args);
-                   write(")");
-                 },
-                 [&](const GLSLAssignExpr &value) {
-                   emit_expr(*value.lhs);
-                   write(" ");
-                   write(op_str(value.op));
-                   write(" ");
-                   emit_expr(*value.rhs);
-                 }},
-      expr.data);
+      Overloaded{
+          [&](const GLSLLiteralExpr &value) { emit_literal(value); },
+          [&](const GLSLIdentifierExpr &value) { write(value.name); },
+          [&](const GLSLBinaryExpr &value) {
+            emit_expr_paren(*value.lhs);
+            write(" ");
+            write(op_str(value.op));
+            write(" ");
+            emit_expr_paren(*value.rhs);
+          },
+          [&](const GLSLUnaryExpr &value) {
+            if (value.prefix) {
+              write(op_str(value.op));
+              emit_expr(*value.operand);
+            } else {
+              emit_expr(*value.operand);
+              write(op_str(value.op));
+            }
+          },
+          [&](const GLSLTernaryExpr &value) {
+            emit_expr(*value.cond);
+            write(" ? ");
+            emit_expr(*value.then_expr);
+            write(" : ");
+            emit_expr(*value.else_expr);
+          },
+          [&](const GLSLCallExpr &value) {
+            emit_expr(*value.callee);
+            write("(");
+            emit_call_args(value.args);
+            write(")");
+          },
+          [&](const GLSLIndexExpr &value) {
+            emit_expr(*value.array);
+            write("[");
+            emit_expr(*value.index);
+            write("]");
+          },
+          [&](const GLSLFieldExpr &value) {
+            emit_expr(*value.object);
+            write(".");
+            write(value.field);
+          },
+          [&](const GLSLConstructExpr &value) {
+            write(type_str(value.type) + array_suffix(value.type));
+            write("(");
+            emit_call_args(value.args);
+            write(")");
+          },
+          [&](const GLSLAssignExpr &value) {
+            emit_expr(*value.lhs);
+            write(" ");
+            write(op_str(value.op));
+            write(" ");
+            emit_expr(*value.rhs);
+          }},
+      expr.data
+  );
 }
 
-void OpenGLGLSLEmitter::emit_expr_paren(const GLSLExpr &expr) {
+void GLSLTextEmitter::emit_expr_paren(const GLSLExpr &expr) {
   bool needs = std::holds_alternative<GLSLBinaryExpr>(expr.data) ||
                std::holds_alternative<GLSLTernaryExpr>(expr.data);
   if (needs) {
@@ -361,7 +366,7 @@ void OpenGLGLSLEmitter::emit_expr_paren(const GLSLExpr &expr) {
   }
 }
 
-void OpenGLGLSLEmitter::emit_call_args(const std::vector<GLSLExprPtr> &args) {
+void GLSLTextEmitter::emit_call_args(const std::vector<GLSLExprPtr> &args) {
   for (size_t i = 0; i < args.size(); ++i) {
     if (i) {
       write(", ");
@@ -370,20 +375,23 @@ void OpenGLGLSLEmitter::emit_call_args(const std::vector<GLSLExprPtr> &args) {
   }
 }
 
-void OpenGLGLSLEmitter::emit_literal(const GLSLLiteralExpr &expr) {
-  std::visit(Overloaded{[&](bool value) { write(value ? "true" : "false"); },
-                        [&](int64_t value) { write(std::to_string(value)); },
-                        [&](double value) {
-                          char buffer[32];
-                          std::snprintf(buffer, sizeof(buffer), "%g",
-                                        static_cast<double>(value));
-                          write(buffer);
-                        }},
-             expr.value);
+void GLSLTextEmitter::emit_literal(const GLSLLiteralExpr &expr) {
+  std::visit(
+      Overloaded{
+          [&](bool value) { write(value ? "true" : "false"); },
+          [&](int64_t value) { write(std::to_string(value)); },
+          [&](double value) {
+            char buffer[32];
+            std::snprintf(
+                buffer, sizeof(buffer), "%g", static_cast<double>(value)
+            );
+            write(buffer);
+          }},
+      expr.value
+  );
 }
 
-std::string
-OpenGLGLSLEmitter::layout_quals(const Annotations &annotations) const {
+std::string GLSLTextEmitter::layout_quals(const Annotations &annotations) const {
   std::string parts;
   auto append = [&](std::string value) {
     if (!parts.empty()) {
@@ -397,6 +405,11 @@ OpenGLGLSLEmitter::layout_quals(const Annotations &annotations) const {
       case AnnotationKind::Location:
         if (annotation.slot >= 0) {
           append("location = " + std::to_string(annotation.slot));
+        }
+        break;
+      case AnnotationKind::Set:
+        if (annotation.slot >= 0) {
+          append("set = " + std::to_string(annotation.slot));
         }
         break;
       case AnnotationKind::Binding:
@@ -418,7 +431,7 @@ OpenGLGLSLEmitter::layout_quals(const Annotations &annotations) const {
   return parts.empty() ? "" : "layout(" + parts + ")";
 }
 
-std::string OpenGLGLSLEmitter::type_str(const TypeRef &type_ref) const {
+std::string GLSLTextEmitter::type_str(const TypeRef &type_ref) const {
   switch (type_ref.kind) {
     case TokenKind::KeywordVoid:
       return "void";
@@ -471,7 +484,7 @@ std::string OpenGLGLSLEmitter::type_str(const TypeRef &type_ref) const {
   }
 }
 
-std::string_view OpenGLGLSLEmitter::op_str(TokenKind op) {
+std::string_view GLSLTextEmitter::op_str(TokenKind op) {
   switch (op) {
     case TokenKind::Plus:
       return "+";
@@ -544,7 +557,7 @@ std::string_view OpenGLGLSLEmitter::op_str(TokenKind op) {
   }
 }
 
-std::string_view OpenGLGLSLEmitter::param_qual_str(ParamQualifier qualifier) {
+std::string_view GLSLTextEmitter::param_qual_str(ParamQualifier qualifier) {
   switch (qualifier) {
     case ParamQualifier::In:
       return "in";
@@ -559,20 +572,20 @@ std::string_view OpenGLGLSLEmitter::param_qual_str(ParamQualifier qualifier) {
   }
 }
 
-void OpenGLGLSLEmitter::push_indent() { m_indent += "  "; }
+void GLSLTextEmitter::push_indent() { m_indent += "  "; }
 
-void OpenGLGLSLEmitter::pop_indent() {
+void GLSLTextEmitter::pop_indent() {
   if (m_indent.size() >= 2) {
     m_indent.resize(m_indent.size() - 2);
   }
 }
 
-void OpenGLGLSLEmitter::writeln(std::string_view text) {
+void GLSLTextEmitter::writeln(std::string_view text) {
   m_out += m_indent;
   m_out += text;
   m_out += '\n';
 }
 
-void OpenGLGLSLEmitter::write(std::string_view text) { m_out += text; }
+void GLSLTextEmitter::write(std::string_view text) { m_out += text; }
 
 } // namespace astralix

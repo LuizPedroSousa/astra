@@ -1,12 +1,13 @@
 #pragma once
 
 #include "shader-lang/lowering/glsl-lowering.hpp"
+
 #include <string>
 #include <string_view>
 
 namespace astralix {
 
-class OpenGLGLSLEmitter {
+class GLSLTextEmitter {
 public:
   std::string emit(const GLSLStage &stage);
 
