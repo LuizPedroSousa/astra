@@ -23,8 +23,8 @@ namespace astralix {
 
   namespace {
 
-    constexpr std::string_view k_generator_version = "axgen-v3";
-    constexpr int k_reflection_version = 3;
+    constexpr std::string_view k_generator_version = "axgen-v4";
+    constexpr int k_reflection_version = k_shader_reflection_version;
 
     struct CacheEntry {
       std::string fingerprint;

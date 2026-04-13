@@ -24,6 +24,22 @@ bool is_sampler_type(TokenKind kind) {
   }
 }
 
+bool is_loose_global_value_resource(const ResourceReflection &resource) {
+  return resource.kind == ShaderResourceKind::UniformValue &&
+         !is_sampler_type(resource.type.kind);
+}
+
+void canonicalize_loose_global_value_bindings(ResourceReflection &resource) {
+  if (!is_loose_global_value_resource(resource)) {
+    return;
+  }
+
+  resource.binding_id = shader_binding_id("__globals." + resource.logical_name);
+  for (auto &member : resource.members) {
+    member.binding_id = shader_binding_id("__globals." + member.logical_name);
+  }
+}
+
 uint32_t std140_base_alignment(TokenKind kind) {
   switch (kind) {
     case TokenKind::TypeBool:
@@ -516,6 +532,8 @@ LayoutAssignment::assign(const StageReflection &reflection) {
     if (resource.binding_id == 0 && !resource.logical_name.empty()) {
       resource.binding_id = shader_binding_id(resource.logical_name);
     }
+
+    canonicalize_loose_global_value_bindings(resource);
 
     if (resource.glsl.descriptor_set && resource.glsl.binding) {
       reserved_slots.insert(

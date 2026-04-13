@@ -92,8 +92,10 @@ struct StageReflection {
   std::vector<ResourceReflection> resources;
 };
 
+inline constexpr int k_shader_reflection_version = 4;
+
 struct ShaderReflection {
-  int version = 3;
+  int version = k_shader_reflection_version;
   std::map<StageKind, StageReflection> stages;
 
   bool empty() const { return stages.empty(); }

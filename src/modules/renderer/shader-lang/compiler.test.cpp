@@ -2043,6 +2043,46 @@ fn main() -> FragmentOutput {
   EXPECT_EQ(exposure_field->offset, 8u);
 }
 
+TEST(ShaderCompiler, ReflectionPrefixesLooseGlobalBindingIds) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+uniform float bloom_strength = 0.12;
+uniform float gamma = 2.2;
+uniform float exposure = 1.0;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(vec4(bloom_strength + gamma + exposure));
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "globals-reflection.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  auto stage_it = result.reflection.stages.find(StageKind::Fragment);
+  ASSERT_NE(stage_it, result.reflection.stages.end());
+  ASSERT_EQ(stage_it->second.resources.size(), 3u);
+
+  for (const auto &resource : stage_it->second.resources) {
+    EXPECT_EQ(
+        resource.binding_id,
+        shader_binding_id("__globals." + resource.logical_name)
+    );
+
+    ASSERT_EQ(resource.members.size(), 1u);
+    EXPECT_EQ(
+        resource.members.front().binding_id,
+        shader_binding_id("__globals." + resource.members.front().logical_name)
+    );
+  }
+}
+
 TEST(ShaderCompiler, MergedLayoutExpandsLooseGlobalArraysIntoIndexedFields) {
   Compiler compiler;
   static constexpr std::string_view src = R"axsl(

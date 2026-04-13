@@ -141,6 +141,43 @@ fn main(Entity entity) -> FragmentOutput {
   EXPECT_NE(header->find("stage_mask = 3u;"), std::string::npos);
 }
 
+TEST(BindingCppEmitter, CanonicalizesLooseGlobalBindingIds) {
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+uniform float exposure = 1.0;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(vec4(exposure));
+}
+)axsl";
+
+  Compiler compiler;
+  auto result = compiler.compile(src, {}, "hdr.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  BindingCppEmitter emitter;
+  std::string error;
+  auto header = emitter.emit(result.reflection, "hdr.axsl", &error);
+  ASSERT_TRUE(header.has_value()) << error;
+
+  const auto exposure_binding_id =
+      std::to_string(shader_binding_id("__globals.exposure")) + "ull";
+  const auto binding_id_line =
+      std::string("binding_id = ") + exposure_binding_id + ";";
+  const auto binding_ids_line =
+      std::string("binding_ids = {") + exposure_binding_id + "};";
+
+  EXPECT_NE(header->find("struct GlobalsUniform"), std::string::npos);
+  EXPECT_NE(header->find(binding_id_line), std::string::npos);
+  EXPECT_NE(header->find(binding_ids_line), std::string::npos);
+}
+
 TEST(BindingCppEmitter, RejectsConflictingSchemasForSameLogicalResource) {
   ShaderReflection reflection;
 

@@ -3,6 +3,7 @@
 #include "fnv1a.hpp"
 #include "vulkan-device.hpp"
 #include "vulkan-shader-program.hpp"
+#include <cstring>
 #include <unordered_set>
 
 namespace astralix {
@@ -65,6 +66,13 @@ VkBlendFactor to_vulkan_blend_factor(BlendFactor factor) {
     default:
       return VK_BLEND_FACTOR_ONE;
   }
+}
+
+uint32_t float_bits(float value) {
+  uint32_t bits = 0;
+  static_assert(sizeof(bits) == sizeof(value));
+  std::memcpy(&bits, &value, sizeof(bits));
+  return bits;
 }
 
 VkFormat shader_data_type_to_vulkan_format(ShaderDataType type) {
@@ -243,6 +251,15 @@ uint64_t VulkanPipelineCache::compute_pipeline_key(
   hash = fnv1a64_append_value(hash, static_cast<uint64_t>(depth_format));
   hash = fnv1a64_append_value(hash, static_cast<uint64_t>(desc.raster.cull_mode));
   hash = fnv1a64_append_value(hash, static_cast<uint64_t>(desc.raster.front_face));
+  hash = fnv1a64_append_value(
+      hash, static_cast<uint64_t>(desc.raster.depth_bias.enabled)
+  );
+  hash = fnv1a64_append_value(
+      hash, static_cast<uint64_t>(float_bits(desc.raster.depth_bias.constant_factor))
+  );
+  hash = fnv1a64_append_value(
+      hash, static_cast<uint64_t>(float_bits(desc.raster.depth_bias.slope_factor))
+  );
   hash = fnv1a64_append_value(hash, static_cast<uint64_t>(desc.depth_stencil.depth_test));
   hash = fnv1a64_append_value(hash, static_cast<uint64_t>(desc.depth_stencil.depth_write));
   hash = fnv1a64_append_value(hash, static_cast<uint64_t>(desc.depth_stencil.compare_op));
@@ -299,6 +316,11 @@ VkPipeline VulkanPipelineCache::create_graphics_pipeline(
   rasterization.polygonMode = VK_POLYGON_MODE_FILL;
   rasterization.cullMode = to_vulkan_cull_mode(desc.raster.cull_mode);
   rasterization.frontFace = to_vulkan_front_face(desc.raster.front_face);
+  rasterization.depthBiasEnable =
+      desc.raster.depth_bias.enabled ? VK_TRUE : VK_FALSE;
+  rasterization.depthBiasConstantFactor =
+      desc.raster.depth_bias.constant_factor;
+  rasterization.depthBiasSlopeFactor = desc.raster.depth_bias.slope_factor;
   rasterization.lineWidth = 1.0f;
 
   VkPipelineMultisampleStateCreateInfo multisample{};
