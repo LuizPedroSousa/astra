@@ -4,7 +4,6 @@
 #include "time.hpp"
 #include "trace.hpp"
 #include <cstring>
-#include <imgui.h>
 
 namespace astralix {
 

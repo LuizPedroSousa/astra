@@ -35,11 +35,10 @@ if(ASTRA_TRACE)
 endif()
 
 find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
 find_package(assimp REQUIRED)
 
 set(freetype_DIR "${VCPKG_INSTALLED_ROOT}/share/freetype")
-set(imgui_DIR "${VCPKG_INSTALLED_ROOT}/share/imgui")
-set(imguizmo_DIR "${VCPKG_INSTALLED_ROOT}/share/imguizmo")
 set(glfw3_DIR "${VCPKG_INSTALLED_ROOT}/share/glfw3")
 set(uwebsockets_DIR "${VCPKG_INSTALLED_ROOT}/share/unofficial-uwebsockets")
 set(glad_DIR "${VCPKG_INSTALLED_ROOT}/share/glad")
@@ -56,7 +55,6 @@ find_package(ZLIB REQUIRED)
 
 find_package(glm CONFIG REQUIRED)
 find_package(freetype CONFIG REQUIRED)
-find_package(imgui CONFIG REQUIRED)
 
 find_package(PkgConfig)
 
@@ -322,6 +320,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       OpenMP::OpenMP_CXX
       glfw
       glad::glad
+      Vulkan::Vulkan
       glm::glm
       ${TRACE_LIBS}
       "${VCPKG_INSTALLED_ROOT}/lib/libuSockets.a"

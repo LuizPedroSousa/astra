@@ -5,18 +5,9 @@
     "freetype",
     "glad",
     "glfw3",
-    "imguizmo",
     "uwebsockets",
     "glm",
-    {
-      "name": "imgui",
-      "features": [
-        "docking-experimental",
-        "glfw-binding",
-        "opengl3-binding"
-      ],
-      "platform": "linux"
-    }
+    "shaderc"
   ],
   "features": {
     "dev": {
