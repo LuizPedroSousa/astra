@@ -1,5 +1,7 @@
 #include "editor-selection-store.hpp"
 
+#include "log.hpp"
+
 namespace astralix::editor {
 namespace {
 
@@ -27,6 +29,8 @@ void EditorSelectionStore::set_selected_entity(
     return;
   }
 
+  LOG_INFO("[EditorSelectionStore] set_selected_entity: ",
+           entity_id.has_value() ? static_cast<int64_t>(static_cast<uint64_t>(*entity_id)) : -1);
   m_selected_entity_id = entity_id;
   ++m_revision;
 }

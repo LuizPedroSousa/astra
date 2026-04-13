@@ -824,7 +824,7 @@ void WorkspaceShellSystem::clear_gizmo_drag_state() {
 std::optional<EntityID> WorkspaceShellSystem::pick_entity_at_cursor(
     glm::vec2 cursor,
     const ui::UIRect &interaction_rect
-) const {
+) {
   auto system_manager = SystemManager::get();
   if (system_manager == nullptr) {
     return std::nullopt;
@@ -865,9 +865,10 @@ std::optional<EntityID> WorkspaceShellSystem::pick_entity_at_cursor(
     return std::nullopt;
   }
 
-  const auto entity_id = render_system->read_entity_id_at_pixel(pixel->x, pixel->y);
+  m_pending_viewport_pick_pixel = glm::ivec2(pixel->x, pixel->y);
+  render_system->request_entity_pick(*m_pending_viewport_pick_pixel);
   LOG_DEBUG(
-      "[WorkspaceShellSystem] viewport pick",
+      "[WorkspaceShellSystem] viewport pick requested",
       "cursor=(",
       cursor.x,
       ",",
@@ -888,10 +889,9 @@ std::optional<EntityID> WorkspaceShellSystem::pick_entity_at_cursor(
       pixel->x,
       ",",
       pixel->y,
-      ") entity=",
-      entity_id.has_value() ? static_cast<uint64_t>(*entity_id) : 0ull
+      ")"
   );
-  return entity_id;
+  return std::nullopt;
 }
 
 void WorkspaceShellSystem::sync_gizmo_capture_state() {
@@ -940,6 +940,23 @@ void WorkspaceShellSystem::sync_gizmo_capture_state() {
 
 void WorkspaceShellSystem::update_gizmo_interaction() {
   auto store = editor_gizmo_store();
+  if (auto system_manager = SystemManager::get(); system_manager != nullptr) {
+    if (auto *render_system = system_manager->get_system<RenderSystem>();
+        render_system != nullptr) {
+      if (auto result = render_system->consume_latest_entity_pick();
+          result.has_value()) {
+        if (!m_pending_viewport_pick_pixel.has_value() ||
+            result->pixel == *m_pending_viewport_pick_pixel) {
+          editor_selection_store()->set_selected_entity(result->entity_id);
+          m_pending_viewport_pick_pixel.reset();
+          clear_gizmo_drag_state();
+          store->set_hovered_handle(std::nullopt);
+          store->set_active_handle(std::nullopt);
+        }
+      }
+    }
+  }
+
   const auto interaction_rect = store->interaction_rect();
   if (!interaction_rect.has_value()) {
     clear_gizmo_drag_state();
@@ -1110,11 +1127,14 @@ void WorkspaceShellSystem::update_gizmo_interaction() {
 
   if (!hovered_handle.has_value()) {
     const auto picked_entity = pick_entity_at_cursor(cursor, *interaction_rect);
-    LOG_DEBUG(
-        "[WorkspaceShellSystem] applying viewport selection",
-        picked_entity.has_value() ? static_cast<uint64_t>(*picked_entity) : 0ull
-    );
-    editor_selection_store()->set_selected_entity(picked_entity);
+    if (picked_entity.has_value() || !m_pending_viewport_pick_pixel.has_value()) {
+      LOG_DEBUG(
+          "[WorkspaceShellSystem] applying viewport selection",
+          picked_entity.has_value() ? static_cast<uint64_t>(*picked_entity)
+                                    : 0ull
+      );
+      editor_selection_store()->set_selected_entity(picked_entity);
+    }
     clear_gizmo_drag_state();
     store->set_hovered_handle(std::nullopt);
     return;

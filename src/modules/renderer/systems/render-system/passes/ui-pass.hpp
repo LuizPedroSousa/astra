@@ -1,5 +1,6 @@
 #pragma once
 
+#include "renderer-api.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -75,6 +76,10 @@ inline ScissorRect resolve_scissor_rect(
   return scissor;
 }
 
+inline float render_image_sample_flip_y(RendererBackend backend) {
+  return backend == RendererBackend::OpenGL ? 1.0f : 0.0f;
+}
+
 } // namespace ui_pass_detail
 
 class UIPass : public FramePass {
@@ -98,6 +103,7 @@ private:
 
   Shaders m_shaders{};
   rendering::ResolvedMeshDraw m_quad{};
+  float m_render_image_sample_flip_y = 1.0f;
 };
 
 } // namespace astralix

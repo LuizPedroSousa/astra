@@ -331,6 +331,13 @@ void RenderSystem::start() {
       .use_image(m_bloom_resource_index, ImageAspect::Color0, RenderUsage::ColorAttachmentWrite)
       .export_image(make_bloom_render_image_export(m_bloom_resource_index));
 
+  target_graph.add_pass(create_scope<EditorGizmoPass>())
+      .use_shader("editor_gizmo_shader", "shaders::editor_gizmo")
+      .use_image(m_scene_color_resource_index, ImageAspect::Color0, RenderUsage::ColorAttachmentWrite)
+      .export_image(
+          make_scene_color_render_image_export(m_scene_color_resource_index)
+      );
+
   target_graph.add_pass(create_scope<PostProcessPass>(fullscreen_quad))
       .use_shader("hdr_shader", "shaders::hdr")
       .use_image(m_bloom_resource_index, ImageAspect::Color0, RenderUsage::SampledRead)
@@ -339,10 +346,6 @@ void RenderSystem::start() {
       .export_image(
           make_final_output_render_image_export(m_present_resource_index)
       );
-
-  target_graph.add_pass(create_scope<EditorGizmoPass>())
-      .use_shader("editor_gizmo_shader", "shaders::editor_gizmo")
-      .use_image(m_present_resource_index, ImageAspect::Color0, RenderUsage::ColorAttachmentWrite);
 
   target_graph.add_pass(create_scope<UIPass>(fullscreen_quad))
       .use_shader("ui_solid", "shaders::ui_solid")
@@ -366,8 +369,17 @@ void RenderSystem::pre_update(double dt) {
 
   auto window = window_manager()->active_window();
 
-  if (window->was_resized && m_render_graph != nullptr) {
-    m_render_graph->resize(static_cast<uint32_t>(window->width()), static_cast<uint32_t>(window->height()));
+  if (window->was_resized) {
+    const auto width = static_cast<uint32_t>(window->width());
+    const auto height = static_cast<uint32_t>(window->height());
+
+    if (m_render_target != nullptr && m_render_target->framebuffer() != nullptr) {
+      m_render_target->framebuffer()->resize(width, height);
+    }
+
+    if (m_render_graph != nullptr) {
+      m_render_graph->resize(width, height);
+    }
   }
 
   m_render_target->bind(true);
@@ -556,12 +568,13 @@ void RenderSystem::ensure_pass_dependency_descriptors() {
     TextureConfig texture_config;
     texture_config.width = 4;
     texture_config.height = 4;
+    texture_config.bitmap = false;
     texture_config.format = TextureFormat::RGB;
     texture_config.buffer =
         const_cast<unsigned char *>(ssao_noise_seed().data());
     texture_config.parameters = {
-        {TextureParameter::WrapS, TextureValue::Linear},
-        {TextureParameter::WrapT, TextureValue::Linear},
+        {TextureParameter::WrapS, TextureValue::Repeat},
+        {TextureParameter::WrapT, TextureValue::Repeat},
         {TextureParameter::MagFilter, TextureValue::Nearest},
         {TextureParameter::MinFilter, TextureValue::Nearest},
   };

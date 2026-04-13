@@ -253,6 +253,53 @@ TEST(UIFoundationsTest, FlexShrinkPreservesResolvedMinimumWidths) {
   EXPECT_FLOAT_EQ(second_node->layout.bounds.width, 240.0f);
 }
 
+TEST(UIFoundationsTest, ScrollViewReservesVerticalScrollbarWidthForChildren) {
+  using namespace dsl;
+  using namespace dsl::styles;
+
+  auto document = UIDocument::create();
+  UINodeId scroll = k_invalid_node_id;
+  UINodeId first = k_invalid_node_id;
+  UINodeId second = k_invalid_node_id;
+
+  mount(
+      *document,
+      column()
+          .style(fill(), items_start())
+          .children(
+              scroll_view()
+                  .bind(scroll)
+                  .style(width(px(120.0f)), height(px(60.0f)))
+                  .children(
+                      view().bind(first).style(fill_x(), height(px(40.0f))),
+                      view().bind(second).style(fill_x(), height(px(40.0f)))
+                  )
+          )
+  );
+
+  layout_document(
+      *document,
+      UILayoutContext{
+          .viewport_size = glm::vec2(240.0f, 160.0f),
+          .default_font_size = 16.0f,
+      }
+  );
+
+  const auto *scroll_node = document->node(scroll);
+  const auto *first_node = document->node(first);
+  const auto *second_node = document->node(second);
+  ASSERT_NE(scroll_node, nullptr);
+  ASSERT_NE(first_node, nullptr);
+  ASSERT_NE(second_node, nullptr);
+  ASSERT_TRUE(scroll_node->layout.scroll.vertical_scrollbar_visible);
+  EXPECT_FLOAT_EQ(
+      scroll_node->layout.scroll.viewport_size.x,
+      scroll_node->layout.content_bounds.width - scroll_node->style.scrollbar_thickness
+  );
+  EXPECT_FLOAT_EQ(first_node->layout.bounds.width, scroll_node->layout.scroll.viewport_size.x);
+  EXPECT_FLOAT_EQ(second_node->layout.bounds.width, scroll_node->layout.scroll.viewport_size.x);
+}
+
 TEST(UIFoundationsTest, TextNodesFallbackToEstimatedSizeWithoutLoadedFont) {
   using namespace dsl;
   using namespace dsl::styles;

@@ -11,6 +11,7 @@
 #include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include "systems/render-system/render-frame.hpp"
+#include "targets/render-target.hpp"
 #include "trace.hpp"
 #include "vertex-buffer.hpp"
 #include <algorithm>
@@ -28,6 +29,9 @@ void UIPass::setup(PassSetupContext &ctx) {
   m_shaders.image = ctx.find_shader("ui_image");
   m_shaders.text = ctx.find_shader("ui_text");
   m_shaders.polyline = ctx.find_shader("ui_polyline");
+  m_render_image_sample_flip_y = ui_pass_detail::render_image_sample_flip_y(
+      ctx.target() != nullptr ? ctx.target()->backend() : RendererBackend::None
+  );
 }
 
 void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
@@ -469,7 +473,7 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
           rendering::record_shader_params(
               frame, bindings, engine_shaders_ui_image_axsl::ImageParams{
                   .tint = command.tint,
-                  .sample_flip_y = 1.0f,
+                  .sample_flip_y = m_render_image_sample_flip_y,
               }
           );
           frame.add_sampled_image_binding(

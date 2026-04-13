@@ -64,11 +64,22 @@ inline float measure_ui_text_width(const Font &font, std::string_view text, uint
   const auto &glyphs = font.glyphs(pixel_size);
   const auto &glyph_lut = font.glyph_lut(pixel_size);
   float width = 0.0f;
+  float cursor_x = 0.0f;
   for (const char character : text) {
-    width += ui_glyph_advance(glyphs, glyph_lut, character);
+    const GlyphHandle handle = glyph_lut[static_cast<unsigned char>(character)];
+    if (handle == k_invalid_glyph_handle) {
+      continue;
+    }
+
+    const auto &glyph = glyphs[handle];
+    const float glyph_left = cursor_x + static_cast<float>(glyph.bearing.x);
+    const float glyph_right =
+        glyph_left + static_cast<float>(glyph.size.x);
+    width = std::max(width, glyph_right);
+    cursor_x += static_cast<float>(glyph.advance >> 6);
   }
 
-  return width;
+  return std::max(width, cursor_x);
 }
 
 inline float measure_ui_text_width(const ResourceDescriptorID &font_id, float font_size, std::string_view text) {

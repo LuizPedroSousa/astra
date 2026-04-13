@@ -401,449 +401,509 @@ void layout_children(
     return;
   }
 
-  const UIRect inner_bounds = node->layout.content_bounds;
-  node->layout.scroll.viewport_size =
-      glm::vec2(inner_bounds.width, inner_bounds.height);
-  SmallVector<FlowItem, 16> flow_items;
-  flow_items.reserve(node->children.size());
+  const UIRect full_inner_bounds = node->layout.content_bounds;
+  struct PlannedChildren {
+    std::vector<PlannedBounds> bounds;
+    float content_width = 0.0f;
+    float content_height = 0.0f;
+  };
 
-  for (UINodeId child_id : node->children) {
-    auto *child = document.node(child_id);
-    if (child == nullptr || !child->visible ||
-        child->type == NodeType::Popover ||
-        child->style.position_type == PositionType::Absolute) {
-      continue;
+  const auto plan_children = [&](const UIRect &inner_bounds) -> PlannedChildren {
+    SmallVector<FlowItem, 16> flow_items;
+    flow_items.reserve(node->children.size());
+
+    for (UINodeId child_id : node->children) {
+      auto *child = document.node(child_id);
+      if (child == nullptr || !child->visible ||
+          child->type == NodeType::Popover ||
+          child->style.position_type == PositionType::Absolute) {
+        continue;
+      }
+
+      const glm::vec2 preferred = child->layout.intrinsic.preferred_size;
+
+      FlowItem item;
+      item.node_id = child_id;
+      item.preferred_size = preferred;
+      item.flex_grow = child->style.flex_grow;
+      item.flex_shrink = child->style.flex_shrink;
+      item.align = resolve_align(*child, node->style.align_items);
+
+      if (node->style.flex_direction == FlexDirection::Row) {
+        item.min_main_size =
+            child->style.min_width.unit != UILengthUnit::Auto
+                ? resolve_length(
+                      child->style.min_width,
+                      inner_bounds.width,
+                      context.default_font_size,
+                      preferred.x
+                  )
+                : 0.0f;
+        item.main_size = resolve_length(
+            child->style.flex_basis,
+            inner_bounds.width,
+            context.default_font_size,
+            resolve_length(
+                child->style.width,
+                inner_bounds.width,
+                context.default_font_size,
+                preferred.x
+            )
+        );
+        item.cross_size = resolve_length(
+            child->style.height,
+            inner_bounds.height,
+            context.default_font_size,
+            preferred.y
+        );
+        item.main_margin_leading = child->style.margin.left;
+        item.main_margin_trailing = child->style.margin.right;
+        item.cross_margin_leading = child->style.margin.top;
+        item.cross_margin_trailing = child->style.margin.bottom;
+
+        item.main_size = clamp_dimension(
+            item.main_size,
+            child->style.min_width,
+            child->style.max_width,
+            inner_bounds.width,
+            context.default_font_size,
+            preferred.x
+        );
+        item.cross_size = clamp_dimension(
+            item.cross_size,
+            child->style.min_height,
+            child->style.max_height,
+            inner_bounds.height,
+            context.default_font_size,
+            preferred.y
+        );
+      } else {
+        item.min_main_size =
+            child->style.min_height.unit != UILengthUnit::Auto
+                ? resolve_length(
+                      child->style.min_height,
+                      inner_bounds.height,
+                      context.default_font_size,
+                      preferred.y
+                  )
+                : 0.0f;
+        item.main_size = resolve_length(
+            child->style.flex_basis,
+            inner_bounds.height,
+            context.default_font_size,
+            resolve_length(
+                child->style.height,
+                inner_bounds.height,
+                context.default_font_size,
+                preferred.y
+            )
+        );
+        item.cross_size = resolve_length(
+            child->style.width,
+            inner_bounds.width,
+            context.default_font_size,
+            preferred.x
+        );
+        item.main_margin_leading = child->style.margin.top;
+        item.main_margin_trailing = child->style.margin.bottom;
+        item.cross_margin_leading = child->style.margin.left;
+        item.cross_margin_trailing = child->style.margin.right;
+
+        item.main_size = clamp_dimension(
+            item.main_size,
+            child->style.min_height,
+            child->style.max_height,
+            inner_bounds.height,
+            context.default_font_size,
+            preferred.y
+        );
+        item.cross_size = clamp_dimension(
+            item.cross_size,
+            child->style.min_width,
+            child->style.max_width,
+            inner_bounds.width,
+            context.default_font_size,
+            preferred.x
+        );
+      }
+
+      flow_items.push_back(item);
     }
 
-    const glm::vec2 preferred = child->layout.intrinsic.preferred_size;
+    const float container_main = node->style.flex_direction == FlexDirection::Row
+                                     ? inner_bounds.width
+                                     : inner_bounds.height;
+    const float container_cross = node->style.flex_direction == FlexDirection::Row
+                                      ? inner_bounds.height
+                                      : inner_bounds.width;
 
-    FlowItem item;
-    item.node_id = child_id;
-    item.preferred_size = preferred;
-    item.flex_grow = child->style.flex_grow;
-    item.flex_shrink = child->style.flex_shrink;
-    item.align = resolve_align(*child, node->style.align_items);
+    float total_main = 0.0f;
+    float total_flex_grow = 0.0f;
+    float total_flex_shrink = 0.0f;
 
-    if (node->style.flex_direction == FlexDirection::Row) {
-      item.min_main_size =
-          child->style.min_width.unit != UILengthUnit::Auto
-              ? resolve_length(
-                    child->style.min_width,
-                    inner_bounds.width,
-                    context.default_font_size,
-                    preferred.x
-                )
-              : 0.0f;
-      item.main_size = resolve_length(
-          child->style.flex_basis,
-          inner_bounds.width,
-          context.default_font_size,
-          resolve_length(
-              child->style.width,
-              inner_bounds.width,
-              context.default_font_size,
-              preferred.x
-          )
-      );
-      item.cross_size = resolve_length(
-          child->style.height,
-          inner_bounds.height,
-          context.default_font_size,
-          preferred.y
-      );
-      item.main_margin_leading = child->style.margin.left;
-      item.main_margin_trailing = child->style.margin.right;
-      item.cross_margin_leading = child->style.margin.top;
-      item.cross_margin_trailing = child->style.margin.bottom;
+    for (const FlowItem &item : flow_items) {
+      total_main +=
+          item.main_size + item.main_margin_leading + item.main_margin_trailing;
+      total_flex_grow += item.flex_grow;
+      total_flex_shrink += item.flex_shrink * item.main_size;
+    }
 
-      item.main_size = clamp_dimension(
-          item.main_size,
-          child->style.min_width,
-          child->style.max_width,
-          inner_bounds.width,
-          context.default_font_size,
-          preferred.x
+    if (flow_items.size() > 1u) {
+      total_main += node->style.gap * static_cast<float>(flow_items.size() - 1u);
+    }
+
+    const float free_space = container_main - total_main;
+    const bool scrolls_along_main_axis =
+        node->type == NodeType::ScrollView &&
+        ((node->style.flex_direction == FlexDirection::Row &&
+          scrolls_horizontally(node->style.scroll_mode)) ||
+         (node->style.flex_direction == FlexDirection::Column &&
+          scrolls_vertically(node->style.scroll_mode)) ||
+         node->style.scroll_mode == ScrollMode::Both);
+
+    if (!scrolls_along_main_axis) {
+      if (free_space > 0.0f && total_flex_grow > 0.0f) {
+        for (FlowItem &item : flow_items) {
+          item.main_size += free_space * (item.flex_grow / total_flex_grow);
+        }
+      } else if (free_space < 0.0f && total_flex_shrink > 0.0f) {
+        float remaining_shrink = -free_space;
+        SmallVector<size_t, 16> active_indices;
+        active_indices.reserve(flow_items.size());
+        for (size_t index = 0u; index < flow_items.size(); ++index) {
+          if (flow_items[index].flex_shrink > 0.0f &&
+              flow_items[index].main_size > flow_items[index].min_main_size) {
+            active_indices.push_back(index);
+          }
+        }
+
+        while (remaining_shrink > 0.001f && !active_indices.empty()) {
+          float weighted_shrink = 0.0f;
+          for (const size_t index : active_indices) {
+            weighted_shrink +=
+                flow_items[index].flex_shrink * flow_items[index].main_size;
+          }
+
+          if (weighted_shrink <= 0.0f) {
+            break;
+          }
+
+          bool clamped_any = false;
+          SmallVector<PendingMainSize, 16> next_sizes;
+          next_sizes.reserve(active_indices.size());
+          SmallVector<size_t, 16> next_active_indices;
+          next_active_indices.reserve(active_indices.size());
+
+          for (const size_t index : active_indices) {
+            FlowItem &item = flow_items[index];
+            const float shrink_weight =
+                (item.flex_shrink * item.main_size) / weighted_shrink;
+            const float requested_shrink = remaining_shrink * shrink_weight;
+            const float target_size = item.main_size - requested_shrink;
+
+            if (target_size <= item.min_main_size + 0.001f) {
+              remaining_shrink -= std::max(
+                  0.0f, item.main_size - item.min_main_size
+              );
+              item.main_size = item.min_main_size;
+              clamped_any = true;
+              continue;
+            }
+
+            next_sizes.push_back(PendingMainSize{
+                .index = index,
+                .size = target_size,
+            });
+            next_active_indices.push_back(index);
+          }
+
+          if (!clamped_any) {
+            for (const PendingMainSize &next_size : next_sizes) {
+              flow_items[next_size.index].main_size = next_size.size;
+            }
+            remaining_shrink = 0.0f;
+            break;
+          }
+
+          active_indices = std::move(next_active_indices);
+        }
+      }
+    }
+
+    float consumed_main = 0.0f;
+    for (const FlowItem &item : flow_items) {
+      consumed_main +=
+          item.main_size + item.main_margin_leading + item.main_margin_trailing;
+    }
+
+    if (flow_items.size() > 1u) {
+      consumed_main +=
+          node->style.gap * static_cast<float>(flow_items.size() - 1u);
+    }
+
+    const float remaining_space = std::max(0.0f, container_main - consumed_main);
+    const UIFlowSpacing spacing = resolve_flow_spacing(
+        node->style.justify_content,
+        node->style.gap,
+        remaining_space,
+        flow_items.size()
+    );
+    const float leading_space = spacing.leading;
+    const float between_space = spacing.between;
+
+    PlannedChildren planned;
+    planned.bounds.reserve(node->children.size());
+
+    float cursor = leading_space;
+    for (const FlowItem &item : flow_items) {
+      auto *child = document.node(item.node_id);
+      if (child == nullptr) {
+        continue;
+      }
+
+      float cross_size = item.cross_size;
+      if (item.align == AlignItems::Stretch &&
+          ((node->style.flex_direction == FlexDirection::Row &&
+            child->style.height.unit == UILengthUnit::Auto) ||
+           (node->style.flex_direction == FlexDirection::Column &&
+            child->style.width.unit == UILengthUnit::Auto))) {
+        cross_size = std::max(
+            0.0f,
+            container_cross - item.cross_margin_leading -
+                item.cross_margin_trailing
+        );
+      }
+
+      float cross_offset = 0.0f;
+      switch (item.align) {
+        case AlignItems::Center:
+          cross_offset =
+              (container_cross - cross_size - item.cross_margin_leading -
+               item.cross_margin_trailing) *
+              0.5f;
+          break;
+        case AlignItems::End:
+          cross_offset = container_cross - cross_size -
+                         item.cross_margin_leading - item.cross_margin_trailing;
+          break;
+        case AlignItems::Stretch:
+        case AlignItems::Start:
+        default:
+          cross_offset = 0.0f;
+          break;
+      }
+
+      UIRect child_bounds;
+      if (node->style.flex_direction == FlexDirection::Row) {
+        child_bounds = UIRect{
+            .x = inner_bounds.x + cursor + item.main_margin_leading,
+            .y = inner_bounds.y + cross_offset + item.cross_margin_leading,
+            .width = item.main_size,
+            .height = cross_size,
+        };
+      } else {
+        child_bounds = UIRect{
+            .x = inner_bounds.x + cross_offset + item.cross_margin_leading,
+            .y = inner_bounds.y + cursor + item.main_margin_leading,
+            .width = cross_size,
+            .height = item.main_size,
+        };
+      }
+
+      planned.bounds.push_back(PlannedBounds{
+          .node_id = item.node_id,
+          .bounds = child_bounds,
+      });
+      planned.content_width = std::max(
+          planned.content_width, child_bounds.right() - inner_bounds.x
       );
-      item.cross_size = clamp_dimension(
-          item.cross_size,
-          child->style.min_height,
-          child->style.max_height,
-          inner_bounds.height,
-          context.default_font_size,
-          preferred.y
+      planned.content_height = std::max(
+          planned.content_height, child_bounds.bottom() - inner_bounds.y
       );
-    } else {
-      item.min_main_size =
-          child->style.min_height.unit != UILengthUnit::Auto
-              ? resolve_length(
-                    child->style.min_height,
-                    inner_bounds.height,
-                    context.default_font_size,
-                    preferred.y
-                )
-              : 0.0f;
-      item.main_size = resolve_length(
-          child->style.flex_basis,
-          inner_bounds.height,
-          context.default_font_size,
-          resolve_length(
-              child->style.height,
-              inner_bounds.height,
-              context.default_font_size,
-              preferred.y
-          )
-      );
-      item.cross_size = resolve_length(
+
+      cursor += item.main_margin_leading + item.main_size +
+                item.main_margin_trailing + between_space;
+    }
+
+    for (UINodeId child_id : node->children) {
+      auto *child = document.node(child_id);
+      if (child == nullptr || !child->visible ||
+          child->type == NodeType::Popover ||
+          child->style.position_type != PositionType::Absolute) {
+        continue;
+      }
+
+      const glm::vec2 preferred = child->layout.intrinsic.preferred_size;
+
+      float width = resolve_length(
           child->style.width,
           inner_bounds.width,
           context.default_font_size,
           preferred.x
       );
-      item.main_margin_leading = child->style.margin.top;
-      item.main_margin_trailing = child->style.margin.bottom;
-      item.cross_margin_leading = child->style.margin.left;
-      item.cross_margin_trailing = child->style.margin.right;
-
-      item.main_size = clamp_dimension(
-          item.main_size,
-          child->style.min_height,
-          child->style.max_height,
+      float height = resolve_length(
+          child->style.height,
           inner_bounds.height,
           context.default_font_size,
           preferred.y
       );
-      item.cross_size = clamp_dimension(
-          item.cross_size,
+
+      if (child->style.left.unit != UILengthUnit::Auto &&
+          child->style.right.unit != UILengthUnit::Auto &&
+          child->style.width.unit == UILengthUnit::Auto) {
+        width = std::max(
+            0.0f,
+            inner_bounds.width -
+                resolve_length(
+                    child->style.left,
+                    inner_bounds.width,
+                    context.default_font_size
+                ) -
+                resolve_length(
+                    child->style.right,
+                    inner_bounds.width,
+                    context.default_font_size
+                )
+        );
+      }
+
+      if (child->style.top.unit != UILengthUnit::Auto &&
+          child->style.bottom.unit != UILengthUnit::Auto &&
+          child->style.height.unit == UILengthUnit::Auto) {
+        height = std::max(
+            0.0f,
+            inner_bounds.height -
+                resolve_length(
+                    child->style.top,
+                    inner_bounds.height,
+                    context.default_font_size
+                ) -
+                resolve_length(
+                    child->style.bottom,
+                    inner_bounds.height,
+                    context.default_font_size
+                )
+        );
+      }
+
+      width = clamp_dimension(
+          width,
           child->style.min_width,
           child->style.max_width,
           inner_bounds.width,
           context.default_font_size,
           preferred.x
       );
+      height = clamp_dimension(
+          height,
+          child->style.min_height,
+          child->style.max_height,
+          inner_bounds.height,
+          context.default_font_size,
+          preferred.y
+      );
+
+      const float x =
+          child->style.left.unit != UILengthUnit::Auto
+              ? inner_bounds.x +
+                    resolve_length(
+                        child->style.left,
+                        inner_bounds.width,
+                        context.default_font_size
+                    )
+              : inner_bounds.right() -
+                    resolve_length(
+                        child->style.right,
+                        inner_bounds.width,
+                        context.default_font_size
+                    ) -
+                    width;
+      const float y =
+          child->style.top.unit != UILengthUnit::Auto
+              ? inner_bounds.y +
+                    resolve_length(
+                        child->style.top,
+                        inner_bounds.height,
+                        context.default_font_size
+                    )
+              : inner_bounds.bottom() -
+                    resolve_length(
+                        child->style.bottom,
+                        inner_bounds.height,
+                        context.default_font_size
+                    ) -
+                    height;
+
+      UIRect child_bounds{.x = x, .y = y, .width = width, .height = height};
+      if (node_supports_panel_resize(*child)) {
+        child_bounds = clamp_rect_to_bounds(child_bounds, inner_bounds);
+      }
+      planned.bounds.push_back(PlannedBounds{
+          .node_id = child_id,
+          .bounds = child_bounds,
+      });
+      planned.content_width = std::max(
+          planned.content_width, child_bounds.right() - inner_bounds.x
+      );
+      planned.content_height = std::max(
+          planned.content_height, child_bounds.bottom() - inner_bounds.y
+      );
     }
 
-    flow_items.push_back(item);
-  }
+    return planned;
+  };
 
-  const float container_main = node->style.flex_direction == FlexDirection::Row
-                                   ? inner_bounds.width
-                                   : inner_bounds.height;
-  const float container_cross = node->style.flex_direction == FlexDirection::Row
-                                    ? inner_bounds.height
-                                    : inner_bounds.width;
+  UIRect effective_inner_bounds = full_inner_bounds;
+  PlannedChildren planned = plan_children(effective_inner_bounds);
 
-  float total_main = 0.0f;
-  float total_flex_grow = 0.0f;
-  float total_flex_shrink = 0.0f;
+  if (node->type == NodeType::ScrollView &&
+      node->style.scrollbar_visibility != ScrollbarVisibility::Hidden) {
+    const float scrollbar_thickness =
+        std::max(0.0f, node->style.scrollbar_thickness);
+    if (scrollbar_thickness > 0.0f) {
+      const bool wants_vertical = scrolls_vertically(node->style.scroll_mode);
+      const bool wants_horizontal = scrolls_horizontally(node->style.scroll_mode);
+      const bool always_show =
+          node->style.scrollbar_visibility == ScrollbarVisibility::Always;
 
-  for (const FlowItem &item : flow_items) {
-    total_main +=
-        item.main_size + item.main_margin_leading + item.main_margin_trailing;
-    total_flex_grow += item.flex_grow;
-    total_flex_shrink += item.flex_shrink * item.main_size;
-  }
+      for (size_t iteration = 0u; iteration < 3u; ++iteration) {
+        const bool show_vertical =
+            wants_vertical &&
+            (always_show || planned.content_height > effective_inner_bounds.height);
+        const bool show_horizontal =
+            wants_horizontal &&
+            (always_show || planned.content_width > effective_inner_bounds.width);
 
-  if (flow_items.size() > 1u) {
-    total_main += node->style.gap * static_cast<float>(flow_items.size() - 1u);
-  }
-
-  const float free_space = container_main - total_main;
-  const bool scrolls_along_main_axis =
-      node->type == NodeType::ScrollView &&
-      ((node->style.flex_direction == FlexDirection::Row &&
-        scrolls_horizontally(node->style.scroll_mode)) ||
-       (node->style.flex_direction == FlexDirection::Column &&
-        scrolls_vertically(node->style.scroll_mode)) ||
-       node->style.scroll_mode == ScrollMode::Both);
-
-  if (!scrolls_along_main_axis) {
-    if (free_space > 0.0f && total_flex_grow > 0.0f) {
-      for (FlowItem &item : flow_items) {
-        item.main_size += free_space * (item.flex_grow / total_flex_grow);
-      }
-    } else if (free_space < 0.0f && total_flex_shrink > 0.0f) {
-      float remaining_shrink = -free_space;
-      SmallVector<size_t, 16> active_indices;
-      active_indices.reserve(flow_items.size());
-      for (size_t index = 0u; index < flow_items.size(); ++index) {
-        if (flow_items[index].flex_shrink > 0.0f &&
-            flow_items[index].main_size > flow_items[index].min_main_size) {
-          active_indices.push_back(index);
+        UIRect next_inner_bounds = full_inner_bounds;
+        if (show_vertical) {
+          next_inner_bounds.width = std::max(
+              0.0f, next_inner_bounds.width - scrollbar_thickness
+          );
         }
-      }
-
-      while (remaining_shrink > 0.001f && !active_indices.empty()) {
-        float weighted_shrink = 0.0f;
-        for (const size_t index : active_indices) {
-          weighted_shrink +=
-              flow_items[index].flex_shrink * flow_items[index].main_size;
+        if (show_horizontal) {
+          next_inner_bounds.height = std::max(
+              0.0f, next_inner_bounds.height - scrollbar_thickness
+          );
         }
 
-        if (weighted_shrink <= 0.0f) {
+        if (std::fabs(next_inner_bounds.width - effective_inner_bounds.width) <
+                0.001f &&
+            std::fabs(next_inner_bounds.height - effective_inner_bounds.height) <
+                0.001f) {
           break;
         }
 
-        bool clamped_any = false;
-        SmallVector<PendingMainSize, 16> next_sizes;
-        next_sizes.reserve(active_indices.size());
-        SmallVector<size_t, 16> next_active_indices;
-        next_active_indices.reserve(active_indices.size());
-
-        for (const size_t index : active_indices) {
-          FlowItem &item = flow_items[index];
-          const float shrink_weight =
-              (item.flex_shrink * item.main_size) / weighted_shrink;
-          const float requested_shrink = remaining_shrink * shrink_weight;
-          const float target_size = item.main_size - requested_shrink;
-
-          if (target_size <= item.min_main_size + 0.001f) {
-            remaining_shrink -= std::max(
-                0.0f, item.main_size - item.min_main_size
-            );
-            item.main_size = item.min_main_size;
-            clamped_any = true;
-            continue;
-          }
-
-          next_sizes.push_back(PendingMainSize{
-              .index = index,
-              .size = target_size,
-          });
-          next_active_indices.push_back(index);
-        }
-
-        if (!clamped_any) {
-          for (const PendingMainSize &next_size : next_sizes) {
-            flow_items[next_size.index].main_size = next_size.size;
-          }
-          remaining_shrink = 0.0f;
-          break;
-        }
-
-        active_indices = std::move(next_active_indices);
+        effective_inner_bounds = next_inner_bounds;
+        planned = plan_children(effective_inner_bounds);
       }
     }
   }
 
-  float consumed_main = 0.0f;
-  for (const FlowItem &item : flow_items) {
-    consumed_main +=
-        item.main_size + item.main_margin_leading + item.main_margin_trailing;
-  }
+  node->layout.scroll.viewport_size =
+      glm::vec2(effective_inner_bounds.width, effective_inner_bounds.height);
 
-  if (flow_items.size() > 1u) {
-    consumed_main +=
-        node->style.gap * static_cast<float>(flow_items.size() - 1u);
-  }
-
-  const float remaining_space = std::max(0.0f, container_main - consumed_main);
-  const UIFlowSpacing spacing = resolve_flow_spacing(
-      node->style.justify_content,
-      node->style.gap,
-      remaining_space,
-      flow_items.size()
-  );
-  const float leading_space = spacing.leading;
-  const float between_space = spacing.between;
-
-  SmallVector<PlannedBounds, 16> planned_bounds;
-  planned_bounds.reserve(node->children.size());
-
-  float cursor = leading_space;
-  float content_width = 0.0f;
-  float content_height = 0.0f;
-  for (const FlowItem &item : flow_items) {
-    auto *child = document.node(item.node_id);
-    if (child == nullptr) {
-      continue;
-    }
-
-    float cross_size = item.cross_size;
-    if (item.align == AlignItems::Stretch &&
-        ((node->style.flex_direction == FlexDirection::Row &&
-          child->style.height.unit == UILengthUnit::Auto) ||
-         (node->style.flex_direction == FlexDirection::Column &&
-          child->style.width.unit == UILengthUnit::Auto))) {
-      cross_size = std::max(
-          0.0f,
-          container_cross - item.cross_margin_leading -
-              item.cross_margin_trailing
-      );
-    }
-
-    float cross_offset = 0.0f;
-    switch (item.align) {
-      case AlignItems::Center:
-        cross_offset =
-            (container_cross - cross_size - item.cross_margin_leading -
-             item.cross_margin_trailing) *
-            0.5f;
-        break;
-      case AlignItems::End:
-        cross_offset = container_cross - cross_size -
-                       item.cross_margin_leading - item.cross_margin_trailing;
-        break;
-      case AlignItems::Stretch:
-      case AlignItems::Start:
-      default:
-        cross_offset = 0.0f;
-        break;
-    }
-
-    UIRect child_bounds;
-    if (node->style.flex_direction == FlexDirection::Row) {
-      child_bounds = UIRect{
-          .x = inner_bounds.x + cursor + item.main_margin_leading,
-          .y = inner_bounds.y + cross_offset + item.cross_margin_leading,
-          .width = item.main_size,
-          .height = cross_size,
-      };
-    } else {
-      child_bounds = UIRect{
-          .x = inner_bounds.x + cross_offset + item.cross_margin_leading,
-          .y = inner_bounds.y + cursor + item.main_margin_leading,
-          .width = cross_size,
-          .height = item.main_size,
-      };
-    }
-
-    planned_bounds.push_back(PlannedBounds{
-        .node_id = item.node_id,
-        .bounds = child_bounds,
-    });
-    content_width =
-        std::max(content_width, child_bounds.right() - inner_bounds.x);
-    content_height =
-        std::max(content_height, child_bounds.bottom() - inner_bounds.y);
-
-    cursor += item.main_margin_leading + item.main_size +
-              item.main_margin_trailing + between_space;
-  }
-
-  for (UINodeId child_id : node->children) {
-    auto *child = document.node(child_id);
-    if (child == nullptr || !child->visible ||
-        child->type == NodeType::Popover ||
-        child->style.position_type != PositionType::Absolute) {
-      continue;
-    }
-
-    const glm::vec2 preferred = child->layout.intrinsic.preferred_size;
-
-    float width = resolve_length(
-        child->style.width,
-        inner_bounds.width,
-        context.default_font_size,
-        preferred.x
-    );
-    float height = resolve_length(
-        child->style.height,
-        inner_bounds.height,
-        context.default_font_size,
-        preferred.y
-    );
-
-    if (child->style.left.unit != UILengthUnit::Auto &&
-        child->style.right.unit != UILengthUnit::Auto &&
-        child->style.width.unit == UILengthUnit::Auto) {
-      width = std::max(
-          0.0f,
-          inner_bounds.width -
-              resolve_length(
-                  child->style.left,
-                  inner_bounds.width,
-                  context.default_font_size
-              ) -
-              resolve_length(
-                  child->style.right,
-                  inner_bounds.width,
-                  context.default_font_size
-              )
-      );
-    }
-
-    if (child->style.top.unit != UILengthUnit::Auto &&
-        child->style.bottom.unit != UILengthUnit::Auto &&
-        child->style.height.unit == UILengthUnit::Auto) {
-      height = std::max(
-          0.0f,
-          inner_bounds.height -
-              resolve_length(
-                  child->style.top,
-                  inner_bounds.height,
-                  context.default_font_size
-              ) -
-              resolve_length(
-                  child->style.bottom,
-                  inner_bounds.height,
-                  context.default_font_size
-              )
-      );
-    }
-
-    width = clamp_dimension(
-        width,
-        child->style.min_width,
-        child->style.max_width,
-        inner_bounds.width,
-        context.default_font_size,
-        preferred.x
-    );
-    height = clamp_dimension(
-        height,
-        child->style.min_height,
-        child->style.max_height,
-        inner_bounds.height,
-        context.default_font_size,
-        preferred.y
-    );
-
-    const float x =
-        child->style.left.unit != UILengthUnit::Auto
-            ? inner_bounds.x +
-                  resolve_length(
-                      child->style.left,
-                      inner_bounds.width,
-                      context.default_font_size
-                  )
-            : inner_bounds.right() -
-                  resolve_length(
-                      child->style.right,
-                      inner_bounds.width,
-                      context.default_font_size
-                  ) -
-                  width;
-    const float y =
-        child->style.top.unit != UILengthUnit::Auto
-            ? inner_bounds.y +
-                  resolve_length(
-                      child->style.top,
-                      inner_bounds.height,
-                      context.default_font_size
-                  )
-            : inner_bounds.bottom() -
-                  resolve_length(
-                      child->style.bottom,
-                      inner_bounds.height,
-                      context.default_font_size
-                  ) -
-                  height;
-
-    UIRect child_bounds{.x = x, .y = y, .width = width, .height = height};
-    if (node_supports_panel_resize(*child)) {
-      child_bounds = clamp_rect_to_bounds(child_bounds, inner_bounds);
-    }
-    planned_bounds.push_back(PlannedBounds{
-        .node_id = child_id,
-        .bounds = child_bounds,
-    });
-    content_width =
-        std::max(content_width, child_bounds.right() - inner_bounds.x);
-    content_height =
-        std::max(content_height, child_bounds.bottom() - inner_bounds.y);
-  }
-
-  node->layout.scroll.content_size = glm::vec2(content_width, content_height);
+  node->layout.scroll.content_size =
+      glm::vec2(planned.content_width, planned.content_height);
   node->layout.scroll.max_offset = glm::max(
       node->layout.scroll.content_size - node->layout.scroll.viewport_size,
       glm::vec2(0.0f)
@@ -864,14 +924,14 @@ void layout_children(
           : 0.0f
   );
 
-  for (const PlannedBounds &planned : planned_bounds) {
-    UIRect translated_bounds = planned.bounds;
+  for (const PlannedBounds &planned_child : planned.bounds) {
+    UIRect translated_bounds = planned_child.bounds;
     translated_bounds.x += scroll_translation.x;
     translated_bounds.y += scroll_translation.y;
 
     layout_node(
         document,
-        planned.node_id,
+        planned_child.node_id,
         translated_bounds,
         child_clip_rect(*node),
         context

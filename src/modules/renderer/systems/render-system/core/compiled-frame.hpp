@@ -410,9 +410,9 @@ struct CompiledFrame {
   }
 
   const CompiledExportEntry *find_export(RenderImageExportKey key) const {
-    for (const auto &entry : export_entries) {
-      if (entry.key == key) {
-        return &entry;
+    for (auto it = export_entries.rbegin(); it != export_entries.rend(); ++it) {
+      if (it->key == key) {
+        return &(*it);
       }
     }
     return nullptr;

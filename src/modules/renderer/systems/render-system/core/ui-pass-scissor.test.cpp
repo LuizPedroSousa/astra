@@ -52,4 +52,19 @@ TEST(UIPassScissorTest, ProducesZeroAreaScissorForFullyClippedRects) {
   EXPECT_EQ(scissor.height, 0u);
 }
 
+TEST(UIPassScissorTest, RenderImageViewFlipDependsOnBackend) {
+  EXPECT_FLOAT_EQ(
+      ui_pass_detail::render_image_sample_flip_y(RendererBackend::OpenGL),
+      1.0f
+  );
+  EXPECT_FLOAT_EQ(
+      ui_pass_detail::render_image_sample_flip_y(RendererBackend::Vulkan),
+      0.0f
+  );
+  EXPECT_FLOAT_EQ(
+      ui_pass_detail::render_image_sample_flip_y(RendererBackend::None),
+      0.0f
+  );
+}
+
 } // namespace astralix

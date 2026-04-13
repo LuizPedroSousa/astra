@@ -71,7 +71,7 @@ void EditorGizmoPass::record(
 ) {
   ASTRA_PROFILE_N("EditorGizmoPass::record");
 
-  const auto *scene_color_resource = ctx.find_graph_image("present");
+  const auto *scene_color_resource = ctx.find_graph_image("scene_color");
   if (scene_color_resource == nullptr || m_shader == nullptr) {
     LOG_WARN("[EditorGizmoPass::record] early exit: null image or shader");
     return;
@@ -85,12 +85,14 @@ void EditorGizmoPass::record(
 
   auto gizmo_store = editor_gizmo_store();
   const auto selected_entity_id = editor_selection_store()->selected_entity();
-  const auto panel_rect = gizmo_store->panel_rect();
-  const bool draw_panel_target = panel_rect.has_value();
-  if (!draw_panel_target || !selected_entity_id.has_value()) {
+  const auto interaction_rect = gizmo_store->interaction_rect();
+  const bool draw_target_available = interaction_rect.has_value();
+  if (!draw_target_available || !selected_entity_id.has_value()) {
     static int gizmo_skip_count = 0;
     if (gizmo_skip_count++ < 5) {
-      LOG_WARN("[EditorGizmoPass::record] early exit: panel_rect=", draw_panel_target, " selected_entity=", selected_entity_id.has_value());
+      LOG_WARN("[EditorGizmoPass::record] early exit: interaction_rect=",
+               draw_target_available, " selected_entity=",
+               selected_entity_id.has_value());
     }
     return;
   }
@@ -118,7 +120,7 @@ void EditorGizmoPass::record(
   const float gizmo_scale = gizmo::gizmo_scale_world(
       camera_frame,
       transform->position,
-      panel_rect->height
+      interaction_rect->height
   );
 
   const auto hovered_handle = gizmo_store->hovered_handle();
