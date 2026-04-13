@@ -1,9 +1,13 @@
 #include "shader-lang/compiler.hpp"
 #include "shader-lang/artifacts/shader-artifact-pipeline.hpp"
 #include "shader-lang/diagnostics.hpp"
+#include "shader-lang/emitters/glsl-text-emitter.hpp"
+#include "shader-lang/lowering/glsl-stage-clone.hpp"
+#include "shader-lang/lowering/vulkan-glsl-layout-pass.hpp"
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <set>
 
 namespace astralix {
 
@@ -123,6 +127,13 @@ interface FragmentOutput {
   }
   source += "}\n";
   return source;
+}
+
+static GLSLExprPtr make_test_float_literal(double value) {
+  auto expr = std::make_unique<GLSLExpr>();
+  expr->type = TypeRef{TokenKind::TypeFloat, "float"};
+  expr->data = GLSLLiteralExpr{value};
+  return expr;
 }
 
 static bool same_plan(const ShaderArtifactPlan &lhs,
@@ -1972,8 +1983,258 @@ fn main(MaterialA a, MaterialB b) -> FragmentOutput {
   }
 }
 
+TEST(ShaderCompiler, MergedLayoutPrefixesLooseGlobalBindingIds) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+uniform float bloom_strength = 0.12;
+uniform float gamma = 2.2;
+uniform float exposure = 1.0;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(vec4(bloom_strength + gamma + exposure));
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "globals-layout.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  ASSERT_EQ(result.merged_layout.resource_layout.value_blocks.size(), 1u);
+  const auto &globals_block =
+      result.merged_layout.resource_layout.value_blocks.front();
+  EXPECT_EQ(globals_block.logical_name, "__globals");
+  EXPECT_EQ(globals_block.size, 16u);
+  ASSERT_EQ(globals_block.fields.size(), 3u);
+
+  const ShaderValueFieldDesc *bloom_strength_field = nullptr;
+  const ShaderValueFieldDesc *gamma_field = nullptr;
+  const ShaderValueFieldDesc *exposure_field = nullptr;
+
+  for (const auto &field : globals_block.fields) {
+    if (field.logical_name == "bloom_strength") {
+      bloom_strength_field = &field;
+    } else if (field.logical_name == "gamma") {
+      gamma_field = &field;
+    } else if (field.logical_name == "exposure") {
+      exposure_field = &field;
+    }
+  }
+
+  ASSERT_NE(bloom_strength_field, nullptr);
+  ASSERT_NE(gamma_field, nullptr);
+  ASSERT_NE(exposure_field, nullptr);
+  EXPECT_EQ(
+      bloom_strength_field->binding_id,
+      shader_binding_id("__globals.bloom_strength")
+  );
+  EXPECT_EQ(gamma_field->binding_id, shader_binding_id("__globals.gamma"));
+  EXPECT_EQ(
+      exposure_field->binding_id,
+      shader_binding_id("__globals.exposure")
+  );
+  EXPECT_EQ(bloom_strength_field->offset, 0u);
+  EXPECT_EQ(gamma_field->offset, 4u);
+  EXPECT_EQ(exposure_field->offset, 8u);
+}
+
+TEST(ShaderCompiler, MergedLayoutExpandsLooseGlobalArraysIntoIndexedFields) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+uniform vec3 samples[2];
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(vec4(samples[0] + samples[1], 1.0));
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "globals-array-layout.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  ASSERT_EQ(result.merged_layout.resource_layout.value_blocks.size(), 1u);
+  const auto &globals_block =
+      result.merged_layout.resource_layout.value_blocks.front();
+  EXPECT_EQ(globals_block.logical_name, "__globals");
+  EXPECT_EQ(globals_block.size, 32u);
+  ASSERT_EQ(globals_block.fields.size(), 2u);
+
+  const ShaderValueFieldDesc *sample0 = nullptr;
+  const ShaderValueFieldDesc *sample1 = nullptr;
+  for (const auto &field : globals_block.fields) {
+    if (field.logical_name == "samples[0]") {
+      sample0 = &field;
+    } else if (field.logical_name == "samples[1]") {
+      sample1 = &field;
+    }
+  }
+
+  ASSERT_NE(sample0, nullptr);
+  ASSERT_NE(sample1, nullptr);
+  EXPECT_EQ(sample0->binding_id, shader_binding_id("__globals.samples[0]"));
+  EXPECT_EQ(sample1->binding_id, shader_binding_id("__globals.samples[1]"));
+  EXPECT_EQ(sample0->offset, 0u);
+  EXPECT_EQ(sample1->offset, 16u);
+  EXPECT_EQ(sample0->size, 12u);
+  EXPECT_EQ(sample1->size, 12u);
+}
+
+TEST(ShaderCompiler, MergedLayoutRoundsStd140BlockSizeToVec4Alignment) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+@uniform
+interface Camera {
+    vec3 position;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main(Camera camera) -> FragmentOutput {
+    return FragmentOutput(vec4(camera.position, 1.0));
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "std140-camera-layout.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  ASSERT_EQ(result.merged_layout.resource_layout.value_blocks.size(), 1u);
+  const auto &camera_block =
+      result.merged_layout.resource_layout.value_blocks.front();
+  EXPECT_EQ(camera_block.logical_name, "camera");
+  EXPECT_EQ(camera_block.size, 16u);
+  ASSERT_EQ(camera_block.fields.size(), 1u);
+  EXPECT_EQ(camera_block.fields.front().offset, 0u);
+  EXPECT_EQ(camera_block.fields.front().size, 12u);
+}
+
+TEST(ShaderCompiler, MergedLayoutExpandsUniformStructArraysIntoIndexedFields) {
+  Compiler compiler;
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+struct Exposure {
+    vec3 ambient;
+    vec3 diffuse;
+};
+
+struct SampleLight {
+    vec3 position;
+    Exposure exposure;
+    float intensity;
+};
+
+@uniform
+interface Scene {
+    SampleLight lights[2];
+    float tail = 0.0;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main(Scene scene) -> FragmentOutput {
+    return FragmentOutput(vec4(scene.lights[1].exposure.diffuse + vec3(scene.tail), 1.0));
+}
+)axsl";
+
+  auto result = compiler.compile(src, "", "uniform-struct-array-layout.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  ASSERT_EQ(result.merged_layout.resource_layout.value_blocks.size(), 1u);
+  const auto &scene_block =
+      result.merged_layout.resource_layout.value_blocks.front();
+  EXPECT_EQ(scene_block.logical_name, "scene");
+  EXPECT_EQ(scene_block.size, 144u);
+  ASSERT_EQ(scene_block.fields.size(), 9u);
+
+  const ShaderValueFieldDesc *lights0_position = nullptr;
+  const ShaderValueFieldDesc *lights1_ambient = nullptr;
+  const ShaderValueFieldDesc *lights1_diffuse = nullptr;
+  const ShaderValueFieldDesc *lights1_intensity = nullptr;
+  const ShaderValueFieldDesc *tail = nullptr;
+  for (const auto &field : scene_block.fields) {
+    if (field.logical_name == "scene.lights[0].position") {
+      lights0_position = &field;
+    } else if (field.logical_name == "scene.lights[1].exposure.ambient") {
+      lights1_ambient = &field;
+    } else if (field.logical_name == "scene.lights[1].exposure.diffuse") {
+      lights1_diffuse = &field;
+    } else if (field.logical_name == "scene.lights[1].intensity") {
+      lights1_intensity = &field;
+    } else if (field.logical_name == "scene.tail") {
+      tail = &field;
+    }
+  }
+
+  ASSERT_NE(lights0_position, nullptr);
+  ASSERT_NE(lights1_ambient, nullptr);
+  ASSERT_NE(lights1_diffuse, nullptr);
+  ASSERT_NE(lights1_intensity, nullptr);
+  ASSERT_NE(tail, nullptr);
+  EXPECT_EQ(
+      lights1_diffuse->binding_id,
+      shader_binding_id("scene.lights[1].exposure.diffuse")
+  );
+  EXPECT_EQ(lights0_position->offset, 0u);
+  EXPECT_EQ(lights1_ambient->offset, 80u);
+  EXPECT_EQ(lights1_diffuse->offset, 96u);
+  EXPECT_EQ(lights1_intensity->offset, 112u);
+  EXPECT_EQ(tail->offset, 128u);
+}
+
 static std::string first_error(const CompileResult &r) {
   return r.errors.empty() ? "" : r.errors[0];
+}
+
+static bool validate_spirv_external(const std::vector<uint32_t> &spirv,
+                                    const char *label,
+                                    std::string *output = nullptr) {
+  const std::string path =
+      std::string("/tmp/astra_spirv_test_") + label + ".spv";
+  {
+    std::ofstream out(path, std::ios::binary);
+    out.write(reinterpret_cast<const char *>(spirv.data()),
+              static_cast<std::streamsize>(spirv.size() * sizeof(uint32_t)));
+  }
+
+  const std::string command =
+      "spirv-val " + path + " --relax-block-layout --target-env vulkan1.3 2>&1";
+  FILE *pipe = popen(command.c_str(), "r");
+  if (!pipe) {
+    if (output != nullptr) {
+      *output = "failed to launch spirv-val";
+    }
+    return false;
+  }
+
+  char buffer[4096] = {};
+  const size_t bytes_read = fread(buffer, 1, sizeof(buffer) - 1, pipe);
+  buffer[bytes_read] = 0;
+  const int status = pclose(pipe);
+
+  if (output != nullptr) {
+    *output = buffer;
+  }
+
+  return status == 0;
 }
 
 static constexpr std::string_view k_unclosed_stage =
@@ -2146,6 +2407,833 @@ TEST(ShaderDiagnostics, MissingFieldNamePointsToSameLine) {
   EXPECT_EQ(err.find("t.axsl:4:"), std::string::npos)
       << "Error must not point to line 4 (next token):\n"
       << err;
+}
+
+TEST(SPIRVEmitter, FullSourceProducesValidSPIRV) {
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_spirv = true;
+
+  auto result = compiler.compile(k_full_source, "", "test.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  ASSERT_TRUE(result.spirv_stages.count(StageKind::Vertex))
+      << "Missing vertex SPIR-V stage";
+  ASSERT_TRUE(result.spirv_stages.count(StageKind::Fragment))
+      << "Missing fragment SPIR-V stage";
+
+  const auto &vertex_spirv = result.spirv_stages.at(StageKind::Vertex);
+  const auto &fragment_spirv = result.spirv_stages.at(StageKind::Fragment);
+
+  EXPECT_GT(vertex_spirv.size(), 5u) << "Vertex SPIR-V too small";
+  EXPECT_GT(fragment_spirv.size(), 5u) << "Fragment SPIR-V too small";
+
+  EXPECT_EQ(vertex_spirv[0], 0x07230203u) << "Bad SPIR-V magic number (vertex)";
+  EXPECT_EQ(fragment_spirv[0], 0x07230203u)
+      << "Bad SPIR-V magic number (fragment)";
+}
+
+TEST(SPIRVEmitter, MinimalVertexPassthrough) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@in
+interface Attributes {
+    @location(0) vec3 position;
+}
+
+interface Varyings {
+    vec3 v_pos;
+}
+
+@vertex
+fn main(Attributes a) -> Varyings {
+    gl_Position = vec4(a.position, 1.0);
+    return Varyings(a.position);
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_spirv = true;
+
+  auto result = compiler.compile(source, "", "passthrough.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.spirv_stages.count(StageKind::Vertex));
+
+  const auto &spirv = result.spirv_stages.at(StageKind::Vertex);
+  EXPECT_EQ(spirv[0], 0x07230203u);
+}
+
+TEST(SPIRVEmitter, MinimalFragmentSolidColor) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(vec4(1.0, 0.0, 0.0, 1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_spirv = true;
+
+  auto result = compiler.compile(source, "", "solid.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.spirv_stages.count(StageKind::Fragment));
+
+  const auto &spirv = result.spirv_stages.at(StageKind::Fragment);
+  EXPECT_EQ(spirv[0], 0x07230203u);
+}
+
+TEST(SPIRVEmitter, SPIRVPassesExternalValidation) {
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_spirv = true;
+
+  auto result = compiler.compile(k_full_source, "", "test.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  std::string output;
+  EXPECT_TRUE(
+      validate_spirv_external(result.spirv_stages.at(StageKind::Vertex),
+                              "vertex", &output))
+      << "spirv-val failed for vertex:\n"
+      << output;
+  EXPECT_TRUE(
+      validate_spirv_external(result.spirv_stages.at(StageKind::Fragment),
+                              "fragment", &output))
+      << "spirv-val failed for fragment:\n"
+      << output;
+}
+
+TEST(SPIRVEmitter, BuiltinInputStagesPassExternalValidation) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@in
+interface Attributes {
+    @location(0) vec3 position;
+}
+
+interface Varyings {
+    vec2 uv;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@vertex
+fn main(Attributes a) -> Varyings {
+    float offset = float(gl_InstanceID) * 0.1;
+    gl_Position = vec4(a.position.x + offset, a.position.y, a.position.z, 1.0);
+    return Varyings(a.position.xy);
+}
+
+@fragment
+fn main(Varyings v) -> FragmentOutput {
+    return FragmentOutput(vec4(gl_FragCoord.xy, v.uv.x, 1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_spirv = true;
+
+  auto result = compiler.compile(source, "", "builtin-inputs.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  std::string output;
+  EXPECT_TRUE(
+      validate_spirv_external(result.spirv_stages.at(StageKind::Vertex),
+                              "builtin-inputs-vertex", &output))
+      << "spirv-val failed for builtin-inputs vertex:\n"
+      << output;
+  EXPECT_TRUE(
+      validate_spirv_external(result.spirv_stages.at(StageKind::Fragment),
+                              "builtin-inputs-fragment", &output))
+      << "spirv-val failed for builtin-inputs fragment:\n"
+      << output;
+}
+
+TEST(SPIRVEmitter, GLSLStagesStillEmittedAlongsideSPIRV) {
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_spirv = true;
+
+  auto result = compiler.compile(k_full_source, "", "test.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  EXPECT_TRUE(result.stages.count(StageKind::Vertex))
+      << "GLSL vertex stage missing when emit_spirv is on";
+  EXPECT_TRUE(result.stages.count(StageKind::Fragment))
+      << "GLSL fragment stage missing when emit_spirv is on";
+  EXPECT_TRUE(result.spirv_stages.count(StageKind::Vertex));
+  EXPECT_TRUE(result.spirv_stages.count(StageKind::Fragment));
+}
+
+TEST(Compiler, VulkanGLSLVertexStageAppliesDepthRangeFixup) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@in
+interface Attributes {
+    @location(0) vec3 position;
+}
+
+@vertex
+fn main(Attributes a) -> void {
+    gl_Position = vec4(a.position, 1.0);
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result = compiler.compile(source, "", "vulkan-depth-remap.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Vertex));
+
+  const auto &vertex = result.vulkan_glsl_stages.at(StageKind::Vertex);
+  EXPECT_FALSE(contains(vertex, "gl_Position.y = -gl_Position.y;"))
+      << vertex;
+  EXPECT_TRUE(
+      contains(
+          vertex, "gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;"
+      )
+  ) << vertex;
+}
+
+TEST(Compiler, CloneGLSLStagePreservesEmissionAndIsolatesMutations) {
+  GLSLStage stage;
+  stage.version = 450;
+
+  GLSLFunctionDecl function;
+  function.ret = TypeRef{TokenKind::KeywordVoid, "void"};
+  function.name = "main";
+
+  auto var_stmt = std::make_unique<GLSLStmt>();
+  GLSLVarDeclStmt var_decl;
+  var_decl.type = TypeRef{TokenKind::TypeFloat, "float"};
+  var_decl.name = "value";
+  var_decl.init = make_test_float_literal(1.0);
+  var_stmt->data = std::move(var_decl);
+
+  auto body = std::make_unique<GLSLStmt>();
+  GLSLBlockStmt block;
+  block.stmts.push_back(std::move(var_stmt));
+  body->data = std::move(block);
+  function.body = std::move(body);
+
+  stage.declarations.push_back(GLSLDecl{std::move(function)});
+
+  GLSLStage cloned = clone_glsl_stage(stage);
+
+  GLSLTextEmitter emitter;
+  const std::string original_text = emitter.emit(stage);
+  EXPECT_EQ(original_text, emitter.emit(cloned));
+
+  auto &clone_function = std::get<GLSLFunctionDecl>(cloned.declarations[0]);
+  auto &clone_block = std::get<GLSLBlockStmt>(clone_function.body->data);
+  auto *clone_var_decl = std::get_if<GLSLVarDeclStmt>(&clone_block.stmts[0]->data);
+  ASSERT_NE(clone_var_decl, nullptr);
+  auto *clone_literal = std::get_if<GLSLLiteralExpr>(&clone_var_decl->init->data);
+  ASSERT_NE(clone_literal, nullptr);
+  clone_literal->value = 2.0;
+
+  EXPECT_EQ(original_text, emitter.emit(stage));
+  EXPECT_NE(original_text, emitter.emit(cloned));
+}
+
+TEST(Compiler, EnablingVulkanGLSLDoesNotChangeOpenGLStages) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@in
+interface Attributes {
+    @location(0) vec3 position;
+}
+
+@uniform
+interface Camera {
+    mat4 projection;
+}
+
+@vertex
+fn main(Attributes a, Camera camera) -> void {
+    gl_Position = camera.projection * vec4(a.position, 1.0);
+}
+)axsl";
+
+  Compiler compiler;
+
+  auto without_vulkan = compiler.compile(source, "", "opengl-parity.axsl");
+  ASSERT_TRUE(without_vulkan.ok()) << errors_str(without_vulkan);
+
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+  auto with_vulkan = compiler.compile(source, "", "opengl-parity.axsl", options);
+  ASSERT_TRUE(with_vulkan.ok()) << errors_str(with_vulkan);
+
+  EXPECT_EQ(without_vulkan.stages, with_vulkan.stages);
+}
+
+TEST(Compiler, VulkanGLSLRenamesBuiltins) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@in
+interface Attributes {
+    @location(0) vec3 position;
+}
+
+@vertex
+fn main(Attributes a) -> void {
+    float builtins = float(gl_InstanceID + gl_VertexID);
+    gl_Position = vec4(a.position + vec3(builtins), 1.0);
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result = compiler.compile(source, "", "vulkan-builtins.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Vertex));
+
+  const auto &vertex = result.vulkan_glsl_stages.at(StageKind::Vertex);
+  EXPECT_TRUE(contains(vertex, "gl_InstanceIndex")) << vertex;
+  EXPECT_TRUE(contains(vertex, "gl_VertexIndex")) << vertex;
+  EXPECT_FALSE(contains(vertex, "gl_InstanceID")) << vertex;
+  EXPECT_FALSE(contains(vertex, "gl_VertexID")) << vertex;
+}
+
+TEST(Compiler, VulkanGLSLStorageBlocksBecomeReadonlyBuffers) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@std430
+@binding(0)
+in InstanceBuffer {
+    mat4 models[];
+} instance;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(vec4(instance.models[0][0][0]));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result =
+      compiler.compile(source, "", "vulkan-storage-block.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Fragment));
+
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_TRUE(
+      contains(
+          fragment,
+          "layout(set = 0, std430, binding = "
+      )
+  ) << fragment;
+  EXPECT_TRUE(contains(fragment, "readonly buffer InstanceBuffer {")) << fragment;
+}
+
+TEST(Compiler, VulkanGLSLSamplerGlobalsPreserveSetAndBindingAnnotations) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@set(2)
+@binding(5)
+uniform sampler2D albedo;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(texture(albedo, vec2(0.5, 0.5)));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result = compiler.compile(source, "", "vulkan-sampler-global.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_TRUE(contains(fragment, "layout(set = 2, binding = ")) << fragment;
+  EXPECT_TRUE(contains(fragment, "uniform sampler2D albedo;")) << fragment;
+}
+
+TEST(Compiler, VulkanGLSLInjectsLocationsForInAndOutDeclarations) {
+  GLSLStage stage;
+
+  GLSLInterfaceBlockDecl input_block;
+  input_block.storage = "in";
+  input_block.block_name = "Attributes";
+  input_block.fields.push_back(GLSLFieldDecl{
+      .type = TypeRef{TokenKind::TypeVec3, "vec3"},
+      .name = "position",
+  });
+  input_block.fields.push_back(GLSLFieldDecl{
+      .type = TypeRef{TokenKind::TypeVec2, "vec2"},
+      .name = "uv",
+  });
+  stage.declarations.push_back(GLSLDecl{std::move(input_block)});
+
+  GLSLGlobalVarDecl input_global;
+  input_global.storage = "in";
+  input_global.type = TypeRef{TokenKind::TypeFloat, "float"};
+  input_global.name = "instance_weight";
+  stage.declarations.push_back(GLSLDecl{std::move(input_global)});
+
+  GLSLInterfaceBlockDecl output_block;
+  output_block.storage = "out";
+  output_block.block_name = "Varyings";
+  output_block.fields.push_back(GLSLFieldDecl{
+      .type = TypeRef{TokenKind::TypeVec2, "vec2"},
+      .name = "uv",
+  });
+  stage.declarations.push_back(GLSLDecl{std::move(output_block)});
+
+  GLSLGlobalVarDecl output_global;
+  output_global.storage = "out";
+  output_global.type = TypeRef{TokenKind::TypeVec4, "vec4"};
+  output_global.name = "color";
+  stage.declarations.push_back(GLSLDecl{std::move(output_global)});
+
+  annotate_vulkan_layouts(stage, ShaderPipelineLayout{}, StageKind::Vertex);
+
+  GLSLTextEmitter emitter;
+  const std::string text = emitter.emit(stage);
+  EXPECT_TRUE(contains(text, "layout(location = 0) in Attributes {")) << text;
+  EXPECT_TRUE(contains(text, "layout(location = 2) in float instance_weight;"))
+      << text;
+  EXPECT_TRUE(contains(text, "layout(location = 0) out Varyings {")) << text;
+  EXPECT_TRUE(contains(text, "layout(location = 1) out vec4 color;")) << text;
+}
+
+TEST(Compiler, VulkanGLSLFragmentStageWrapsArrayBackedUniformValuesInBlocks) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+struct Material {
+    sampler2D diffuse;
+    float shininess;
+};
+
+struct PointLight {
+    vec3 position;
+    float intensity;
+};
+
+@uniform
+interface Light {
+    PointLight point_lights[4];
+    Material materials[1];
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main(Light light) -> FragmentOutput {
+    vec4 sampled = texture(light.materials[0].diffuse, vec2(0.5, 0.5));
+    return FragmentOutput(vec4(light.point_lights[0].position +
+                               vec3(light.materials[0].shininess + sampled.r),
+                               1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result =
+      compiler.compile(source, "", "vulkan-fragment-uniform-blocks.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Fragment));
+
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_TRUE(contains(fragment, "PointLight _point_lights[4];")) << fragment;
+  EXPECT_TRUE(contains(fragment, "float _materials_shininess[1];")) << fragment;
+  EXPECT_TRUE(contains(fragment, "sampler2D _materials_diffuse[1];")) << fragment;
+  EXPECT_TRUE(contains(fragment, "_materials_shininess[0]")) << fragment;
+  EXPECT_TRUE(contains(fragment, "texture(_materials_diffuse[0],")) << fragment;
+  EXPECT_FALSE(contains(fragment, "uniform PointLight _point_lights[4];"))
+      << fragment;
+  EXPECT_FALSE(contains(fragment, "uniform float _materials_shininess"))
+      << fragment;
+}
+
+TEST(Compiler, VulkanGLSLStagesPadInactiveSharedUniformFields) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+struct Material {
+    sampler2D diffuse;
+    float shininess;
+};
+
+@in
+interface Attributes {
+    @location(0) vec3 position;
+    @location(1) vec2 uv;
+}
+
+interface VertexOutput {
+    vec2 uv;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@uniform
+interface Entity {
+    bool use_instancing = false;
+    mat4 g_model;
+    bool bloom_enabled = true;
+    int bloom_layer = 0;
+    int entity_id = 0;
+}
+
+@uniform
+interface Light {
+    mat4 light_space_matrix;
+    Material materials[1];
+}
+
+@vertex
+fn main(Entity entity, Light light, Attributes a) -> VertexOutput {
+    VertexOutput output;
+    output.uv = a.uv;
+    gl_Position = light.light_space_matrix * entity.g_model * vec4(a.position, 1.0);
+    if (entity.use_instancing) {
+        gl_Position.x += 0.0;
+    }
+    return output;
+}
+
+@fragment
+fn main(VertexOutput vertex, Entity entity, Light light) -> FragmentOutput {
+    vec4 sampled = texture(light.materials[0].diffuse, vertex.uv);
+    float bloom_gate =
+        entity.bloom_enabled ? float(entity.bloom_layer + entity.entity_id) : 0.0;
+    return FragmentOutput(
+        vec4(sampled.rgb + vec3(light.materials[0].shininess + bloom_gate), 1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result = compiler.compile(
+      source, "", "vulkan-shared-uniform-padding.axsl", options
+  );
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Vertex));
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Fragment));
+
+  const auto &vertex = result.vulkan_glsl_stages.at(StageKind::Vertex);
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+
+  EXPECT_TRUE(contains(vertex, "bool _use_instancing;")) << vertex;
+  EXPECT_TRUE(contains(vertex, "mat4 _g_model;")) << vertex;
+  EXPECT_TRUE(contains(vertex, "bool _unused_entity_bloom_enabled;")) << vertex;
+  EXPECT_TRUE(contains(vertex, "int _unused_entity_bloom_layer;")) << vertex;
+  EXPECT_TRUE(contains(vertex, "int _unused_entity_entity_id;")) << vertex;
+
+  EXPECT_TRUE(contains(fragment, "bool _unused_entity_use_instancing;"))
+      << fragment;
+  EXPECT_TRUE(contains(fragment, "mat4 _unused_entity_g_model;")) << fragment;
+  EXPECT_TRUE(contains(fragment, "bool _bloom_enabled;")) << fragment;
+  EXPECT_TRUE(contains(fragment, "int _bloom_layer;")) << fragment;
+  EXPECT_TRUE(contains(fragment, "int _entity_id;")) << fragment;
+  EXPECT_TRUE(contains(fragment, "mat4 _unused_light_light_space_matrix;"))
+      << fragment;
+  EXPECT_TRUE(contains(fragment, "float _materials_shininess[1];"))
+      << fragment;
+
+  EXPECT_LT(
+      fragment.find("mat4 _unused_entity_g_model;"),
+      fragment.find("bool _bloom_enabled;")
+  ) << fragment;
+  EXPECT_LT(
+      fragment.find("mat4 _unused_light_light_space_matrix;"),
+      fragment.find("float _materials_shininess[1];")
+  ) << fragment;
+}
+
+TEST(Compiler, SharedLayoutStateKeepsSplitShaderBindingsDisjoint) {
+  static constexpr std::string_view vertex_source = R"axsl(
+@version 450;
+
+@in
+interface Mesh {
+    @location(0) vec3 position;
+    @location(2) vec2 texture_coordinates;
+}
+
+@uniform
+interface Camera {
+    @set(0) mat4 projection;
+}
+
+@uniform
+interface Quad {
+    @set(1) vec4 rect;
+}
+
+interface VertexOutput {
+    vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh, Camera camera, Quad quad) -> VertexOutput {
+    vec2 uv = vec2(mesh.texture_coordinates.x, 1.0 - mesh.texture_coordinates.y);
+    vec2 world_position = quad.rect.xy + uv * quad.rect.zw;
+    gl_Position = camera.projection * vec4(world_position, 0.0, 1.0);
+    return VertexOutput(uv);
+}
+)axsl";
+
+  static constexpr std::string_view fragment_source = R"axsl(
+@version 450;
+
+@uniform
+interface Image {
+    @set(1) sampler2D texture;
+    @set(1) vec4 tint;
+    @set(1) float sample_flip_y;
+}
+
+interface VertexOutput {
+    vec2 texture_coordinates;
+}
+
+interface FragmentOutput {
+    vec4 color;
+}
+
+@fragment
+fn main(VertexOutput vertex, Image image) -> FragmentOutput {
+    vec2 sample_uv = mix(
+        vertex.texture_coordinates,
+        vec2(vertex.texture_coordinates.x, 1.0 - vertex.texture_coordinates.y),
+        clamp(image.sample_flip_y, 0.0, 1.0)
+    );
+    return FragmentOutput(texture(image.texture, sample_uv) * image.tint);
+}
+)axsl";
+
+  using BindingLocation = std::pair<uint32_t, uint32_t>;
+
+  auto collect_bindings = [](const CompileResult &result) {
+    std::multiset<BindingLocation> bindings;
+
+    for (const auto &block : result.merged_layout.resource_layout.value_blocks) {
+      bindings.insert(
+          {block.descriptor_set.value_or(0), block.binding.value_or(0)}
+      );
+    }
+    for (const auto &resource : result.merged_layout.resource_layout.resources) {
+      bindings.insert({resource.descriptor_set, resource.binding});
+    }
+
+    return bindings;
+  };
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto vertex_result = compiler.compile_with_shared_layout_state(
+      vertex_source, "", "split-ui-quad.axsl", options
+  );
+  ASSERT_TRUE(vertex_result.ok()) << errors_str(vertex_result);
+
+  auto fragment_result = compiler.compile_with_shared_layout_state(
+      fragment_source, "", "split-ui-image.axsl", options
+  );
+  ASSERT_TRUE(fragment_result.ok()) << errors_str(fragment_result);
+
+  EXPECT_EQ(
+      collect_bindings(vertex_result),
+      (std::multiset<BindingLocation>{{0u, 0u}, {1u, 0u}})
+  );
+  EXPECT_EQ(
+      collect_bindings(fragment_result),
+      (std::multiset<BindingLocation>{{1u, 1u}, {1u, 2u}})
+  );
+
+  const auto &fragment = fragment_result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_TRUE(contains(fragment, "set = 1, binding = 1")) << fragment;
+  EXPECT_TRUE(contains(fragment, "set = 1, std140, binding = 2")) << fragment;
+}
+
+TEST(Compiler, VulkanGLSLFragmentStageFlipsClipProjectedScreenUvY) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@uniform
+interface Camera {
+    mat4 projection;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main(Camera camera) -> FragmentOutput {
+    vec4 sample_clip = camera.projection * vec4(0.25, 0.5, 0.0, 1.0);
+    vec2 sample_uv = (sample_clip.xy / sample_clip.w) * 0.5 + vec2(0.5);
+    return FragmentOutput(vec4(sample_uv, 0.0, 1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result =
+      compiler.compile(source, "", "vulkan-fragment-screen-uv.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Fragment));
+
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_TRUE(contains(fragment, "vec2 __astralix_vulkan_screen_uv(vec2 uv)"))
+      << fragment;
+  EXPECT_TRUE(
+      contains(fragment, "vec2 sample_uv = __astralix_vulkan_screen_uv(")
+  ) << fragment;
+  EXPECT_TRUE(contains(fragment, "return vec2(uv.x, 1 - uv.y);")) << fragment;
+}
+
+TEST(Compiler, VulkanGLSLFragmentStageFlipsShadowProjectionY) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@uniform
+interface Light {
+    sampler2D shadow_map;
+}
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+fn get_shadow(sampler2D shadow_map, vec3 light_direction, vec3 normal, vec4 fragment_light_space) -> float {
+    vec3 projection_coordinates = fragment_light_space.xyz / fragment_light_space.w;
+    projection_coordinates = projection_coordinates * 0.5 + 0.5;
+    float sampled_depth = texture(shadow_map, projection_coordinates.xy).r;
+    return sampled_depth;
+}
+
+@fragment
+fn main(Light light) -> FragmentOutput {
+    float shadow = get_shadow(light.shadow_map, vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec4(0.0, 0.0, 0.0, 1.0));
+    return FragmentOutput(vec4(vec3(shadow), 1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result =
+      compiler.compile(source, "", "vulkan-fragment-shadow-projection.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+  ASSERT_TRUE(result.vulkan_glsl_stages.count(StageKind::Fragment));
+
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_TRUE(contains(fragment, "projection_coordinates = (projection_coordinates * 0.5) + 0.5;"))
+      << fragment;
+  EXPECT_TRUE(contains(fragment, "projection_coordinates.y = 1 - projection_coordinates.y;"))
+      << fragment;
+}
+
+TEST(Compiler, VulkanGLSLFragmentScreenUVPassIsNoOpWithoutPattern) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    vec2 sample_uv = vec2(0.25, 0.5);
+    return FragmentOutput(vec4(sample_uv, 0.0, 1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result = compiler.compile(source, "", "vulkan-fragment-no-screen-uv.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_FALSE(contains(fragment, "__astralix_vulkan_screen_uv")) << fragment;
+}
+
+TEST(Compiler, VulkanGLSLShadowProjectionPassIsNoOpWithoutGetShadow) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+fn sample_shadow(vec4 fragment_light_space) -> float {
+    vec3 projection_coordinates = fragment_light_space.xyz / fragment_light_space.w;
+    projection_coordinates = projection_coordinates * 0.5 + 0.5;
+    return projection_coordinates.y;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    float shadow = sample_shadow(vec4(0.0, 0.0, 0.0, 1.0));
+    return FragmentOutput(vec4(vec3(shadow), 1.0));
+}
+)axsl";
+
+  Compiler compiler;
+  CompileOptions options;
+  options.emit_vulkan_glsl = true;
+
+  auto result =
+      compiler.compile(source, "", "vulkan-fragment-no-shadow-flip.axsl", options);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
+  EXPECT_FALSE(contains(fragment, "projection_coordinates.y = 1 - projection_coordinates.y;"))
+      << fragment;
 }
 
 } // namespace astralix

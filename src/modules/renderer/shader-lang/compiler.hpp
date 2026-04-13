@@ -22,10 +22,14 @@ struct CompileOptions {
   SerializationFormat reflection_ir_format = SerializationFormat::Json;
   bool emit_pipeline_layout_ir = false;
   SerializationFormat pipeline_layout_ir_format = SerializationFormat::Json;
+  bool emit_spirv = false;
+  bool emit_vulkan_glsl = false;
 };
 
 struct CompileResult {
   std::map<StageKind, std::string> stages;
+  std::map<StageKind, std::vector<uint32_t>> spirv_stages;
+  std::map<StageKind, std::string> vulkan_glsl_stages;
   ShaderReflection reflection;
   ShaderPipelineLayout merged_layout;
   std::vector<std::filesystem::path> dependencies;

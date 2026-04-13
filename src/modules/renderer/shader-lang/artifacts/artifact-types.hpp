@@ -14,6 +14,7 @@ enum class ShaderUnitArtifactKind {
   ReflectionIR,
   PipelineLayoutIR,
   CacheMetadata,
+  SPIRVBinary,
 };
 
 enum class ShaderBatchArtifactKind {

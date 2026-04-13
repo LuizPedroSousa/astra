@@ -4,6 +4,7 @@
 #include "shader-lang/emitters/glsl-text-emitter.hpp"
 #include "shader-lang/emitters/pipeline-layout-ir-emitter.hpp"
 #include "shader-lang/emitters/reflection-ir-emitter.hpp"
+#include "shader-lang/emitters/vulkan-spirv-emitter.hpp"
 #include "shader-lang/layout-merge.hpp"
 #include "shader-lang/linker.hpp"
 #include "shader-lang/lowering/canonical-lowering.hpp"
@@ -11,6 +12,7 @@
 #include "shader-lang/lowering/glsl-lowering.hpp"
 #include "shader-lang/lowering/layout-assignment.hpp"
 #include "shader-lang/lowering/opengl-target-lowering.hpp"
+#include "shader-lang/lowering/vulkan-target-lowering.hpp"
 #include "shader-lang/parser.hpp"
 #include "shader-lang/tokenizer.hpp"
 
@@ -67,8 +69,8 @@ CompileResult Compiler::compile_with_shared_layout_state(
 CompileResult Compiler::compile_with_layout_assignment(
     LayoutAssignment &layout_assignment,
     std::string_view source,
-                                std::string_view base_path,
-                                std::string_view filename,
+    std::string_view base_path,
+    std::string_view filename,
     const CompileOptions &options
 ) {
   CompileResult result;
@@ -103,6 +105,7 @@ CompileResult Compiler::compile_with_layout_assignment(
   GLSLLowering glsl_lowering;
   GLSLTextEmitter text_emitter;
   OpenGLTargetLowering opengl_lowering;
+  VulkanTargetLowering vulkan_lowering;
   LayoutMergeState merge_state;
 
   for (NodeID sid : program.stages) {
@@ -137,6 +140,19 @@ CompileResult Compiler::compile_with_layout_assignment(
       return result;
     }
 
+    if (options.emit_spirv) {
+      VulkanSPIRVEmitter spirv_emitter;
+      auto spirv_result = spirv_emitter.emit(
+          canonical_result.stage, layout_result.reflection, layout_result.layout
+      );
+      if (!spirv_result.ok()) {
+        result.errors = spirv_result.errors;
+        return result;
+      }
+      result.spirv_stages[func_decl.stage_kind.value()] =
+          std::move(spirv_result.spirv);
+    }
+
     GlslLoweringResult glsl_result =
         glsl_lowering.lower(canonical_result.stage, layout_result.reflection);
     if (!glsl_result.ok()) {
@@ -145,11 +161,19 @@ CompileResult Compiler::compile_with_layout_assignment(
     }
 
     GLSLStage shared_stage = std::move(glsl_result.stage);
+    std::optional<GLSLStage> vk_stage;
+    if (options.emit_vulkan_glsl) {
+      vk_stage.emplace(clone_glsl_stage(shared_stage));
+    }
 
     GLSLStage gl_stage = std::move(shared_stage);
     opengl_lowering.lower(gl_stage, layout_result.layout, stage_kind);
     result.stages[stage_kind] = text_emitter.emit(gl_stage);
 
+    if (vk_stage) {
+      vulkan_lowering.lower(*vk_stage, layout_result.layout, stage_kind);
+      result.vulkan_glsl_stages[stage_kind] = text_emitter.emit(*vk_stage);
+    }
 
     result.reflection.stages[stage_kind] =
         std::move(glsl_result.reflection);
@@ -159,7 +183,8 @@ CompileResult Compiler::compile_with_layout_assignment(
     ReflectionIREmitter reflection_ir_emitter;
     std::string reflection_error;
     auto reflection_ir = reflection_ir_emitter.emit(
-        result.reflection, options.reflection_ir_format, &reflection_error);
+        result.reflection, options.reflection_ir_format, &reflection_error
+    );
     if (!reflection_ir) {
       result.errors.push_back(std::move(reflection_error));
       return result;
