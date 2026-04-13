@@ -5,7 +5,7 @@
 namespace astralix::rendering {
 namespace {
 
-TEST(MaterialBindingTest, FinalizeMaterialBindingStateFallsBackToDiffuseWhenSpecularIsMissing) {
+TEST(MaterialBindingTest, FinalizeMaterialBindingStateMirrorsMissingSpecularSlot) {
   MaterialBindingState state;
   state.diffuse_slot = 3;
   state.specular_slot = -1;
@@ -16,7 +16,7 @@ TEST(MaterialBindingTest, FinalizeMaterialBindingStateFallsBackToDiffuseWhenSpec
   EXPECT_EQ(state.specular_slot, 3);
 }
 
-TEST(MaterialBindingTest, FinalizeMaterialBindingStateFallsBackToSpecularWhenDiffuseIsMissing) {
+TEST(MaterialBindingTest, FinalizeMaterialBindingStateMirrorsMissingDiffuseSlot) {
   MaterialBindingState state;
   state.diffuse_slot = -1;
   state.specular_slot = 5;

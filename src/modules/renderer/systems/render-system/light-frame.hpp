@@ -5,9 +5,9 @@
 #include "components/transform.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "material-binding.hpp"
+#include "render-frame.hpp"
 #include "scene-selection.hpp"
 #include "world.hpp"
-#include <array>
 
 #if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
@@ -15,50 +15,6 @@
 #endif
 
 namespace astralix::rendering {
-
-inline constexpr float k_default_directional_shadow_extent = 10.0f;
-inline constexpr float k_default_directional_shadow_near_plane = 1.0f;
-inline constexpr float k_default_directional_shadow_far_plane = 100.0f;
-inline constexpr size_t k_max_point_lights = 4u;
-
-struct DirectionalLightPacket {
-  bool valid = false;
-  glm::vec3 position = glm::vec3(-4.0f, 8.0f, -3.0f);
-  glm::vec3 ambient = glm::vec3(0.2f);
-  glm::vec3 diffuse = glm::vec3(0.5f);
-  glm::vec3 specular = glm::vec3(0.5f);
-  glm::mat4 light_space_matrix = glm::mat4(1.0f);
-  float near_plane = k_default_directional_shadow_near_plane;
-  float far_plane = k_default_directional_shadow_far_plane;
-};
-
-struct PointLightPacket {
-  bool valid = false;
-  glm::vec3 position = glm::vec3(0.0f);
-  glm::vec3 ambient = glm::vec3(0.0f);
-  glm::vec3 diffuse = glm::vec3(0.0f);
-  glm::vec3 specular = glm::vec3(0.0f);
-  float constant = 1.0f;
-  float linear = 0.045f;
-  float quadratic = 0.0075f;
-};
-
-struct SpotLightPacket {
-  bool valid = false;
-  glm::vec3 position = glm::vec3(0.0f);
-  glm::vec3 direction = glm::vec3(0.0f, 0.0f, -1.0f);
-  glm::vec3 ambient = glm::vec3(0.0f);
-  glm::vec3 diffuse = glm::vec3(0.0f);
-  glm::vec3 specular = glm::vec3(0.0f);
-  float inner_cutoff_cos = 0.0f;
-  float outer_cutoff_cos = 0.0f;
-};
-
-struct LightFrameData {
-  DirectionalLightPacket directional;
-  std::array<PointLightPacket, k_max_point_lights> point_lights{};
-  SpotLightPacket spot;
-};
 
 inline glm::vec3 light_term(const Light &light, const glm::vec3 &base) {
   return base * light.color * light.intensity;
@@ -233,49 +189,34 @@ inline void populate_spot_light_params(const LightFrameData &frame, Params &para
   params.spot_light.outer_cut_off = frame.spot.outer_cutoff_cos;
 }
 
-inline shader_bindings::engine_shaders_g_buffer_axsl::LightParams
-build_gbuffer_light_params(const LightFrameData &frame, const MaterialBindingState &material_binding) {
+inline shader_bindings::engine_shaders_g_buffer_axsl::SceneLightParams
+build_gbuffer_scene_params(const LightFrameData &frame) {
   using namespace shader_bindings::engine_shaders_g_buffer_axsl;
 
-  LightParams params{};
-  params.materials[0].diffuse = material_binding.diffuse_slot;
-  params.materials[0].specular = material_binding.specular_slot;
-  params.materials[0].shininess = material_binding.shininess;
-  params.materials[0].emissive = material_binding.emissive;
-  params.materials[0].bloom_intensity = material_binding.bloom_intensity;
-  params.normal_map = material_binding.normal_map_slot >= 0
-                          ? material_binding.normal_map_slot
-                          : material_binding.diffuse_slot;
-  params.displacement_map = material_binding.displacement_map_slot >= 0
-                                ? material_binding.displacement_map_slot
-                                : material_binding.specular_slot;
+  SceneLightParams params{};
   params.bloom_layer = k_default_bloom_render_layer;
   populate_directional_light_params(frame, params);
 
   return params;
 }
 
+inline shader_bindings::engine_shaders_g_buffer_axsl::MaterialParams
+build_gbuffer_material_params(const MaterialBindingState &material_binding) {
+  using namespace shader_bindings::engine_shaders_g_buffer_axsl;
+
+  MaterialParams params{};
+  params.materials[0].shininess = material_binding.shininess;
+  params.materials[0].emissive = material_binding.emissive;
+  params.materials[0].bloom_intensity = material_binding.bloom_intensity;
+
+  return params;
+}
+
 inline shader_bindings::engine_shaders_light_axsl::LightParams
-build_deferred_light_params(
-    const LightFrameData &frame,
-    int shadow_map_slot,
-    int g_position_slot,
-    int g_normal_slot,
-    int g_albedo_slot,
-    int g_emissive_slot,
-    int g_entity_id_slot,
-    int g_ssao_slot
-) {
+build_deferred_light_params(const LightFrameData &frame) {
   using namespace shader_bindings::engine_shaders_light_axsl;
 
   LightParams params{};
-  params.shadow_map = shadow_map_slot;
-  params.g_position = g_position_slot;
-  params.g_normal = g_normal_slot;
-  params.g_albedo = g_albedo_slot;
-  params.g_emissive = g_emissive_slot;
-  params.g_entity_id = g_entity_id_slot;
-  params.g_ssao = g_ssao_slot;
   params.bloom_layer = k_default_bloom_render_layer;
   populate_directional_light_params(frame, params);
   populate_point_light_params(frame, params);
@@ -283,23 +224,11 @@ build_deferred_light_params(
   return params;
 }
 
-inline shader_bindings::engine_shaders_lighting_forward_axsl::LightParams
-build_forward_light_params(const LightFrameData &frame, const MaterialBindingState &material_binding, int shadow_map_slot) {
+inline shader_bindings::engine_shaders_lighting_forward_axsl::SceneLightParams
+build_forward_scene_params(const LightFrameData &frame) {
   using namespace shader_bindings::engine_shaders_lighting_forward_axsl;
 
-  LightParams params{};
-  params.materials[0].diffuse = material_binding.diffuse_slot;
-  params.materials[0].specular = material_binding.specular_slot;
-  params.materials[0].shininess = material_binding.shininess;
-  params.materials[0].emissive = material_binding.emissive;
-  params.materials[0].bloom_intensity = material_binding.bloom_intensity;
-  params.normal_map = material_binding.normal_map_slot >= 0
-                          ? material_binding.normal_map_slot
-                          : material_binding.diffuse_slot;
-  params.displacement_map = material_binding.displacement_map_slot >= 0
-                                ? material_binding.displacement_map_slot
-                                : material_binding.specular_slot;
-  params.shadow_map = shadow_map_slot;
+  SceneLightParams params{};
   params.near_plane = frame.directional.near_plane;
   params.far_plane = frame.directional.far_plane;
   params.bloom_layer = k_default_bloom_render_layer;
@@ -307,6 +236,18 @@ build_forward_light_params(const LightFrameData &frame, const MaterialBindingSta
   populate_directional_light_params(frame, params);
   populate_spot_light_params(frame, params);
   populate_point_light_params(frame, params);
+
+  return params;
+}
+
+inline shader_bindings::engine_shaders_lighting_forward_axsl::MaterialParams
+build_forward_material_params(const MaterialBindingState &material_binding) {
+  using namespace shader_bindings::engine_shaders_lighting_forward_axsl;
+
+  MaterialParams params{};
+  params.materials[0].shininess = material_binding.shininess;
+  params.materials[0].emissive = material_binding.emissive;
+  params.materials[0].bloom_intensity = material_binding.bloom_intensity;
 
   return params;
 }
