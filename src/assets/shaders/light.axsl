@@ -98,7 +98,14 @@ fn main(VertexOutput vertex, Camera camera, Light light) -> FragmentOutput {
     );
   }
 
-  result *= texture(light.g_ssao, vertex.texture).r;
+  result *= sample_ssao_bilateral(
+      light.g_position,
+      light.g_normal,
+      light.g_ssao,
+      vertex.texture,
+      fragment_world,
+      normal
+  );
   result += emissive;
 
   FragmentOutput frag_output;

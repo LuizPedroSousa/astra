@@ -151,6 +151,58 @@ fn get_attenuation(float distance, LightAttenuation attenuation) -> float {
     return 1. / denominator;
 }
 
+fn sample_ssao_bilateral(
+    sampler2D g_position,
+    sampler2D g_normal,
+    sampler2D g_ssao,
+    vec2 uv,
+    vec3 center_position,
+    vec3 center_normal
+) -> float {
+    vec2 ao_size = vec2(textureSize(g_ssao, 0));
+    vec2 gbuffer_size = vec2(textureSize(g_position, 0));
+
+    if (abs(ao_size.x - gbuffer_size.x) < 0.5 &&
+        abs(ao_size.y - gbuffer_size.y) < 0.5) {
+        return texture(g_ssao, uv).r;
+    }
+
+    vec2 ao_texel = 1.0 / ao_size;
+    vec2 ao_px = uv * ao_size - vec2(0.5);
+    vec2 base_px = floor(ao_px);
+    vec2 frac_px = fract(ao_px);
+
+    float ao_accum = 0.0;
+    float weight_accum = 0.0;
+
+    for (int y = 0; y < 2; ++y) {
+        for (int x = 0; x < 2; ++x) {
+            vec2 corner = vec2(float(x), float(y));
+            vec2 sample_uv = (base_px + corner + vec2(0.5)) * ao_texel;
+            sample_uv = clamp(sample_uv, vec2(0.0), vec2(1.0));
+
+            float ao = texture(g_ssao, sample_uv).r;
+            vec3 sample_position = texture(g_position, sample_uv).rgb;
+            vec3 sample_normal = normalize(texture(g_normal, sample_uv).rgb);
+
+            float bilinear_x = x == 0 ? 1.0 - frac_px.x : frac_px.x;
+            float bilinear_y = y == 0 ? 1.0 - frac_px.y : frac_px.y;
+            float bilinear_weight = bilinear_x * bilinear_y;
+
+            float depth_weight =
+                exp(-abs(sample_position.z - center_position.z) * 32.0);
+            float normal_weight =
+                pow(max(dot(center_normal, sample_normal), 0.0), 16.0);
+
+            float weight = bilinear_weight * depth_weight * normal_weight + 1e-5;
+            ao_accum += ao * weight;
+            weight_accum += weight;
+        }
+    }
+
+    return ao_accum / max(weight_accum, 1e-5);
+}
+
 fn calc_directional_light_deferred(
     sampler2D shadow_map,
     DirectionalLight light,

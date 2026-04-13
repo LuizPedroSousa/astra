@@ -111,7 +111,6 @@ fn main(VertexOutput vertex, Camera camera, GBuffer g_buffer, SSAO ssao) -> Frag
     vec4 sample_depth_4 = _view * vec4(sample_position_texture.rgb, 1);
     float sample_depth = sample_depth_4.z;
 
-
     float range_check = smoothstep(
         0.0,
         1.0,
