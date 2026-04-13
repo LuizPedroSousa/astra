@@ -11,14 +11,26 @@
 
 namespace astralix::editor {
 
+void ConsolePanelController::invalidate_runtime_handles() {
+  m_log_scroll_widget = ui::im::k_invalid_widget_id;
+  m_input_widget = ui::im::k_invalid_widget_id;
+  m_source_chip_widget = ui::im::k_invalid_widget_id;
+  m_severity_chip_widget = ui::im::k_invalid_widget_id;
+  m_header_frozen = false;
+}
+
 void ConsolePanelController::mount(const PanelMountContext &context) {
   m_runtime = context.runtime;
   m_default_font_id = "fonts::noto_sans_mono";
   m_default_font_size = context.default_font_size;
+  invalidate_runtime_handles();
 
   ConsoleManager::get().set_open(true);
-  mark_render_dirty();
-  reset();
+  if (m_follow_tail) {
+    m_force_follow_on_next_refresh = true;
+  }
+  refresh_suggestions(m_suggestions_open);
+  refresh(true);
 }
 
 void ConsolePanelController::unmount() {
@@ -26,10 +38,10 @@ void ConsolePanelController::unmount() {
   set_input_capture(false);
   close_filter_popovers();
   m_runtime = nullptr;
-  m_visible_entries.clear();
-  m_input_suggestions.clear();
-  m_input_autocomplete.clear();
-  m_entries_version = 0u;
+  invalidate_runtime_handles();
+  m_force_scroll_to_bottom_once = false;
+  m_request_input_focus = false;
+  m_request_input_select_to_end = false;
   mark_render_dirty();
 }
 

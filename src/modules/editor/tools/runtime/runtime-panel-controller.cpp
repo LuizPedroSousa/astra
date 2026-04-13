@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -364,6 +365,7 @@ void RuntimePanelController::sample_gpu_metrics() {
 }
 
 void RuntimePanelController::mount(const PanelMountContext &) {
+  m_last_rendered_header_version = std::numeric_limits<uint64_t>::max();
   m_sample_elapsed = 0.0;
   m_sample_frames = 0u;
   m_average_fps = 0.0f;
@@ -1056,6 +1058,7 @@ std::optional<uint64_t> RuntimePanelController::render_version() const {
 }
 
 void RuntimePanelController::unmount() {
+  m_last_rendered_header_version = std::numeric_limits<uint64_t>::max();
   m_fps_history.clear();
   m_frame_time_history.clear();
   m_chart_sample_elapsed = 0.0;

@@ -41,67 +41,42 @@ private:
   ui::im::WidgetId m_viewport_image_widget = ui::im::k_invalid_widget_id;
   RenderViewSlot m_main_view{
       .label = "Scene",
-      .key = RenderImageExportKey{
-          .resource = RenderImageResource::SceneColor,
-          .aspect = RenderImageAspect::Color0,
-      },
+      .key = make_render_image_export_key(RenderImageResource::SceneColor),
   };
   std::array<RenderViewSlot, kAttachmentViewCount> m_attachment_views{{
       {
           .label = "Shadow",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::ShadowMap,
-              .aspect = RenderImageAspect::Depth,
-          },
+          .key = make_render_image_export_key(
+              RenderImageResource::ShadowMap, RenderImageAspect::Depth
+          ),
       },
       {
           .label = "Position",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::GBuffer,
-              .aspect = RenderImageAspect::Color0,
-          },
+          .key = make_g_buffer_export_key(GBufferAspect::Position),
       },
       {
           .label = "Normal",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::GBuffer,
-              .aspect = RenderImageAspect::Color1,
-          },
+          .key = make_g_buffer_export_key(GBufferAspect::Normal),
       },
       {
           .label = "Albedo",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::GBuffer,
-              .aspect = RenderImageAspect::Color2,
-          },
+          .key = make_g_buffer_export_key(GBufferAspect::Albedo),
       },
       {
           .label = "Emissive/Bloom",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::GBuffer,
-              .aspect = RenderImageAspect::Color3,
-          },
+          .key = make_g_buffer_export_key(GBufferAspect::Emissive),
       },
       {
           .label = "SSAO",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::SSAO,
-              .aspect = RenderImageAspect::Color0,
-          },
+          .key = make_render_image_export_key(RenderImageResource::SSAO),
       },
       {
           .label = "SSAO Blur",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::SSAOBlur,
-              .aspect = RenderImageAspect::Color0,
-          },
+          .key = make_render_image_export_key(RenderImageResource::SSAOBlur),
       },
       {
           .label = "Bloom",
-          .key = RenderImageExportKey{
-              .resource = RenderImageResource::Bloom,
-              .aspect = RenderImageAspect::Color0,
-          },
+          .key = make_render_image_export_key(RenderImageResource::Bloom),
       },
   }};
   bool m_show_attachments = false;
