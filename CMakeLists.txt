@@ -149,6 +149,7 @@ if(ASTRA_ENABLE_TESTS)
                                 ${CMAKE_SOURCE_DIR}/src/modules/renderer
                                 ${CMAKE_SOURCE_DIR}/src/modules/ui
                                 ${CMAKE_SOURCE_DIR}/src/modules/physics
+                                ${CMAKE_SOURCE_DIR}/src/modules/audio
                                 ${CMAKE_SOURCE_DIR}/src/modules/project
                                 ${CMAKE_SOURCE_DIR}/src/modules/window)
 endif()
@@ -201,6 +202,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/modules/renderer)
   add_subdirectory(src/modules/ui)
   add_subdirectory(src/modules/physics)
+  add_subdirectory(src/modules/audio)
   add_subdirectory(src/modules/engine)
   add_subdirectory(src/modules/application)
 endif()
@@ -244,6 +246,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       renderer
       ui
       physics
+      audio
       engine
       application
       stb_image
@@ -285,6 +288,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       astralix::renderer
       astralix::ui
       astralix::physics
+      astralix::audio
       astralix::engine
       astralix::application
       astralix::stb_image)
@@ -301,6 +305,7 @@ if(NOT ASTRA_ENABLE_TESTS)
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/renderer>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/ui>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/physics>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/audio>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/engine>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/application>
     $<BUILD_INTERFACE:${ASTRALIX_ENGINE_GENERATED_DIR}>
@@ -315,6 +320,7 @@ if(NOT ASTRA_ENABLE_TESTS)
     $<INSTALL_INTERFACE:include/astralix/modules/renderer>
     $<INSTALL_INTERFACE:include/astralix/modules/ui>
     $<INSTALL_INTERFACE:include/astralix/modules/physics>
+    $<INSTALL_INTERFACE:include/astralix/modules/audio>
     $<INSTALL_INTERFACE:include/astralix/modules/engine>
     $<INSTALL_INTERFACE:include/astralix/modules/application>
     $<INSTALL_INTERFACE:include/astralix/assets/.astralix/generated>
@@ -361,6 +367,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       renderer
       ui
       physics
+      audio
       engine
       application
   )
@@ -393,6 +400,7 @@ if(NOT ASTRA_ENABLE_TESTS)
           renderer
           ui
           physics
+          audio
           engine
           application
           editor
