@@ -49,6 +49,11 @@
       "path": "fonts/noto-sans-mono.ttf"
     },
     {
+      "id": "audio_clips::tense",
+      "type": "AudioClip",
+      "path": "audios/tense.wav"
+    },
+    {
       "id": "icons::adjust",
       "type": "Svg",
       "path": "@engine/icons/adjust.svg"
@@ -419,6 +424,13 @@
             "y": 0.0
           }
         }
+      }
+    },
+    {
+      "name": "audio",
+      "content": {
+        "backend": "miniaudio",
+        "master_gain": 1
       }
     },
     {
