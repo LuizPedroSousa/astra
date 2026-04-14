@@ -108,6 +108,14 @@ uint32_t max_field_end_offset(const std::vector<ShaderValueFieldDesc> &fields) {
   return end_offset;
 }
 
+uint32_t value_field_alignment(const ShaderValueFieldDesc &field) {
+  if (field.array_stride > 0 || field.matrix_stride > 0) {
+    return 16;
+  }
+
+  return std140_base_alignment(field.type.kind);
+}
+
 TypeRef strip_array_type(TypeRef type) {
   type.array_size.reset();
   type.is_runtime_sized = false;
@@ -515,6 +523,91 @@ bool apply_block_descriptor_set(
   return true;
 }
 
+void apply_cross_stage_value_block_layout(
+    ShaderValueBlockDesc &block,
+    std::vector<ShaderValueFieldDesc> &cross_stage_fields
+) {
+  if (cross_stage_fields.empty()) {
+    cross_stage_fields = block.fields;
+    return;
+  }
+
+  std::vector<ShaderValueFieldDesc *> new_fields;
+
+  for (auto &field : block.fields) {
+    auto field_it = std::find_if(
+        cross_stage_fields.begin(),
+        cross_stage_fields.end(),
+        [&](const ShaderValueFieldDesc &cross_stage_field) {
+          return cross_stage_field.logical_name == field.logical_name;
+        }
+    );
+
+    if (field_it != cross_stage_fields.end()) {
+      field.offset = field_it->offset;
+      field_it->stage_mask |= field.stage_mask;
+      continue;
+    }
+
+    new_fields.push_back(&field);
+  }
+
+  if (!new_fields.empty()) {
+    const auto first_new_field_it = std::min_element(
+        new_fields.begin(), new_fields.end(),
+        [](const ShaderValueFieldDesc *lhs, const ShaderValueFieldDesc *rhs) {
+          return lhs->offset < rhs->offset;
+        }
+    );
+    const uint32_t local_base_offset = (*first_new_field_it)->offset;
+    uint32_t cross_stage_base_offset =
+        max_field_end_offset(cross_stage_fields);
+    while (!std::all_of(
+        new_fields.begin(), new_fields.end(),
+        [&](const ShaderValueFieldDesc *field) {
+          const uint32_t shifted_offset =
+              cross_stage_base_offset + (field->offset - local_base_offset);
+          return shifted_offset % value_field_alignment(*field) == 0;
+        }
+    )) {
+      ++cross_stage_base_offset;
+    }
+
+    for (auto *field : new_fields) {
+      field->offset =
+          cross_stage_base_offset + (field->offset - local_base_offset);
+    }
+  }
+
+  for (const auto *field : new_fields) {
+    cross_stage_fields.push_back(*field);
+  }
+
+  std::sort(
+      block.fields.begin(),
+      block.fields.end(),
+      [](const ShaderValueFieldDesc &lhs, const ShaderValueFieldDesc &rhs) {
+        if (lhs.offset != rhs.offset) {
+          return lhs.offset < rhs.offset;
+        }
+        return lhs.logical_name < rhs.logical_name;
+      }
+  );
+  std::sort(
+      cross_stage_fields.begin(),
+      cross_stage_fields.end(),
+      [](const ShaderValueFieldDesc &lhs, const ShaderValueFieldDesc &rhs) {
+        if (lhs.offset != rhs.offset) {
+          return lhs.offset < rhs.offset;
+        }
+        return lhs.logical_name < rhs.logical_name;
+      }
+  );
+
+  block.size =
+      finalize_std140_block_size(max_field_end_offset(cross_stage_fields));
+}
+
 } // namespace
 
 LayoutAssignmentResult
@@ -692,6 +785,12 @@ LayoutAssignment::assign(const StageReflection &reflection) {
   std::sort(ordered_value_blocks.begin(), ordered_value_blocks.end(), [](const ShaderValueBlockDesc &lhs, const ShaderValueBlockDesc &rhs) {
     return lhs.logical_name < rhs.logical_name;
   });
+
+  for (auto &block : ordered_value_blocks) {
+    apply_cross_stage_value_block_layout(
+        block, m_cross_stage_value_block_fields[block.logical_name]
+    );
+  }
 
   {
     std::map<uint32_t, uint32_t> next_binding_per_set;

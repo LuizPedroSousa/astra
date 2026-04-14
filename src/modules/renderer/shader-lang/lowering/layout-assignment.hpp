@@ -24,6 +24,8 @@ private:
   std::set<std::pair<uint32_t, uint32_t>> m_cross_stage_reserved_slots;
   std::unordered_map<std::string, uint32_t> m_cross_stage_resource_bindings;
   std::unordered_map<std::string, uint32_t> m_cross_stage_block_bindings;
+  std::unordered_map<std::string, std::vector<ShaderValueFieldDesc>>
+      m_cross_stage_value_block_fields;
 };
 
 } // namespace astralix

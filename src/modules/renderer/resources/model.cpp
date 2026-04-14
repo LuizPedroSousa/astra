@@ -3,7 +3,6 @@
 #include "assert.hpp"
 #include "assimp/Importer.hpp"
 #include "assimp/material.h"
-#include "assimp/pbrmaterial.h"
 #include "assimp/postprocess.h"
 #include "guid.hpp"
 #include "managers/path-manager.hpp"
@@ -15,6 +14,10 @@
 namespace astralix {
 
 namespace {
+
+// Assimp 5.4 names this slot, but older distro headers may not.
+constexpr aiTextureType k_gltf_metallic_roughness_texture_type =
+    static_cast<aiTextureType>(27);
 
 std::optional<ResourceDescriptorID> load_material_texture(
     const ResourceDescriptorID &material_id, aiMaterial *ai_material,
@@ -196,7 +199,7 @@ void Model::load_material(ResourceDescriptorID material_id,
       material_id, ai_material, aiTextureType_DIFFUSE_ROUGHNESS, path,
       "roughness");
   const auto metallic_roughness = load_material_texture(
-      material_id, ai_material, aiTextureType_GLTF_METALLIC_ROUGHNESS, path,
+      material_id, ai_material, k_gltf_metallic_roughness_texture_type, path,
       "metallic_roughness");
   const auto occlusion = load_material_texture(
       material_id, ai_material, aiTextureType_AMBIENT_OCCLUSION, path,

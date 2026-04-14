@@ -622,14 +622,6 @@ TEST(OpenGLExecutorTest, ConvertsTopLeftScissorCoordsToOpenGLCoords) {
   EXPECT_EQ(api->scissor, glm::uvec4(5u, 12u, 11u, 13u));
 }
 
-TEST(OpenGLExecutorTest, ResolveImageUsesExecutorOwnedImagePath) {
-  GTEST_SKIP() << "ResolveImage coverage requires a real OpenGL image harness after framebuffer-source removal.";
-}
-
-TEST(OpenGLExecutorTest, ReadPixelUsesExecutorOwnedImagePath) {
-  GTEST_SKIP() << "Readback coverage requires a real OpenGL image harness after framebuffer-source removal.";
-}
-
 TEST(OpenGLExecutorTest, SamplesTextureResourceImages) {
   auto renderer_api = create_scope<FakeRendererAPI>();
   auto *api = renderer_api.get();
