@@ -33,6 +33,7 @@ enum class ComponentType {
   Light,
   PointLightAttenuation,
   SpotLightCone,
+  SpotLightAttenuation,
   DirectionalShadowSettings,
   SpotLightTarget,
   ModelRef,
@@ -65,6 +66,7 @@ inline ComponentType component_type_from_string(std::string_view name) {
       {"Light", ComponentType::Light},
       {"PointLightAttenuation", ComponentType::PointLightAttenuation},
       {"SpotLightCone", ComponentType::SpotLightCone},
+      {"SpotLightAttenuation", ComponentType::SpotLightAttenuation},
       {"DirectionalShadowSettings", ComponentType::DirectionalShadowSettings},
       {"SpotLightTarget", ComponentType::SpotLightTarget},
       {"ModelRef", ComponentType::ModelRef},
@@ -155,6 +157,10 @@ inline void apply_component_snapshot(ecs::EntityRef entity, const ComponentSnaps
 
     case ComponentType::SpotLightCone:
       apply_spot_light_cone_snapshot(entity, fields);
+      break;
+
+    case ComponentType::SpotLightAttenuation:
+      apply_spot_light_attenuation_snapshot(entity, fields);
       break;
 
     case ComponentType::DirectionalShadowSettings:

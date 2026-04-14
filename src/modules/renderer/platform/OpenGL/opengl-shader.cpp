@@ -18,6 +18,7 @@ namespace astralix {
 OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
                            Ref<ShaderDescriptor> descriptor)
     : Shader(resource_id, descriptor->id) {
+  static constexpr int k_axsl_glsl_cache_version = 2;
 
   Compiler compiler;
 
@@ -54,6 +55,10 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
     return resolved.parent_path() /
            (resolved.stem().string() + "." + ext + ".glsl");
   };
+  auto cache_version_path = [&](const std::filesystem::path &resolved) {
+    return resolved.parent_path() /
+           (resolved.stem().string() + ".glsl.cache.version");
+  };
 
   std::map<std::string, CompileResult> axsl_results;
 
@@ -64,6 +69,7 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
 
     auto key = resolved.string();
     auto reflection_path = shader_reflection_sidecar_path(resolved);
+    auto version_path = cache_version_path(resolved);
 
     if (axsl_results.count(key)) {
       return;
@@ -73,10 +79,19 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
     bool any_exists = false;
     bool any_stale = false;
     bool reflection_ready = std::filesystem::exists(reflection_path);
+    bool cache_version_ready = false;
 
     if (reflection_ready &&
         std::filesystem::last_write_time(reflection_path) < source_mtime) {
       reflection_ready = false;
+    }
+
+    if (std::filesystem::exists(version_path)) {
+      std::ifstream version_file(version_path);
+      int cached_version = 0;
+      if (version_file >> cached_version) {
+        cache_version_ready = cached_version == k_axsl_glsl_cache_version;
+      }
     }
 
     for (auto [kind, ext] : stage_extensions) {
@@ -93,7 +108,7 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
       }
     }
 
-    if (any_exists && !any_stale && reflection_ready) {
+    if (any_exists && !any_stale && reflection_ready && cache_version_ready) {
       CompileResult cached_result;
       for (auto [kind, ext] : stage_extensions) {
         auto cached = cache_path(resolved, ext);
@@ -153,6 +168,15 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
       ASTRA_ENSURE(!reflection_out.good(),
                    "cannot write reflection sidecar '" +
                        reflection_path.string() + "'");
+
+      std::ofstream version_out(version_path, std::ios::trunc);
+      ASTRA_ENSURE(!version_out,
+                   "cannot write shader cache version sidecar '" +
+                       version_path.string() + "'");
+      version_out << k_axsl_glsl_cache_version;
+      ASTRA_ENSURE(!version_out.good(),
+                   "cannot write shader cache version sidecar '" +
+                       version_path.string() + "'");
     }
 
     axsl_results[key] = std::move(result);

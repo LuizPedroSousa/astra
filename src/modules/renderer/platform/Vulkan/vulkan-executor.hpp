@@ -100,6 +100,9 @@ private:
   void ensure_default_images_initialized(VkCommandBuffer command_buffer);
   VkSampler sampler_for_format(VkFormat format, VkImageAspectFlags aspect);
   VulkanUploadArena &current_upload_arena();
+  VulkanUploadArena::Allocation allocate_upload_allocation(
+      VkDeviceSize size, VkDeviceSize alignment = 16
+  );
   void transition_swapchain_image(VkCommandBuffer command_buffer, VkImageLayout new_layout);
   void transition_image(VkCommandBuffer command_buffer, const ResolvedImageResource &image, VkImageLayout new_layout);
   VkImageLayout tracked_layout_for(const ResolvedImageResource &image) const;
@@ -171,6 +174,8 @@ private:
   AstraVkTraceContext m_tracy_graphics_ctx = nullptr;
   std::array<std::vector<PendingReadback>, MAX_FRAMES_IN_FLIGHT>
       m_pending_readbacks;
+  std::array<std::vector<Scope<VulkanBuffer>>, MAX_FRAMES_IN_FLIGHT>
+      m_frame_upload_buffers;
   std::unordered_map<uint32_t, UploadedBufferBinding> m_uploaded_vertex_buffers;
   std::unordered_map<uint32_t, UploadedBufferBinding> m_uploaded_index_buffers;
   std::array<std::unordered_map<DescriptorSetCacheKey, VkDescriptorSet, DescriptorSetCacheKeyHash>, MAX_FRAMES_IN_FLIGHT>

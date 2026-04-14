@@ -69,21 +69,33 @@ public:
 
     using namespace shader_bindings::engine_shaders_lighting_forward_axsl;
     const rendering::MaterialBindingLayout engine_material_layout{
-        .diffuse = rendering::MaterialTextureBindingPoint{
-            .logical_name = MaterialResources::diffuse.logical_name,
-            .binding_id = MaterialResources::diffuse.binding_id,
+        .base_color = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::base_color.logical_name,
+            .binding_id = MaterialResources::base_color.binding_id,
         },
-        .specular = rendering::MaterialTextureBindingPoint{
-            .logical_name = MaterialResources::specular.logical_name,
-            .binding_id = MaterialResources::specular.binding_id,
+        .normal = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::normal.logical_name,
+            .binding_id = MaterialResources::normal.binding_id,
         },
-        .normal_map = rendering::MaterialTextureBindingPoint{
-            .logical_name = MaterialResources::normal_map.logical_name,
-            .binding_id = MaterialResources::normal_map.binding_id,
+        .metallic = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::metallic.logical_name,
+            .binding_id = MaterialResources::metallic.binding_id,
         },
-        .displacement_map = rendering::MaterialTextureBindingPoint{
-            .logical_name = MaterialResources::displacement_map.logical_name,
-            .binding_id = MaterialResources::displacement_map.binding_id,
+        .roughness = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::roughness.logical_name,
+            .binding_id = MaterialResources::roughness.binding_id,
+        },
+        .occlusion = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::occlusion.logical_name,
+            .binding_id = MaterialResources::occlusion.binding_id,
+        },
+        .emissive = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::emissive.logical_name,
+            .binding_id = MaterialResources::emissive.binding_id,
+        },
+        .displacement = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::displacement.logical_name,
+            .binding_id = MaterialResources::displacement.binding_id,
         },
     };
 

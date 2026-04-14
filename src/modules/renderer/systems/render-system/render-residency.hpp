@@ -106,20 +106,36 @@ inline void request_material_descriptor_textures(
     return;
   }
 
-  for (const auto &diffuse_id : material->diffuse_ids) {
-    request_texture(requests, diffuse_id, false);
+  if (material->base_color_id.has_value()) {
+    request_texture(requests, *material->base_color_id, false);
   }
 
-  for (const auto &specular_id : material->specular_ids) {
-    request_texture(requests, specular_id, false);
+  if (material->normal_id.has_value()) {
+    request_texture(requests, *material->normal_id, false);
   }
 
-  if (material->normal_map_ids.has_value()) {
-    request_texture(requests, *material->normal_map_ids, false);
+  if (material->metallic_id.has_value()) {
+    request_texture(requests, *material->metallic_id, false);
   }
 
-  if (material->displacement_map_ids.has_value()) {
-    request_texture(requests, *material->displacement_map_ids, false);
+  if (material->roughness_id.has_value()) {
+    request_texture(requests, *material->roughness_id, false);
+  }
+
+  if (material->metallic_roughness_id.has_value()) {
+    request_texture(requests, *material->metallic_roughness_id, false);
+  }
+
+  if (material->occlusion_id.has_value()) {
+    request_texture(requests, *material->occlusion_id, false);
+  }
+
+  if (material->emissive_id.has_value()) {
+    request_texture(requests, *material->emissive_id, false);
+  }
+
+  if (material->displacement_id.has_value()) {
+    request_texture(requests, *material->displacement_id, false);
   }
 }
 

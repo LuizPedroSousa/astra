@@ -39,6 +39,11 @@ TEST(LightFrameTest, CollectsDirectionalPointAndSpotLightData) {
       .inner_cutoff_cos = 0.8f,
       .outer_cutoff_cos = 0.6f,
   });
+  spot.emplace<SpotLightAttenuation>(SpotLightAttenuation{
+      .constant = 1.25f,
+      .linear = 0.2f,
+      .quadratic = 0.05f,
+  });
 
   const auto frame = collect_light_frame(world);
 
@@ -59,6 +64,9 @@ TEST(LightFrameTest, CollectsDirectionalPointAndSpotLightData) {
   EXPECT_EQ(frame.spot.direction, glm::vec3(0.0f, 0.0f, -1.0f));
   EXPECT_FLOAT_EQ(frame.spot.inner_cutoff_cos, 0.8f);
   EXPECT_FLOAT_EQ(frame.spot.outer_cutoff_cos, 0.6f);
+  EXPECT_FLOAT_EQ(frame.spot.constant, 1.25f);
+  EXPECT_FLOAT_EQ(frame.spot.linear, 0.2f);
+  EXPECT_FLOAT_EQ(frame.spot.quadratic, 0.05f);
 }
 
 TEST(LightFrameTest, FallsBackToMainCameraForSpotLightWhenTargetIsMissing) {
@@ -101,27 +109,41 @@ TEST(LightFrameTest, BuildsForwardLightParamsFromMaterialBindingsAndPreparedLigh
   spot.emplace<scene::Transform>();
   spot.emplace<Light>(Light{.type = LightType::Spot});
   spot.emplace<SpotLightTarget>(SpotLightTarget{.camera = camera.id()});
+  spot.emplace<SpotLightAttenuation>(SpotLightAttenuation{
+      .constant = 1.5f,
+      .linear = 0.15f,
+      .quadratic = 0.025f,
+  });
 
   MaterialBindingState binding;
-  binding.diffuse_slot = 2;
-  binding.specular_slot = 4;
-  binding.normal_map_slot = -1;
-  binding.displacement_map_slot = -1;
-  binding.shininess = 64.0f;
-  binding.emissive = glm::vec3(3.0f, 2.0f, 1.0f);
+  binding.base_color_factor = glm::vec4(0.9f, 0.8f, 0.7f, 1.0f);
+  binding.emissive_factor = glm::vec3(3.0f, 2.0f, 1.0f);
+  binding.metallic_factor = 0.25f;
+  binding.roughness_factor = 0.65f;
+  binding.occlusion_strength = 0.75f;
+  binding.normal_scale = 0.5f;
   binding.bloom_intensity = 1.5f;
 
   const auto frame = collect_light_frame(world);
   auto params = build_forward_light_params(frame, binding);
 
-  EXPECT_FLOAT_EQ(params.materials[0].shininess, 64.0f);
-  EXPECT_EQ(params.materials[0].emissive, glm::vec3(3.0f, 2.0f, 1.0f));
+  EXPECT_EQ(params.materials[0].base_color_factor,
+            glm::vec4(0.9f, 0.8f, 0.7f, 1.0f));
+  EXPECT_EQ(params.materials[0].emissive_factor,
+            glm::vec3(3.0f, 2.0f, 1.0f));
+  EXPECT_FLOAT_EQ(params.materials[0].metallic_factor, 0.25f);
+  EXPECT_FLOAT_EQ(params.materials[0].roughness_factor, 0.65f);
+  EXPECT_FLOAT_EQ(params.materials[0].occlusion_strength, 0.75f);
+  EXPECT_FLOAT_EQ(params.materials[0].normal_scale, 0.5f);
   EXPECT_FLOAT_EQ(params.materials[0].bloom_intensity, 1.5f);
   EXPECT_EQ(params.bloom_layer, k_default_bloom_render_layer);
   EXPECT_EQ(params.directional.position, glm::vec3(-4.0f, 8.0f, -3.0f));
   EXPECT_EQ(params.point_lights[0].position, glm::vec3(5.0f, 1.0f, -2.0f));
   EXPECT_EQ(params.spot_light.position, glm::vec3(1.0f, 2.0f, 3.0f));
   EXPECT_EQ(params.spot_light.direction, glm::vec3(0.0f, 0.0f, -1.0f));
+  EXPECT_FLOAT_EQ(params.spot_light.attenuation.constant, 1.5f);
+  EXPECT_FLOAT_EQ(params.spot_light.attenuation.linear, 0.15f);
+  EXPECT_FLOAT_EQ(params.spot_light.attenuation.quadratic, 0.025f);
 }
 #endif
 

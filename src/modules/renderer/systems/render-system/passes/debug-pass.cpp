@@ -64,10 +64,12 @@ void DebugGBufferPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
   const auto *g_normal_resource = ctx.find_graph_image("g_normal");
   const auto *g_albedo_resource = ctx.find_graph_image("g_albedo");
   const auto *g_emissive_resource = ctx.find_graph_image("g_emissive");
+  const auto *g_entity_id_resource = ctx.find_graph_image("g_entity_id");
 
   if (!m_active || scene_color_resource == nullptr ||
       g_position_resource == nullptr || g_normal_resource == nullptr ||
       g_albedo_resource == nullptr || g_emissive_resource == nullptr ||
+      g_entity_id_resource == nullptr ||
       m_shader == nullptr || m_fullscreen_quad.vertex_array == nullptr ||
       m_fullscreen_quad.index_count == 0) {
     return;
@@ -108,8 +110,8 @@ void DebugGBufferPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
       "debug-gbuffer.attachment",
       *attachments[static_cast<size_t>(m_attachment_index)]
   );
-  auto normal_mask = ctx.register_graph_image(
-      "debug-gbuffer.normal-mask", *g_normal_resource
+  auto entity_mask = ctx.register_graph_image(
+      "debug-gbuffer.entity-mask", *g_entity_id_resource
   );
 
   auto scene_color = ctx.register_graph_image(
@@ -136,8 +138,8 @@ void DebugGBufferPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
       ImageViewRef{.image = selected_attachment}
   );
   frame.add_sampled_image_binding(
-      bindings, GBufferResources::g_normal_mask.binding_id,
-      ImageViewRef{.image = normal_mask}
+      bindings, GBufferResources::g_entity_mask.binding_id,
+      ImageViewRef{.image = entity_mask}
   );
 
   rendering::record_shader_params(frame, bindings, GBufferParams{

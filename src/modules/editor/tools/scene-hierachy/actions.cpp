@@ -78,6 +78,7 @@ void SceneHierarchyPanelController::create_light_entity(
     entity.emplace<rendering::PointLightAttenuation>();
   } else if (type == rendering::LightType::Spot) {
     entity.emplace<rendering::SpotLightCone>();
+    entity.emplace<rendering::SpotLightAttenuation>();
   }
 
   close_menus();

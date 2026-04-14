@@ -133,6 +133,10 @@ inline LightFrameData collect_light_frame(ecs::World &world) {
         const auto *cone = world.get<SpotLightCone>(entity_id);
         const SpotLightCone fallback_cone{};
         const auto &settings = cone != nullptr ? *cone : fallback_cone;
+        const auto *attenuation = world.get<SpotLightAttenuation>(entity_id);
+        const SpotLightAttenuation fallback_attenuation{};
+        const auto &attenuation_settings =
+            attenuation != nullptr ? *attenuation : fallback_attenuation;
 
         frame.spot.valid = true;
         frame.spot.position = camera_transform->position;
@@ -142,6 +146,9 @@ inline LightFrameData collect_light_frame(ecs::World &world) {
         frame.spot.specular = light_term(light, glm::vec3(1.0f));
         frame.spot.inner_cutoff_cos = settings.inner_cutoff_cos;
         frame.spot.outer_cutoff_cos = settings.outer_cutoff_cos;
+        frame.spot.constant = attenuation_settings.constant;
+        frame.spot.linear = attenuation_settings.linear;
+        frame.spot.quadratic = attenuation_settings.quadratic;
         return;
       }
     }
@@ -187,6 +194,9 @@ inline void populate_spot_light_params(const LightFrameData &frame, Params &para
   params.spot_light.direction = frame.spot.direction;
   params.spot_light.inner_cut_off = frame.spot.inner_cutoff_cos;
   params.spot_light.outer_cut_off = frame.spot.outer_cutoff_cos;
+  params.spot_light.attenuation.constant = frame.spot.constant;
+  params.spot_light.attenuation.linear = frame.spot.linear;
+  params.spot_light.attenuation.quadratic = frame.spot.quadratic;
 }
 
 inline shader_bindings::engine_shaders_g_buffer_axsl::SceneLightParams
@@ -205,8 +215,14 @@ build_gbuffer_material_params(const MaterialBindingState &material_binding) {
   using namespace shader_bindings::engine_shaders_g_buffer_axsl;
 
   MaterialParams params{};
-  params.materials[0].shininess = material_binding.shininess;
-  params.materials[0].emissive = material_binding.emissive;
+  params.materials[0].base_color_factor = material_binding.base_color_factor;
+  params.materials[0].emissive_factor = material_binding.emissive_factor;
+  params.materials[0].metallic_channel = material_binding.metallic_channel;
+  params.materials[0].roughness_channel = material_binding.roughness_channel;
+  params.materials[0].metallic_factor = material_binding.metallic_factor;
+  params.materials[0].roughness_factor = material_binding.roughness_factor;
+  params.materials[0].occlusion_strength = material_binding.occlusion_strength;
+  params.materials[0].normal_scale = material_binding.normal_scale;
   params.materials[0].bloom_intensity = material_binding.bloom_intensity;
 
   return params;
@@ -245,8 +261,14 @@ build_forward_material_params(const MaterialBindingState &material_binding) {
   using namespace shader_bindings::engine_shaders_lighting_forward_axsl;
 
   MaterialParams params{};
-  params.materials[0].shininess = material_binding.shininess;
-  params.materials[0].emissive = material_binding.emissive;
+  params.materials[0].base_color_factor = material_binding.base_color_factor;
+  params.materials[0].emissive_factor = material_binding.emissive_factor;
+  params.materials[0].metallic_channel = material_binding.metallic_channel;
+  params.materials[0].roughness_channel = material_binding.roughness_channel;
+  params.materials[0].metallic_factor = material_binding.metallic_factor;
+  params.materials[0].roughness_factor = material_binding.roughness_factor;
+  params.materials[0].occlusion_strength = material_binding.occlusion_strength;
+  params.materials[0].normal_scale = material_binding.normal_scale;
   params.materials[0].bloom_intensity = material_binding.bloom_intensity;
 
   return params;

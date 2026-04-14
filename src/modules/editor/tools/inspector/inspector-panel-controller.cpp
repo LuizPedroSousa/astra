@@ -3,7 +3,9 @@
 
 #include "editor-selection-store.hpp"
 #include "entities/serializers/scene-snapshot.hpp"
+#include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
+#include "resources/descriptors/material-descriptor.hpp"
 #include "trace.hpp"
 
 #include <algorithm>
@@ -11,6 +13,111 @@
 
 namespace astralix::editor {
 namespace panel = inspector_panel;
+
+namespace {
+
+std::string optional_descriptor_label(
+    const std::optional<ResourceDescriptorID> &descriptor_id
+) {
+  return descriptor_id.has_value() ? *descriptor_id : std::string("(none)");
+}
+
+serialization::ComponentSnapshot
+build_material_properties_snapshot(const ResourceDescriptorID &material_id) {
+  serialization::ComponentSnapshot snapshot{
+      .name = std::string(panel::k_material_properties_component_name)};
+  snapshot.fields.push_back({"material_id", material_id});
+
+  auto manager = resource_manager();
+  auto material = manager != nullptr
+                      ? manager->get_by_descriptor_id<MaterialDescriptor>(material_id)
+                      : nullptr;
+  const bool loaded = material != nullptr;
+  snapshot.fields.push_back({"descriptor_loaded", loaded});
+
+  if (!loaded) {
+    return snapshot;
+  }
+
+  snapshot.fields.push_back(
+      {"base_color_id", optional_descriptor_label(material->base_color_id)}
+  );
+  snapshot.fields.push_back(
+      {"normal_id", optional_descriptor_label(material->normal_id)}
+  );
+  snapshot.fields.push_back(
+      {"metallic_id", optional_descriptor_label(material->metallic_id)}
+  );
+  snapshot.fields.push_back(
+      {"roughness_id", optional_descriptor_label(material->roughness_id)}
+  );
+  snapshot.fields.push_back({"metallic_roughness_id",
+                             optional_descriptor_label(
+                                 material->metallic_roughness_id
+                             )});
+  snapshot.fields.push_back(
+      {"occlusion_id", optional_descriptor_label(material->occlusion_id)}
+  );
+  snapshot.fields.push_back(
+      {"emissive_id", optional_descriptor_label(material->emissive_id)}
+  );
+  snapshot.fields.push_back(
+      {"displacement_id", optional_descriptor_label(material->displacement_id)}
+  );
+  snapshot.fields.push_back(
+      {"base_color_factor.x", material->base_color_factor.x}
+  );
+  snapshot.fields.push_back(
+      {"base_color_factor.y", material->base_color_factor.y}
+  );
+  snapshot.fields.push_back(
+      {"base_color_factor.z", material->base_color_factor.z}
+  );
+  snapshot.fields.push_back(
+      {"base_color_factor.w", material->base_color_factor.w}
+  );
+  snapshot.fields.push_back({"emissive_factor.x", material->emissive_factor.x});
+  snapshot.fields.push_back({"emissive_factor.y", material->emissive_factor.y});
+  snapshot.fields.push_back({"emissive_factor.z", material->emissive_factor.z});
+  snapshot.fields.push_back({"metallic_factor", material->metallic_factor});
+  snapshot.fields.push_back({"roughness_factor", material->roughness_factor});
+  snapshot.fields.push_back(
+      {"occlusion_strength", material->occlusion_strength}
+  );
+  snapshot.fields.push_back({"normal_scale", material->normal_scale});
+  snapshot.fields.push_back({"bloom_intensity", material->bloom_intensity});
+  return snapshot;
+}
+
+void append_material_properties_snapshot(
+    std::vector<serialization::ComponentSnapshot> &components
+) {
+  const auto *material_slots =
+      panel::find_component_snapshot(components, "MaterialSlots");
+  if (material_slots == nullptr) {
+    return;
+  }
+
+  const auto material_id =
+      serialization::fields::read_string(material_slots->fields, "material_0");
+  if (!material_id.has_value() || material_id->empty()) {
+    return;
+  }
+
+  auto insert_position = components.end();
+  for (auto it = components.begin(); it != components.end(); ++it) {
+    if (it->name == "MaterialSlots") {
+      insert_position = std::next(it);
+      break;
+    }
+  }
+
+  components.insert(
+      insert_position, build_material_properties_snapshot(*material_id)
+  );
+}
+
+} // namespace
 
 void InspectorPanelController::mount(const PanelMountContext &context) {
   static_cast<void>(context);
@@ -60,6 +167,7 @@ InspectorPanelController::collect_snapshot() const {
   snapshot.entity_name = std::string(entity.name());
   snapshot.entity_active = entity.active();
   snapshot.components = serialization::collect_entity_component_snapshots(entity);
+  append_material_properties_snapshot(snapshot.components);
   return snapshot;
 }
 

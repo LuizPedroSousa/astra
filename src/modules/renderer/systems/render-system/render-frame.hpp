@@ -69,6 +69,9 @@ struct SpotLightPacket {
   glm::vec3 specular = glm::vec3(0.0f);
   float inner_cutoff_cos = 0.0f;
   float outer_cutoff_cos = 0.0f;
+  float constant = 1.0f;
+  float linear = 0.045f;
+  float quadratic = 0.0075f;
 };
 
 struct LightFrameData {
@@ -86,16 +89,29 @@ struct ResolvedTextureBinding {
 
 struct ResolvedMaterialData {
   ResourceDescriptorID material_id;
-  glm::vec3 emissive = glm::vec3(0.0f);
-  float bloom_intensity = 0.0f;
-  ResourceDescriptorID diffuse_descriptor_id;
-  ResourceDescriptorID specular_descriptor_id;
+  ResourceDescriptorID base_color_descriptor_id;
   ResourceDescriptorID normal_descriptor_id;
+  ResourceDescriptorID metallic_descriptor_id;
+  ResourceDescriptorID roughness_descriptor_id;
+  ResourceDescriptorID metallic_roughness_descriptor_id;
+  ResourceDescriptorID occlusion_descriptor_id;
+  ResourceDescriptorID emissive_descriptor_id;
   ResourceDescriptorID displacement_descriptor_id;
-  Ref<Texture> diffuse = nullptr;
-  Ref<Texture> specular = nullptr;
+  Ref<Texture> base_color = nullptr;
   Ref<Texture> normal = nullptr;
+  Ref<Texture> metallic = nullptr;
+  Ref<Texture> roughness = nullptr;
+  Ref<Texture> metallic_roughness = nullptr;
+  Ref<Texture> occlusion = nullptr;
+  Ref<Texture> emissive = nullptr;
   Ref<Texture> displacement = nullptr;
+  glm::vec4 base_color_factor = glm::vec4(1.0f);
+  glm::vec3 emissive_factor = glm::vec3(0.0f);
+  float metallic_factor = 1.0f;
+  float roughness_factor = 1.0f;
+  float occlusion_strength = 1.0f;
+  float normal_scale = 1.0f;
+  float bloom_intensity = 0.0f;
   std::vector<ResolvedTextureBinding> extra_textures;
 };
 

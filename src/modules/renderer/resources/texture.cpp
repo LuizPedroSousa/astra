@@ -40,8 +40,14 @@ Image Texture::load_image(Ref<Path> path, bool flip_image_on_loading) {
   data = stbi_load(resolved_path.c_str(), &width, &height, &nr_channels, 0);
 
   if (!data) {
-    free_image(data);
-    ASTRA_EXCEPTION("Cant't load image: ", path);
+    const char *reason = stbi_failure_reason();
+    ASTRA_EXCEPTION(
+        "Can't load image: ",
+        resolved_path,
+        reason != nullptr ? " (" : "",
+        reason != nullptr ? reason : "",
+        reason != nullptr ? ")" : ""
+    );
   }
 
   return Image{width, height, nr_channels, data};

@@ -49,9 +49,18 @@ VulkanUploadArena::~VulkanUploadArena() {
 }
 
 VulkanUploadArena::Allocation VulkanUploadArena::allocate(VkDeviceSize size, VkDeviceSize alignment) {
+  ASTRA_ENSURE(!can_allocate(size, alignment),
+               "[Vulkan] Upload arena out of space (requested=",
+               static_cast<unsigned long long>(size),
+               ", alignment=",
+               static_cast<unsigned long long>(alignment),
+               ", used=",
+               static_cast<unsigned long long>(m_offset),
+               ", capacity=",
+               static_cast<unsigned long long>(m_capacity),
+               ")");
+
   VkDeviceSize aligned_offset = (m_offset + alignment - 1) & ~(alignment - 1);
-  ASTRA_ENSURE(aligned_offset + size > m_capacity,
-               "[Vulkan] Upload arena out of space");
 
   Allocation allocation{};
   allocation.buffer = m_buffer;
@@ -60,6 +69,13 @@ VulkanUploadArena::Allocation VulkanUploadArena::allocate(VkDeviceSize size, VkD
 
   m_offset = aligned_offset + size;
   return allocation;
+}
+
+bool VulkanUploadArena::can_allocate(
+    VkDeviceSize size, VkDeviceSize alignment
+) const {
+  VkDeviceSize aligned_offset = (m_offset + alignment - 1) & ~(alignment - 1);
+  return aligned_offset + size <= m_capacity;
 }
 
 void VulkanUploadArena::reset() {

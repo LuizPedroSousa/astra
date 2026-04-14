@@ -65,11 +65,11 @@ public:
 
     const auto *g_position_resource = ctx.find_graph_image("g_position");
     const auto *g_normal_resource = ctx.find_graph_image("g_normal");
-    const auto *g_albedo_resource = ctx.find_graph_image("g_albedo");
+    const auto *g_entity_id_resource = ctx.find_graph_image("g_entity_id");
     const auto *ssao_resource = ctx.find_graph_image("ssao");
 
     if (g_position_resource == nullptr || g_normal_resource == nullptr ||
-        g_albedo_resource == nullptr || ssao_resource == nullptr ||
+        g_entity_id_resource == nullptr || ssao_resource == nullptr ||
         m_shader == nullptr ||
         m_noise_texture == nullptr ||
         m_fullscreen_quad.vertex_array == nullptr ||
@@ -87,8 +87,8 @@ public:
         ctx.register_graph_image("ssao.g-position", *g_position_resource);
     auto g_normal =
         ctx.register_graph_image("ssao.g-normal", *g_normal_resource);
-    auto g_albedo =
-        ctx.register_graph_image("ssao.g-albedo", *g_albedo_resource);
+    auto g_entity_id =
+        ctx.register_graph_image("ssao.g-entity-id", *g_entity_id_resource);
     auto noise_image = frame.register_texture_2d(
         "ssao.noise-texture", m_noise_texture
     );
@@ -116,7 +116,8 @@ public:
         bindings, GBufferResources::g_normal.binding_id, ImageViewRef{.image = g_normal}
     );
     frame.add_sampled_image_binding(
-        bindings, GBufferResources::g_albedo.binding_id, ImageViewRef{.image = g_albedo}
+        bindings, GBufferResources::g_entity_id.binding_id,
+        ImageViewRef{.image = g_entity_id}
     );
     frame.add_sampled_image_binding(
         bindings, SSAOResources::noise_texture.binding_id, ImageViewRef{.image = noise_image}

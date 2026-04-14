@@ -16,6 +16,7 @@
 #include "resources/shader.hpp"
 #include "resources/texture.hpp"
 #include "systems/render-system/mesh-resolution.hpp"
+#include "systems/render-system/pbr-default-textures.hpp"
 #include "systems/render-system/passes/bloom-pass.hpp"
 #include "systems/render-system/passes/debug-pass.hpp"
 #include "systems/render-system/passes/editor-gizmo-pass.hpp"
@@ -532,6 +533,8 @@ void RenderSystem::drain_completed_entity_picks() {
 RenderSystem::~RenderSystem() {}
 
 void RenderSystem::ensure_pass_dependency_descriptors() {
+  rendering::ensure_pbr_default_textures();
+
   if (resource_manager()->get_descriptor_by_id<ShaderDescriptor>(
           "shaders::lighting_forward"
       ) == nullptr) {
@@ -549,8 +552,8 @@ void RenderSystem::ensure_pass_dependency_descriptors() {
         "shaders::editor_gizmo",
         "shaders/editor_gizmo.axsl"_engine,
         "shaders/editor_gizmo.axsl"_engine
-  );
-}
+    );
+  }
 
   if (resource_manager()->get_descriptor_by_id<ShaderDescriptor>(
           "shaders::ui_polyline"
@@ -577,9 +580,17 @@ void RenderSystem::ensure_pass_dependency_descriptors() {
         {TextureParameter::WrapT, TextureValue::Repeat},
         {TextureParameter::MagFilter, TextureValue::Nearest},
         {TextureParameter::MinFilter, TextureValue::Nearest},
-  };
+    };
     Texture2D::create("noise_texture", texture_config);
-}
+  }
+
+  if (m_render_target != nullptr) {
+    for (const auto &id : rendering::default_pbr_texture_ids()) {
+      resource_manager()->load_from_descriptors_by_ids<Texture2DDescriptor>(
+          m_render_target->backend(), {id}
+      );
+    }
+  }
 }
 
 } // namespace astralix

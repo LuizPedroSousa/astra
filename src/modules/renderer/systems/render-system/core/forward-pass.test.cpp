@@ -5,6 +5,7 @@
 #include "systems/render-system/passes/render-graph-pass.hpp"
 #include "vertex-array.hpp"
 #include <gtest/gtest.h>
+#include <cstring>
 #include <memory>
 #include <variant>
 
@@ -163,13 +164,33 @@ RenderGraphResource make_graph_image_resource(
   return RenderGraphResource(desc);
 }
 
+const CompiledValueBinding *find_value_binding(
+    const CompiledBindingGroup &group,
+    uint64_t binding_id
+) {
+  for (const auto &binding : group.values) {
+    if (binding.binding_id == binding_id) {
+      return &binding;
+    }
+  }
+
+  return nullptr;
+}
+
+template <typename T>
+T decode_binding_value(const CompiledValueBinding &binding) {
+  T value{};
+  std::memcpy(&value, binding.bytes.data(), sizeof(T));
+  return value;
+}
+
 TEST(ForwardPassTest, RecordsOpaqueSurfaceDrawsWithMaterialAndShadowBindings) {
   auto scene_color = create_ref<FakeFramebuffer>(1280, 720);
   auto shadow_map = create_ref<FakeFramebuffer>(1024, 1024);
   auto shader = create_ref<FakeForwardShader>();
   auto vertex_array = create_ref<FakeVertexArray>();
-  auto diffuse = create_ref<FakeTexture>(71u);
-  auto specular = create_ref<FakeTexture>(72u);
+  auto base_color = create_ref<FakeTexture>(71u);
+  auto normal = create_ref<FakeTexture>(72u);
 
   auto scene_resource = make_graph_image_resource(
       "scene_color", 1280, 720, ImageFormat::RGBA16F,
@@ -219,8 +240,10 @@ TEST(ForwardPassTest, RecordsOpaqueSurfaceDrawsWithMaterialAndShadowBindings) {
       .shader = shader,
       .material =
           rendering::ResolvedMaterialData{
-              .diffuse = diffuse,
-              .specular = specular,
+              .base_color_descriptor_id = "textures::test::base_color",
+              .normal_descriptor_id = "textures::test::normal",
+              .base_color = base_color,
+              .normal = normal,
           },
       .mesh =
           rendering::ResolvedMeshDraw{
@@ -286,12 +309,12 @@ TEST(ForwardPassTest, RecordsOpaqueSurfaceDrawsWithMaterialAndShadowBindings) {
   EXPECT_EQ(
       material_group.sampled_images[0].binding_id,
       shader_bindings::engine_shaders_lighting_forward_axsl::MaterialResources::
-          diffuse.binding_id
+          base_color.binding_id
   );
   EXPECT_EQ(
       material_group.sampled_images[1].binding_id,
       shader_bindings::engine_shaders_lighting_forward_axsl::MaterialResources::
-          specular.binding_id
+          normal.binding_id
   );
   EXPECT_GT(material_group.values.size(), 0u);
 
@@ -374,8 +397,8 @@ TEST(ForwardPassTest, AcceptsCanonicalMaterialSamplerNames) {
   auto shadow_map = create_ref<FakeFramebuffer>(1024, 1024);
   auto shader = create_ref<FakeCanonicalForwardShader>();
   auto vertex_array = create_ref<FakeVertexArray>();
-  auto diffuse = create_ref<FakeTexture>(71u);
-  auto specular = create_ref<FakeTexture>(72u);
+  auto base_color = create_ref<FakeTexture>(71u);
+  auto metallic_roughness = create_ref<FakeTexture>(72u);
   auto normal = create_ref<FakeTexture>(73u);
 
   auto scene_resource = make_graph_image_resource(
@@ -426,9 +449,13 @@ TEST(ForwardPassTest, AcceptsCanonicalMaterialSamplerNames) {
       .shader = shader,
       .material =
           rendering::ResolvedMaterialData{
-              .diffuse = diffuse,
-              .specular = specular,
+              .base_color_descriptor_id = "textures::test::base_color",
+              .normal_descriptor_id = "textures::test::normal",
+              .metallic_roughness_descriptor_id =
+                  "textures::test::metallic_roughness",
+              .base_color = base_color,
               .normal = normal,
+              .metallic_roughness = metallic_roughness,
           },
       .mesh =
           rendering::ResolvedMeshDraw{
@@ -443,23 +470,208 @@ TEST(ForwardPassTest, AcceptsCanonicalMaterialSamplerNames) {
 
   ASSERT_EQ(frame.passes.size(), 1u);
   ASSERT_EQ(frame.binding_groups.size(), 3u);
-  ASSERT_EQ(frame.binding_groups[1].sampled_images.size(), 3u);
+  ASSERT_EQ(frame.binding_groups[1].sampled_images.size(), 4u);
   EXPECT_EQ(
       frame.binding_groups[1].sampled_images[0].binding_id,
       shader_bindings::engine_shaders_lighting_forward_axsl::MaterialResources::
-          diffuse.binding_id
+          base_color.binding_id
   );
   EXPECT_EQ(
       frame.binding_groups[1].sampled_images[1].binding_id,
       shader_bindings::engine_shaders_lighting_forward_axsl::MaterialResources::
-          specular.binding_id
+          normal.binding_id
   );
   EXPECT_EQ(
       frame.binding_groups[1].sampled_images[2].binding_id,
       shader_bindings::engine_shaders_lighting_forward_axsl::MaterialResources::
-          normal_map.binding_id
+          metallic.binding_id
   );
+  EXPECT_EQ(
+      frame.binding_groups[1].sampled_images[3].binding_id,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialResources::
+          roughness.binding_id
+  );
+  const auto *metallic_channel = find_value_binding(
+      frame.binding_groups[1],
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__metallic_channel.binding_ids[0]
+  );
+  ASSERT_NE(metallic_channel, nullptr);
+  EXPECT_EQ(decode_binding_value<int>(*metallic_channel), 2);
+  const auto *roughness_channel = find_value_binding(
+      frame.binding_groups[1],
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__roughness_channel.binding_ids[0]
+  );
+  ASSERT_NE(roughness_channel, nullptr);
+  EXPECT_EQ(decode_binding_value<int>(*roughness_channel), 1);
   ASSERT_EQ(frame.binding_groups[0].sampled_images.size(), 1u);
+}
+
+TEST(ForwardPassTest, RecordsMaterialScalarUniformValues) {
+  auto scene_color = create_ref<FakeFramebuffer>(1280, 720);
+  auto shadow_map = create_ref<FakeFramebuffer>(1024, 1024);
+  auto shader = create_ref<FakeForwardShader>();
+  auto vertex_array = create_ref<FakeVertexArray>();
+  auto base_color = create_ref<FakeTexture>(71u);
+
+  auto scene_resource = make_graph_image_resource(
+      "scene_color", 1280, 720, ImageFormat::RGBA16F,
+      ImageUsage::ColorAttachment | ImageUsage::Sampled
+  );
+  auto shadow_resource = make_graph_image_resource(
+      "shadow_map", 1024, 1024, ImageFormat::Depth32F,
+      ImageUsage::DepthStencilAttachment | ImageUsage::Sampled
+  );
+  auto bloom_resource = make_graph_image_resource(
+      "bloom_extract", 1280, 720, ImageFormat::RGBA16F,
+      ImageUsage::ColorAttachment | ImageUsage::Sampled
+  );
+  auto entity_id_resource = make_graph_image_resource(
+      "entity_pick", 1280, 720, ImageFormat::R32I,
+      ImageUsage::ColorAttachment | ImageUsage::TransferSrc
+  );
+  auto depth_resource = make_graph_image_resource(
+      "scene_depth", 1280, 720, ImageFormat::Depth32F,
+      ImageUsage::DepthStencilAttachment
+  );
+  std::vector<const RenderGraphResource *> resources{
+      &scene_resource,
+      &shadow_resource,
+      &bloom_resource,
+      &entity_id_resource,
+      &depth_resource,
+  };
+
+  auto pass = create_scope<ForwardPass>();
+  RenderGraphPass graph_pass(std::move(pass));
+  graph_pass.set_resolved_dependencies({make_shader_dependency(
+      "forward_shader", "shaders::lighting_forward", shader
+  )});
+  graph_pass.setup(nullptr, resources);
+
+  rendering::SceneFrame scene_frame;
+  scene_frame.main_camera = rendering::CameraFrame{
+      .position = glm::vec3(1.0f, 2.0f, 3.0f),
+      .view = glm::mat4(2.0f),
+      .projection = glm::mat4(3.0f),
+  };
+  scene_frame.light_frame.directional.valid = true;
+  scene_frame.opaque_surfaces.push_back(rendering::SurfaceDrawItem{
+      .shader = shader,
+      .material =
+          rendering::ResolvedMaterialData{
+              .base_color_descriptor_id = "textures::test::base_color",
+              .base_color = base_color,
+              .base_color_factor = glm::vec4(0.2f, 0.4f, 0.6f, 0.8f),
+              .emissive_factor = glm::vec3(0.1f, 0.2f, 0.3f),
+              .metallic_factor = 0.15f,
+              .roughness_factor = 0.75f,
+              .occlusion_strength = 0.55f,
+              .normal_scale = 0.35f,
+              .bloom_intensity = 1.25f,
+          },
+      .mesh =
+          rendering::ResolvedMeshDraw{
+              .vertex_array = vertex_array,
+              .index_count = 12u,
+          },
+      .model = glm::mat4(4.0f),
+  });
+
+  CompiledFrame frame;
+  graph_pass.record(0.0, frame, resources, &scene_frame);
+
+  ASSERT_EQ(frame.binding_groups.size(), 3u);
+  const auto &material_group = frame.binding_groups[1];
+
+  const auto *base_color_factor = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__base_color_factor.binding_ids[0]
+  );
+  ASSERT_NE(base_color_factor, nullptr);
+  EXPECT_EQ(base_color_factor->kind, ShaderValueKind::Vec4);
+  const auto base_color_value = decode_binding_value<glm::vec4>(*base_color_factor);
+  EXPECT_FLOAT_EQ(base_color_value.x, 0.2f);
+  EXPECT_FLOAT_EQ(base_color_value.y, 0.4f);
+  EXPECT_FLOAT_EQ(base_color_value.z, 0.6f);
+  EXPECT_FLOAT_EQ(base_color_value.w, 0.8f);
+
+  const auto *emissive_factor = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__emissive_factor.binding_ids[0]
+  );
+  ASSERT_NE(emissive_factor, nullptr);
+  EXPECT_EQ(emissive_factor->kind, ShaderValueKind::Vec3);
+  const auto emissive_value = decode_binding_value<glm::vec3>(*emissive_factor);
+  EXPECT_FLOAT_EQ(emissive_value.x, 0.1f);
+  EXPECT_FLOAT_EQ(emissive_value.y, 0.2f);
+  EXPECT_FLOAT_EQ(emissive_value.z, 0.3f);
+
+  const auto *metallic_factor = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__metallic_factor.binding_ids[0]
+  );
+  ASSERT_NE(metallic_factor, nullptr);
+  EXPECT_EQ(metallic_factor->kind, ShaderValueKind::Float);
+  EXPECT_FLOAT_EQ(decode_binding_value<float>(*metallic_factor), 0.15f);
+
+  const auto *roughness_factor = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__roughness_factor.binding_ids[0]
+  );
+  ASSERT_NE(roughness_factor, nullptr);
+  EXPECT_EQ(roughness_factor->kind, ShaderValueKind::Float);
+  EXPECT_FLOAT_EQ(decode_binding_value<float>(*roughness_factor), 0.75f);
+
+  const auto *metallic_channel = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__metallic_channel.binding_ids[0]
+  );
+  ASSERT_NE(metallic_channel, nullptr);
+  EXPECT_EQ(metallic_channel->kind, ShaderValueKind::Int);
+  EXPECT_EQ(decode_binding_value<int>(*metallic_channel), 0);
+
+  const auto *roughness_channel = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__roughness_channel.binding_ids[0]
+  );
+  ASSERT_NE(roughness_channel, nullptr);
+  EXPECT_EQ(roughness_channel->kind, ShaderValueKind::Int);
+  EXPECT_EQ(decode_binding_value<int>(*roughness_channel), 0);
+
+  const auto *occlusion_strength = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__occlusion_strength.binding_ids[0]
+  );
+  ASSERT_NE(occlusion_strength, nullptr);
+  EXPECT_EQ(occlusion_strength->kind, ShaderValueKind::Float);
+  EXPECT_FLOAT_EQ(decode_binding_value<float>(*occlusion_strength), 0.55f);
+
+  const auto *normal_scale = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__normal_scale.binding_ids[0]
+  );
+  ASSERT_NE(normal_scale, nullptr);
+  EXPECT_EQ(normal_scale->kind, ShaderValueKind::Float);
+  EXPECT_FLOAT_EQ(decode_binding_value<float>(*normal_scale), 0.35f);
+
+  const auto *bloom_intensity = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__bloom_intensity.binding_ids[0]
+  );
+  ASSERT_NE(bloom_intensity, nullptr);
+  EXPECT_EQ(bloom_intensity->kind, ShaderValueKind::Float);
+  EXPECT_FLOAT_EQ(decode_binding_value<float>(*bloom_intensity), 1.25f);
 }
 
 } // namespace

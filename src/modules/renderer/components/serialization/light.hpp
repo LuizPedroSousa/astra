@@ -59,6 +59,15 @@ inline ComponentSnapshot snapshot_component(const rendering::SpotLightCone &cone
 }
 
 inline ComponentSnapshot
+snapshot_component(const rendering::SpotLightAttenuation &attenuation) {
+  ComponentSnapshot snapshot{.name = "SpotLightAttenuation"};
+  snapshot.fields.push_back({"constant", attenuation.constant});
+  snapshot.fields.push_back({"linear", attenuation.linear});
+  snapshot.fields.push_back({"quadratic", attenuation.quadratic});
+  return snapshot;
+}
+
+inline ComponentSnapshot
 snapshot_component(const rendering::DirectionalShadowSettings &settings) {
   ComponentSnapshot snapshot{.name = "DirectionalShadowSettings"};
   snapshot.fields.push_back({"ortho_extent", settings.ortho_extent});
@@ -114,6 +123,18 @@ inline void apply_spot_light_cone_snapshot(
       .outer_cutoff_cos =
           serialization::fields::read_float(fields, "outer_cutoff_cos")
               .value_or(0.953717f),
+  });
+}
+
+inline void apply_spot_light_attenuation_snapshot(
+    ecs::EntityRef entity, const serialization::fields::FieldList &fields) {
+  entity.emplace<rendering::SpotLightAttenuation>(rendering::SpotLightAttenuation{
+      .constant = serialization::fields::read_float(fields, "constant")
+                      .value_or(1.0f),
+      .linear =
+          serialization::fields::read_float(fields, "linear").value_or(0.045f),
+      .quadratic = serialization::fields::read_float(fields, "quadratic")
+                       .value_or(0.0075f),
   });
 }
 

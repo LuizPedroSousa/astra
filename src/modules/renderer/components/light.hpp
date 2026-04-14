@@ -31,6 +31,12 @@ struct SpotLightCone {
   float outer_cutoff_cos = 0.953717f;
 };
 
+struct SpotLightAttenuation {
+  float constant = 1.0f;
+  float linear = 0.045f;
+  float quadratic = 0.0075f;
+};
+
 struct DirectionalShadowSettings {
   float ortho_extent = 10.0f;
   float near_plane = 1.0f;

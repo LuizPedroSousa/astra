@@ -26,7 +26,7 @@ private:
   void emit_expr(const GLSLExpr &expr);
   void emit_expr_paren(const GLSLExpr &expr);
   void emit_call_args(const std::vector<GLSLExprPtr> &args);
-  void emit_literal(const GLSLLiteralExpr &expr);
+  void emit_literal(const GLSLExpr &expr);
 
   std::string layout_quals(const Annotations &annotations) const;
   std::string type_str(const TypeRef &type_ref) const;

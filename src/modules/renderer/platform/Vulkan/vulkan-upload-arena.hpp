@@ -22,9 +22,12 @@ public:
   };
 
   Allocation allocate(VkDeviceSize size, VkDeviceSize alignment = 16);
+  bool can_allocate(VkDeviceSize size, VkDeviceSize alignment = 16) const;
   void reset();
 
   VkBuffer buffer() const noexcept { return m_buffer; }
+  VkDeviceSize capacity() const noexcept { return m_capacity; }
+  VkDeviceSize used() const noexcept { return m_offset; }
 
 private:
   const VulkanDevice &m_device;

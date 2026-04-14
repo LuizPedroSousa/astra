@@ -55,6 +55,12 @@ bool can_add_spot_light_cone(ecs::EntityRef entity) {
          !entity.has<rendering::SpotLightCone>();
 }
 
+bool can_add_spot_light_attenuation(ecs::EntityRef entity) {
+  const auto *light = entity.get<rendering::Light>();
+  return light != nullptr && light->type == rendering::LightType::Spot &&
+         !entity.has<rendering::SpotLightAttenuation>();
+}
+
 bool can_add_directional_shadow_settings(ecs::EntityRef entity) {
   const auto *light = entity.get<rendering::Light>();
   return light != nullptr &&
@@ -77,6 +83,13 @@ bool editable_text_sprite_field(std::string_view field_name) {
 
 bool editable_camera_controller_field(std::string_view field_name) {
   return field_name != "target";
+}
+
+bool editable_material_properties_field(std::string_view field_name) {
+  return field_name == "base_color_factor" || field_name == "emissive_factor" ||
+         field_name == "metallic_factor" || field_name == "roughness_factor" ||
+         field_name == "occlusion_strength" || field_name == "normal_scale" ||
+         field_name == "bloom_intensity";
 }
 
 const std::vector<std::string> *no_enum_options(std::string_view) {
@@ -152,6 +165,13 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .enum_options = &no_enum_options,
     },
     {
+        .name = "SpotLightAttenuation",
+        .can_add = &can_add_spot_light_attenuation,
+        .remove_component = &erase_component<rendering::SpotLightAttenuation>,
+        .field_editable = &editable_all_fields,
+        .enum_options = &no_enum_options,
+    },
+    {
         .name = "DirectionalShadowSettings",
         .can_add = &can_add_directional_shadow_settings,
         .remove_component = &erase_component<rendering::DirectionalShadowSettings>,
@@ -184,6 +204,14 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .can_add = &can_add_if_missing<rendering::MaterialSlots>,
         .remove_component = &erase_component<rendering::MaterialSlots>,
         .field_editable = &editable_no_fields,
+        .enum_options = &no_enum_options,
+    },
+    {
+        .name = k_material_properties_component_name.data(),
+        .removable = false,
+        .can_add = &can_add_never,
+        .remove_component = nullptr,
+        .field_editable = &editable_material_properties_field,
         .enum_options = &no_enum_options,
     },
     {

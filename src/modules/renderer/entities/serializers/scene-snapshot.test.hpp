@@ -171,6 +171,12 @@ TEST(SceneSnapshotTest,
       .inner_cutoff_cos = 0.8f,
       .outer_cutoff_cos = 0.6f,
   });
+  spot_light.emplace<rendering::SpotLightAttenuation>(
+      rendering::SpotLightAttenuation{
+          .constant = 1.75f,
+          .linear = 0.2f,
+          .quadratic = 0.03f,
+      });
 
   auto sun = source.spawn("sun");
   sun.emplace<scene::SceneEntity>();
@@ -241,6 +247,9 @@ TEST(SceneSnapshotTest,
   ASSERT_NE(restored_spot_light.get<rendering::SpotLightCone>(), nullptr);
   EXPECT_FLOAT_EQ(restored_spot_light.get<rendering::SpotLightCone>()->inner_cutoff_cos,
                   0.8f);
+  ASSERT_NE(restored_spot_light.get<rendering::SpotLightAttenuation>(), nullptr);
+  EXPECT_FLOAT_EQ(
+      restored_spot_light.get<rendering::SpotLightAttenuation>()->linear, 0.2f);
 
   auto restored_sun = restored.entity(sun.id());
   ASSERT_TRUE(restored_sun.exists());

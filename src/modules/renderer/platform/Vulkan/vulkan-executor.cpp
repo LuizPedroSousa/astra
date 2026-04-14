@@ -1055,6 +1055,7 @@ void VulkanExecutor::execute(const CompiledFrame &frame) {
     const uint32_t frame_index = m_frame_context->current_frame_index();
     collect_completed_readbacks(frame_index);
     current_upload_arena().reset();
+    m_frame_upload_buffers[frame_index].clear();
     m_uploaded_vertex_buffers.clear();
     m_uploaded_index_buffers.clear();
     m_descriptor_allocator->reset_frame(frame_index);
@@ -1410,6 +1411,37 @@ VulkanUploadArena &VulkanExecutor::current_upload_arena() {
   return *m_upload_arenas[m_frame_context->current_frame_index()];
 }
 
+VulkanUploadArena::Allocation VulkanExecutor::allocate_upload_allocation(
+    VkDeviceSize size, VkDeviceSize alignment
+) {
+  auto &upload_arena = current_upload_arena();
+  if (upload_arena.can_allocate(size, alignment)) {
+    return upload_arena.allocate(size, alignment);
+  }
+
+  auto staging_buffer = std::make_unique<VulkanBuffer>(
+      *m_device,
+      size,
+      VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+          VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+          VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
+          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+  );
+  staging_buffer->map();
+
+  VulkanUploadArena::Allocation allocation{};
+  allocation.buffer = staging_buffer->handle();
+  allocation.offset = 0;
+  allocation.mapped = staging_buffer->mapped();
+
+  m_frame_upload_buffers[m_frame_context->current_frame_index()].push_back(
+      std::move(staging_buffer)
+  );
+  return allocation;
+}
+
 void VulkanExecutor::transition_swapchain_image(
     VkCommandBuffer command_buffer,
     VkImageLayout new_layout
@@ -1648,7 +1680,7 @@ VulkanExecutor::resolve_texture_2d(const CompiledImage &compiled_image, const Te
 
     const uint32_t pixel_count = width * height;
     const VkDeviceSize upload_size = 4 * static_cast<VkDeviceSize>(pixel_count);
-    auto allocation = current_upload_arena().allocate(upload_size, 4);
+    auto allocation = allocate_upload_allocation(upload_size, 4);
     std::memset(allocation.mapped, 255, static_cast<size_t>(upload_size));
 
     const auto &bytes = virtual_texture->bytes();
@@ -1754,7 +1786,7 @@ VulkanExecutor::resolve_texture_cube(const CompiledImage &compiled_image, const 
     const VkDeviceSize face_size = 4 * static_cast<VkDeviceSize>(face_pixel_count);
     const VkDeviceSize aligned_face_size = align_up(face_size, 4);
     const VkDeviceSize upload_size = aligned_face_size * layer_count;
-    auto allocation = current_upload_arena().allocate(upload_size, 4);
+    auto allocation = allocate_upload_allocation(upload_size, 4);
     std::memset(allocation.mapped, 255, static_cast<size_t>(upload_size));
 
     const bool source_is_rgb = virtual_texture->format() == TextureFormat::RGB;
@@ -2357,7 +2389,7 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindBindings
         m_device->physical_device_properties()
             .limits.minUniformBufferOffsetAlignment
     );
-    auto allocation = current_upload_arena().allocate(ubo_size, ubo_alignment);
+    auto allocation = allocate_upload_allocation(ubo_size, ubo_alignment);
     std::memcpy(
         allocation.mapped, pending.ubo_data.data(), pending.ubo_data.size()
     );
@@ -2479,8 +2511,7 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindBindings
           m_device->physical_device_properties()
               .limits.minStorageBufferOffsetAlignment
       );
-      auto allocation =
-          current_upload_arena().allocate(dummy_size, storage_alignment);
+      auto allocation = allocate_upload_allocation(dummy_size, storage_alignment);
       std::memset(allocation.mapped, 0, static_cast<size_t>(dummy_size));
 
       buffer_infos.push_back(VkDescriptorBufferInfo{
@@ -2588,7 +2619,7 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindVertexBu
   VkDeviceSize base_offset = 0;
   if (compiled_buffer->is_transient) {
     VkDeviceSize data_size = static_cast<VkDeviceSize>(vertex_bytes.size());
-    auto allocation = current_upload_arena().allocate(data_size);
+    auto allocation = allocate_upload_allocation(data_size);
     std::memcpy(allocation.mapped, vertex_bytes.data(), data_size);
     buffer = allocation.buffer;
     base_offset = allocation.offset;
@@ -2598,7 +2629,7 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindVertexBu
     );
     if (inserted || it->second.buffer == VK_NULL_HANDLE) {
       VkDeviceSize data_size = static_cast<VkDeviceSize>(vertex_bytes.size());
-      auto allocation = current_upload_arena().allocate(data_size);
+      auto allocation = allocate_upload_allocation(data_size);
       std::memcpy(allocation.mapped, vertex_bytes.data(), data_size);
       it->second = UploadedBufferBinding{
           .buffer = allocation.buffer,
@@ -2647,7 +2678,7 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindIndexBuf
   VkDeviceSize base_offset = 0;
   if (compiled_buffer->is_transient) {
     VkDeviceSize data_size = static_cast<VkDeviceSize>(index_bytes.size());
-    auto allocation = current_upload_arena().allocate(data_size);
+    auto allocation = allocate_upload_allocation(data_size);
     std::memcpy(allocation.mapped, index_bytes.data(), data_size);
     buffer = allocation.buffer;
     base_offset = allocation.offset;
@@ -2657,7 +2688,7 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindIndexBuf
     );
     if (inserted || it->second.buffer == VK_NULL_HANDLE) {
       VkDeviceSize data_size = static_cast<VkDeviceSize>(index_bytes.size());
-      auto allocation = current_upload_arena().allocate(data_size);
+      auto allocation = allocate_upload_allocation(data_size);
       std::memcpy(allocation.mapped, index_bytes.data(), data_size);
       it->second = UploadedBufferBinding{
           .buffer = allocation.buffer,

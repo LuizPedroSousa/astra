@@ -444,7 +444,10 @@ TEST(ShaderCompiler, LocalArrayDeclAndArrayConstructor) {
 
   const auto &frag = result.stages.at(StageKind::Fragment);
   EXPECT_TRUE(
-      contains(frag, "vec2 poisson_disk[2] = vec2[](vec2(0, 1), vec2(1, 0));"));
+      contains(
+          frag,
+          "vec2 poisson_disk[2] = vec2[](vec2(0.0, 1.0), vec2(1.0, 0.0));"
+      ));
   EXPECT_TRUE(contains(frag, "vec2 sample = poisson_disk[1];"));
 }
 
@@ -568,7 +571,7 @@ TEST(ShaderCompiler, TernaryExpression) {
 )axsl");
   auto result = compiler.compile(src);
   ASSERT_TRUE(result.ok()) << errors_str(result);
-  EXPECT_TRUE(contains(result.stages.at(StageKind::Fragment), "? 1"));
+  EXPECT_TRUE(contains(result.stages.at(StageKind::Fragment), "? 1.0"));
 }
 
 TEST(ShaderCompiler, UniformBlock) {
@@ -855,7 +858,7 @@ fn main() -> VertexOutput {
   EXPECT_TRUE(contains(vert, "layout(location = 0) vec3 texture_coordinate;"));
   EXPECT_FALSE(
       contains(vert, "layout(location = 0) vec3 texture_coordinate = vec3"));
-  EXPECT_TRUE(contains(vert, "_stage_out.texture_coordinate = vec3(0);"));
+  EXPECT_TRUE(contains(vert, "_stage_out.texture_coordinate = vec3(0.0);"));
   EXPECT_FALSE(contains(vert, "return VertexOutput();"));
   EXPECT_TRUE(contains(vert, "return;"));
 }
@@ -889,7 +892,7 @@ fn main(VertexInput input) -> FragmentOutput {
   ASSERT_TRUE(result.ok()) << errors_str(result);
 
   const auto &frag = result.stages.at(StageKind::Fragment);
-  EXPECT_EQ(count_occurrences(frag, "_out_test = 0;"), 1u);
+  EXPECT_EQ(count_occurrences(frag, "_out_test = 0.0;"), 1u);
   EXPECT_EQ(count_occurrences(frag, "_out_has_value = true;"), 1u);
   EXPECT_EQ(count_occurrences(frag, "_out_color = color;"), 1u);
 }
@@ -959,7 +962,7 @@ fn main(VertexOutput input) -> FragmentOutput {
       contains(frag, "layout(location = 1) out float _out_brightness;"));
   EXPECT_FALSE(contains(frag, "FragmentOutput output;"));
   EXPECT_TRUE(
-      contains(frag, "_out_color = vec4(input.texture_coordinate, 0, 1);"));
+      contains(frag, "_out_color = vec4(input.texture_coordinate, 0.0, 1.0);"));
   EXPECT_TRUE(contains(frag, "_out_brightness = _out_color.r;"));
   EXPECT_FALSE(contains(frag, "return output;"));
   EXPECT_TRUE(contains(frag, "return;"));
@@ -1482,7 +1485,7 @@ fn main(Entity entity) -> void {
   EXPECT_FALSE(contains(vert, "_light_space_matrix"));
   EXPECT_FALSE(contains(vert, "_unused_scale"));
   EXPECT_TRUE(contains(
-      vert, "gl_Position = (_projection * _view) * vec4(0, 0, 0, 1);"));
+      vert, "gl_Position = (_projection * _view) * vec4(0.0, 0.0, 0.0, 1.0);"));
   EXPECT_TRUE(contains(vert, "if (_use_instacing)"));
   EXPECT_TRUE(contains(vert, "gl_Position = _g_model * gl_Position;"));
 }
@@ -1698,10 +1701,10 @@ fn main(FragmentResources resources) -> FragmentOutput {
   EXPECT_TRUE(result.errors.empty());
 
   const auto &vert = result.stages.at(StageKind::Vertex);
-  EXPECT_TRUE(contains(vert, "uniform float global_value = 1"));
+  EXPECT_TRUE(contains(vert, "uniform float global_value = 1.0"));
 
   const auto &frag = result.stages.at(StageKind::Fragment);
-  EXPECT_FALSE(contains(frag, "uniform float global_value = 1"));
+  EXPECT_FALSE(contains(frag, "uniform float global_value = 1.0"));
   EXPECT_TRUE(contains(frag, "uniform float _global_value"));
 }
 
@@ -2692,6 +2695,45 @@ TEST(Compiler, CloneGLSLStagePreservesEmissionAndIsolatesMutations) {
   EXPECT_NE(original_text, emitter.emit(cloned));
 }
 
+TEST(Compiler, GLSLTextEmitterKeepsFloatTypedLiteralsAsFloats) {
+  GLSLStage stage;
+  stage.version = 450;
+
+  GLSLFunctionDecl function;
+  function.ret = TypeRef{TokenKind::KeywordVoid, "void"};
+  function.name = "main";
+
+  auto float_stmt = std::make_unique<GLSLStmt>();
+  GLSLVarDeclStmt float_decl;
+  float_decl.type = TypeRef{TokenKind::TypeFloat, "float"};
+  float_decl.name = "a";
+  float_decl.init = std::make_unique<GLSLExpr>();
+  float_decl.init->type = TypeRef{TokenKind::TypeFloat, "float"};
+  float_decl.init->data = GLSLLiteralExpr{int64_t{1}};
+  float_stmt->data = std::move(float_decl);
+
+  auto float_stmt_2 = std::make_unique<GLSLStmt>();
+  GLSLVarDeclStmt float_decl_2;
+  float_decl_2.type = TypeRef{TokenKind::TypeFloat, "float"};
+  float_decl_2.name = "b";
+  float_decl_2.init = make_test_float_literal(0.0);
+  float_stmt_2->data = std::move(float_decl_2);
+
+  auto body = std::make_unique<GLSLStmt>();
+  GLSLBlockStmt block;
+  block.stmts.push_back(std::move(float_stmt));
+  block.stmts.push_back(std::move(float_stmt_2));
+  body->data = std::move(block);
+  function.body = std::move(body);
+
+  stage.declarations.push_back(GLSLDecl{std::move(function)});
+
+  GLSLTextEmitter emitter;
+  const std::string text = emitter.emit(stage);
+  EXPECT_TRUE(contains(text, "float a = 1.0;")) << text;
+  EXPECT_TRUE(contains(text, "float b = 0.0;")) << text;
+}
+
 TEST(Compiler, EnablingVulkanGLSLDoesNotChangeOpenGLStages) {
   static constexpr std::string_view source = R"axsl(
 @version 450;
@@ -3170,7 +3212,25 @@ fn main(Camera camera) -> FragmentOutput {
   EXPECT_TRUE(
       contains(fragment, "vec2 sample_uv = __astralix_vulkan_screen_uv(")
   ) << fragment;
-  EXPECT_TRUE(contains(fragment, "return vec2(uv.x, 1 - uv.y);")) << fragment;
+  EXPECT_TRUE(contains(fragment, "return vec2(uv.x, 1.0 - uv.y);"))
+      << fragment;
+}
+
+TEST(Compiler, CompiledBuiltinCallsKeepFloatLiteralArgumentsFloatTyped) {
+  Compiler compiler;
+  auto src = make_fragment_program(R"axsl(
+    float x = clamp(0.5, 0.0, 1.0);
+    float y = max(x, 0.0);
+    return FragmentOutput(vec4(x, y, 0.0, 1.0));
+)axsl");
+
+  auto result = compiler.compile(src);
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  const auto &frag = result.stages.at(StageKind::Fragment);
+  EXPECT_TRUE(contains(frag, "float x = clamp(0.5, 0.0, 1.0);")) << frag;
+  EXPECT_TRUE(contains(frag, "float y = max(x, 0.0);")) << frag;
+  EXPECT_TRUE(contains(frag, "_out_color = vec4(x, y, 0.0, 1.0);")) << frag;
 }
 
 TEST(Compiler, VulkanGLSLFragmentStageFlipsShadowProjectionY) {
@@ -3212,7 +3272,7 @@ fn main(Light light) -> FragmentOutput {
   const auto &fragment = result.vulkan_glsl_stages.at(StageKind::Fragment);
   EXPECT_TRUE(contains(fragment, "projection_coordinates = (projection_coordinates * 0.5) + 0.5;"))
       << fragment;
-  EXPECT_TRUE(contains(fragment, "projection_coordinates.y = 1 - projection_coordinates.y;"))
+  EXPECT_TRUE(contains(fragment, "projection_coordinates.y = 1.0 - projection_coordinates.y;"))
       << fragment;
 }
 

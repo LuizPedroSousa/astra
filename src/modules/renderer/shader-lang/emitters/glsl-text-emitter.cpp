@@ -1,6 +1,7 @@
 #include "shader-lang/emitters/glsl-text-emitter.hpp"
 
 #include <cstdio>
+#include <string>
 
 namespace astralix {
 
@@ -295,7 +296,7 @@ void GLSLTextEmitter::emit_for_init(const GLSLStmt *stmt) {
 void GLSLTextEmitter::emit_expr(const GLSLExpr &expr) {
   std::visit(
       Overloaded{
-          [&](const GLSLLiteralExpr &value) { emit_literal(value); },
+          [&](const GLSLLiteralExpr &) { emit_literal(expr); },
           [&](const GLSLIdentifierExpr &value) { write(value.name); },
           [&](const GLSLBinaryExpr &value) {
             emit_expr_paren(*value.lhs);
@@ -375,19 +376,30 @@ void GLSLTextEmitter::emit_call_args(const std::vector<GLSLExprPtr> &args) {
   }
 }
 
-void GLSLTextEmitter::emit_literal(const GLSLLiteralExpr &expr) {
+void GLSLTextEmitter::emit_literal(const GLSLExpr &expr) {
+  const auto &literal = std::get<GLSLLiteralExpr>(expr.data);
   std::visit(
       Overloaded{
           [&](bool value) { write(value ? "true" : "false"); },
-          [&](int64_t value) { write(std::to_string(value)); },
+          [&](int64_t value) {
+            std::string text = std::to_string(value);
+            if (expr.type.kind == TokenKind::TypeFloat) {
+              text += ".0";
+            }
+            write(text);
+          },
           [&](double value) {
             char buffer[32];
             std::snprintf(
-                buffer, sizeof(buffer), "%g", static_cast<double>(value)
+                buffer, sizeof(buffer), "%.9g", static_cast<double>(value)
             );
-            write(buffer);
+            std::string text = buffer;
+            if (text.find_first_of(".eE") == std::string::npos) {
+              text += ".0";
+            }
+            write(text);
           }},
-      expr.value
+      literal.value
   );
 }
 
