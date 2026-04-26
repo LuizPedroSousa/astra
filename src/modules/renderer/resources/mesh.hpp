@@ -5,6 +5,8 @@
 #include "vector"
 #include "vertex-array.hpp"
 #include <cstddef>
+#include <cmath>
+#include <utility>
 
 namespace astralix {
 
@@ -37,8 +39,8 @@ public:
   RendererAPI::DrawPrimitive draw_type = RendererAPI::DrawPrimitive::TRIANGLES;
 
   Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices) {
-    this->vertices = vertices;
-    this->indices = indices;
+    this->vertices = std::move(vertices);
+    this->indices = std::move(indices);
 
     calculate_tanget_and_bitangents();
 
@@ -68,6 +70,10 @@ public:
   }
 
   void calculate_tanget_and_bitangents() {
+    for (auto &vertex : vertices) {
+      vertex.tangent = glm::vec3(0.0f);
+    }
+
     for (size_t i = 0; i < indices.size(); i += 3) {
       unsigned int i1 = indices[i];
       unsigned int i2 = indices[i + 1];
@@ -83,9 +89,13 @@ public:
       glm::vec2 deltaUV1 = v2.texture_coordinates - v1.texture_coordinates;
       glm::vec2 deltaUV2 = v3.texture_coordinates - v1.texture_coordinates;
 
-      float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+      float determinant = deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x;
+      if (std::abs(determinant) <= 1e-8f) {
+        continue;
+      }
+
+      float f = 1.0f / determinant;
       glm::vec3 tangent = (edge1 * deltaUV2.y - edge2 * deltaUV1.y) * f;
-      glm::vec3 bitangent = (edge2 * deltaUV1.x - edge1 * deltaUV2.x) * f;
 
       vertices[i1].tangent += tangent;
       vertices[i2].tangent += tangent;
@@ -93,7 +103,14 @@ public:
     }
 
     for (auto &vertex : vertices) {
-      vertex.tangent = glm::normalize(vertex.tangent);
+      if (glm::dot(vertex.tangent, vertex.tangent) <= 1e-8f) {
+        const glm::vec3 up = std::abs(vertex.normal.z) < 0.999f
+                                 ? glm::vec3(0.0f, 0.0f, 1.0f)
+                                 : glm::vec3(0.0f, 1.0f, 0.0f);
+        vertex.tangent = glm::normalize(glm::cross(up, vertex.normal));
+      } else {
+        vertex.tangent = glm::normalize(vertex.tangent);
+      }
     }
   }
 };

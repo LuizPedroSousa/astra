@@ -2,43 +2,197 @@
 
 #include "components/material.hpp"
 #include "components/mesh.hpp"
-#include "components/model.hpp"
 #include "components/tags.hpp"
-#include "components/transform.hpp"
-#include "glm/gtc/type_ptr.hpp"
+#include "components/text.hpp"
+#include "glm/glm.hpp"
+#include "renderer-api.hpp"
+#include "resources/font.hpp"
+#include "resources/shader.hpp"
+#include "resources/svg.hpp"
+#include "resources/texture.hpp"
+#include "types.hpp"
 #include "world.hpp"
 #include <algorithm>
+#include <array>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 namespace astralix::rendering {
 
-struct RenderPacket {
-  EntityID entity_id;
-  size_t batch_key = 0u;
-  bool dirty = true;
-  const scene::Transform *transform = nullptr;
-  ModelRef *model_ref = nullptr;
-  MeshSet *mesh_set = nullptr;
-  const MaterialSlots *materials = nullptr;
-  const ShaderBinding *shader = nullptr;
-  const TextureBindings *textures = nullptr;
+inline constexpr float k_default_directional_shadow_extent = 10.0f;
+inline constexpr float k_default_directional_shadow_near_plane = 1.0f;
+inline constexpr float k_default_directional_shadow_far_plane = 100.0f;
+inline constexpr size_t k_max_point_lights = 4u;
+
+struct CameraFrame {
+  EntityID entity_id{};
+  glm::vec3 position = glm::vec3(0.0f);
+  glm::vec3 forward = glm::vec3(0.0f, 0.0f, -1.0f);
+  glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+  glm::mat4 view = glm::mat4(1.0f);
+  glm::mat4 projection = glm::mat4(1.0f);
+  bool orthographic = false;
+  float fov_degrees = 45.0f;
+  float orthographic_scale = 10.0f;
 };
 
-struct RenderBatch {
-  size_t key = 0u;
-  std::vector<EntityID> entities;
+struct DirectionalLightPacket {
+  bool valid = false;
+  glm::vec3 position = glm::vec3(-4.0f, 8.0f, -3.0f);
+  glm::vec3 ambient = glm::vec3(0.2f);
+  glm::vec3 diffuse = glm::vec3(0.5f);
+  glm::vec3 specular = glm::vec3(0.5f);
+  glm::mat4 light_space_matrix = glm::mat4(1.0f);
+  float near_plane = k_default_directional_shadow_near_plane;
+  float far_plane = k_default_directional_shadow_far_plane;
 };
 
-struct RenderFrameData {
-  std::vector<RenderPacket> packets;
-  std::vector<RenderBatch> batches;
+struct PointLightPacket {
+  bool valid = false;
+  glm::vec3 position = glm::vec3(0.0f);
+  glm::vec3 ambient = glm::vec3(0.0f);
+  glm::vec3 diffuse = glm::vec3(0.0f);
+  glm::vec3 specular = glm::vec3(0.0f);
+  float constant = 1.0f;
+  float linear = 0.045f;
+  float quadratic = 0.0075f;
+};
+
+struct SpotLightPacket {
+  bool valid = false;
+  glm::vec3 position = glm::vec3(0.0f);
+  glm::vec3 direction = glm::vec3(0.0f, 0.0f, -1.0f);
+  glm::vec3 ambient = glm::vec3(0.0f);
+  glm::vec3 diffuse = glm::vec3(0.0f);
+  glm::vec3 specular = glm::vec3(0.0f);
+  float inner_cutoff_cos = 0.0f;
+  float outer_cutoff_cos = 0.0f;
+  float constant = 1.0f;
+  float linear = 0.045f;
+  float quadratic = 0.0075f;
+};
+
+struct LightFrameData {
+  DirectionalLightPacket directional;
+  std::array<PointLightPacket, k_max_point_lights> point_lights{};
+  SpotLightPacket spot;
+};
+
+struct ResolvedTextureBinding {
+  ResourceDescriptorID descriptor_id;
+  std::string name;
+  Ref<Texture> texture = nullptr;
+  bool cubemap = false;
+};
+
+struct ResolvedMaterialData {
+  ResourceDescriptorID material_id;
+  ResourceDescriptorID base_color_descriptor_id;
+  ResourceDescriptorID normal_descriptor_id;
+  ResourceDescriptorID metallic_descriptor_id;
+  ResourceDescriptorID roughness_descriptor_id;
+  ResourceDescriptorID metallic_roughness_descriptor_id;
+  ResourceDescriptorID occlusion_descriptor_id;
+  ResourceDescriptorID emissive_descriptor_id;
+  ResourceDescriptorID displacement_descriptor_id;
+  Ref<Texture> base_color = nullptr;
+  Ref<Texture> normal = nullptr;
+  Ref<Texture> metallic = nullptr;
+  Ref<Texture> roughness = nullptr;
+  Ref<Texture> metallic_roughness = nullptr;
+  Ref<Texture> occlusion = nullptr;
+  Ref<Texture> emissive = nullptr;
+  Ref<Texture> displacement = nullptr;
+  glm::vec4 base_color_factor = glm::vec4(1.0f);
+  glm::vec3 emissive_factor = glm::vec3(0.0f);
+  float metallic_factor = 1.0f;
+  float roughness_factor = 1.0f;
+  float occlusion_strength = 1.0f;
+  float normal_scale = 1.0f;
+  float bloom_intensity = 0.0f;
+  std::vector<ResolvedTextureBinding> extra_textures;
+};
+
+struct ResolvedMeshDraw {
+  MeshID mesh_id{};
+  ResourceDescriptorID source_model_id;
+  uint32_t submesh_index = 0;
+  Ref<VertexArray> vertex_array = nullptr;
+  RendererAPI::DrawPrimitive draw_type =
+      RendererAPI::DrawPrimitive::TRIANGLES;
+  uint32_t index_count = 0;
+};
+
+struct SurfaceDrawItem {
+  EntityID entity_id{};
+  uint32_t pick_id = 0;
+  ResourceDescriptorID shader_id;
+  Ref<Shader> shader = nullptr;
+  ResolvedMaterialData material{};
+  ResolvedMeshDraw mesh{};
+  glm::mat4 model = glm::mat4(1.0f);
+  bool bloom_enabled = false;
+  int bloom_layer = 0;
+  bool casts_shadow = true;
+  uint64_t sort_key = 0;
+};
+
+struct ShadowDrawItem {
+  EntityID entity_id{};
+  glm::mat4 model = glm::mat4(1.0f);
+  ResolvedMeshDraw mesh{};
+  uint64_t sort_key = 0;
+};
+
+struct SkyboxFrame {
+  EntityID entity_id{};
+  ResourceDescriptorID shader_id;
+  ResourceDescriptorID cubemap_id;
+  Ref<Shader> shader = nullptr;
+  Ref<Texture3D> cubemap = nullptr;
+};
+
+struct TextDrawItem {
+  EntityID entity_id{};
+  TextSprite sprite;
+  Ref<Font> font = nullptr;
+  uint32_t glyph_pixel_size = 48;
+};
+
+struct UIRootDrawList {
+  EntityID entity_id{};
+  int sort_order = 0;
+  std::vector<ui::UIDrawCommand> commands;
+};
+
+struct ResolvedUIResources {
+  std::unordered_map<ResourceDescriptorID, Ref<Texture2D>> textures;
+  std::unordered_map<ResourceDescriptorID, Ref<Svg>> svgs;
+  std::unordered_map<ResourceDescriptorID, Ref<Font>> fonts;
+};
+
+struct SceneFrame {
+  std::optional<CameraFrame> main_camera;
+  LightFrameData light_frame{};
+  std::optional<SkyboxFrame> skybox;
+  std::vector<SurfaceDrawItem> opaque_surfaces;
+  std::vector<ShadowDrawItem> shadow_draws;
+  std::vector<TextDrawItem> text_items;
+  std::vector<UIRootDrawList> ui_roots;
+  ResolvedUIResources ui_resources;
+  std::vector<EntityID> pick_id_lut;
+
+  [[nodiscard]] bool empty() const noexcept {
+    return !main_camera.has_value() && !skybox.has_value() &&
+           opaque_surfaces.empty() && shadow_draws.empty() &&
+           text_items.empty() && ui_roots.empty();
+  }
 };
 
 struct RenderRuntimeState {
-  size_t batch_key = 0u;
-  glm::mat4 transform = glm::mat4(1.0f);
+  uint64_t surface_sort_key = 0;
   bool initialized = false;
 };
 
@@ -56,101 +210,11 @@ inline size_t hash_combine(size_t seed, size_t value) {
   return seed ^ (value + 0x9e3779b9 + (seed << 6u) + (seed >> 2u));
 }
 
-inline bool matrix_equal(const glm::mat4 &lhs, const glm::mat4 &rhs) {
-  const float *lhs_ptr = glm::value_ptr(lhs);
-  const float *rhs_ptr = glm::value_ptr(rhs);
-  return std::equal(lhs_ptr, lhs_ptr + 16, rhs_ptr);
-}
-
-inline size_t compute_batch_key(const ModelRef *model_ref, const MeshSet *mesh_set, const ShaderBinding &shader, const MaterialSlots *materials, const TextureBindings *textures) {
-  size_t seed = std::hash<std::string>{}(shader.shader);
-
-  if (model_ref != nullptr) {
-    for (const auto &resource_id : model_ref->resource_ids) {
-      seed = hash_combine(seed, std::hash<std::string>{}(resource_id));
-    }
-  }
-
-  if (mesh_set != nullptr) {
-    for (const auto &mesh : mesh_set->meshes) {
-      seed = hash_combine(seed, std::hash<size_t>{}(mesh.id));
-    }
-  }
-
-  if (materials != nullptr) {
-    for (const auto &material : materials->materials) {
-      seed = hash_combine(seed, std::hash<std::string>{}(material));
-    }
-  }
-
-  if (textures != nullptr) {
-    for (const auto &binding : textures->bindings) {
-      seed = hash_combine(seed, std::hash<std::string>{}(binding.id));
-      seed = hash_combine(seed, std::hash<std::string>{}(binding.name));
-      seed = hash_combine(seed, std::hash<bool>{}(binding.cubemap));
-    }
-  }
-
-  return seed;
-}
-
-inline RenderFrameData collect_render_frame(ecs::World &world, RenderRuntimeStore &runtime_store) {
-  runtime_store.prune(world);
-
-  RenderFrameData frame;
-  std::unordered_map<size_t, size_t> batch_lookup;
-
-  world.each<Renderable, scene::Transform, ShaderBinding>([&](EntityID entity_id,
-                                                              Renderable &,
-                                                              scene::Transform &transform,
-                                                              ShaderBinding &shader) {
-    if (!world.active(entity_id)) {
-      return;
-    }
-
-    auto entity = world.entity(entity_id);
-    auto *model_ref = entity.get<ModelRef>();
-    auto *mesh_set = entity.get<MeshSet>();
-    if (model_ref == nullptr && mesh_set == nullptr) {
-      return;
-    }
-
-    auto *materials = entity.get<MaterialSlots>();
-    auto *textures = entity.get<TextureBindings>();
-
-    const size_t batch_key =
-        compute_batch_key(model_ref, mesh_set, shader, materials, textures);
-
-    auto &runtime_state = runtime_store.entity_states[entity_id];
-    const bool dirty = !runtime_state.initialized ||
-                       runtime_state.batch_key != batch_key ||
-                       !matrix_equal(runtime_state.transform, transform.matrix);
-
-    runtime_state.batch_key = batch_key;
-    runtime_state.transform = transform.matrix;
-    runtime_state.initialized = true;
-
-    frame.packets.push_back(RenderPacket{
-        .entity_id = entity_id,
-        .batch_key = batch_key,
-        .dirty = dirty,
-        .transform = &transform,
-        .model_ref = model_ref,
-        .mesh_set = mesh_set,
-        .materials = materials,
-        .shader = &shader,
-        .textures = textures,
-    });
-
-    auto [it, inserted] = batch_lookup.emplace(batch_key, frame.batches.size());
-    if (inserted) {
-      frame.batches.push_back(RenderBatch{.key = batch_key});
-    }
-
-    frame.batches[it->second].entities.push_back(entity_id);
-  });
-
-  return frame;
+inline uint64_t compute_surface_sort_key(const ResourceDescriptorID &shader_id, const ResourceDescriptorID &material_id, MeshID mesh_id) {
+  size_t seed = std::hash<std::string>{}(shader_id);
+  seed = hash_combine(seed, std::hash<std::string>{}(material_id));
+  seed = hash_combine(seed, std::hash<size_t>{}(mesh_id));
+  return static_cast<uint64_t>(seed);
 }
 
 } // namespace astralix::rendering

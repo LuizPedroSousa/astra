@@ -39,6 +39,22 @@ namespace astralix {
     m_frame_stats.state_change_count++;
   }
 
+  void OpenGLRendererAPI::enable_depth_bias() {
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    m_frame_stats.state_change_count++;
+  }
+
+  void OpenGLRendererAPI::disable_depth_bias() {
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    m_frame_stats.state_change_count++;
+  }
+
+  void OpenGLRendererAPI::set_depth_bias(float slope_factor,
+                                         float constant_factor) {
+    glPolygonOffset(slope_factor, constant_factor);
+    m_frame_stats.state_change_count++;
+  }
+
   void OpenGLRendererAPI::enable_blend() {
     glEnable(GL_BLEND);
     m_frame_stats.state_change_count++;
@@ -198,6 +214,16 @@ namespace astralix {
                                            uint32_t width, uint32_t height) {
     glScissor(static_cast<int>(x), static_cast<int>(y), static_cast<int>(width),
               static_cast<int>(height));
+  }
+
+  void OpenGLRendererAPI::enable_cull() {
+    glEnable(GL_CULL_FACE);
+    m_frame_stats.state_change_count++;
+  }
+
+  void OpenGLRendererAPI::disable_cull() {
+    glDisable(GL_CULL_FACE);
+    m_frame_stats.state_change_count++;
   }
 
   void OpenGLRendererAPI::bind_texture_2d(uint32_t texture_id, uint32_t slot) {

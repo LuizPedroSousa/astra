@@ -2,197 +2,318 @@
 
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
-#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
-#include "renderer-api.hpp"
-#include "resources/descriptors/shader-descriptor.hpp"
+#include "resources/shader.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/light-frame.hpp"
 #include "systems/render-system/material-binding.hpp"
-#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include "systems/render-system/render-frame.hpp"
-#include "systems/render-system/scene-selection.hpp"
-#include <unordered_map>
+#include "trace.hpp"
+
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
 
 namespace astralix {
 
-class ForwardPass : public RenderPass {
+class ForwardPass : public FramePass {
 public:
-  explicit ForwardPass(std::vector<EntityID> *pick_id_lut = nullptr)
-      : m_pick_id_lut(pick_id_lut) {}
+  ForwardPass() = default;
   ~ForwardPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override {
-    m_render_target = render_target;
+  void setup(PassSetupContext &ctx) override {
+    m_shader = ctx.require_shader("forward_shader");
 
-    for (auto resource : resources) {
-      switch (resource->desc.type) {
-        case RenderGraphResourceType::Framebuffer: {
-          if (resource->desc.name == "shadow_map") {
-            m_shadow_map = resource->get_framebuffer();
-          }
-
-          if (resource->desc.name == "scene_color") {
-            m_scene_color = resource->get_framebuffer();
-          }
-          break;
-        }
-
-        default:
-          break;
-      }
-    }
-
-    if (m_scene_color == nullptr || m_shadow_map == nullptr) {
+    if (m_shader == nullptr) {
+      LOG_WARN("[ForwardPass] Missing graph dependency: forward_shader");
       set_enabled(false);
     }
   }
 
-  void begin(double dt) override {}
-
-  void execute(double dt) override {
-    ASTRA_PROFILE_N("ForwardPass Update");
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-    auto scene = SceneManager::get()->get_active_scene();
-    if (scene == nullptr) {
-      LOG_WARN("[ForwardPass] Skipping execute: no active scene");
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override {
+    ASTRA_PROFILE_N("ForwardPass::record");
+    const auto *scene_frame = ctx.scene();
+    if (scene_frame == nullptr) {
+      LOG_WARN("[ForwardPass] Skipping record: scene frame is unavailable");
       return;
     }
 
-    if (m_shadow_map == nullptr) {
-      LOG_WARN("[ForwardPass] Skipping execute: shadow_map framebuffer is not "
-               "available");
+    if (m_shader == nullptr) {
+      LOG_WARN("[ForwardPass] Skipping record: forward shader is unavailable");
       return;
     }
 
-    auto &world = scene->world();
-    if (!rendering::has_renderables(world) ||
-        world.count<rendering::Renderable, scene::Transform,
-                    rendering::ShaderBinding>() == 0u) {
+    if (!scene_frame->main_camera.has_value()) {
+      LOG_WARN("[ForwardPass] Skipping record: no main camera selected");
+      return;
+    }
+
+    if (scene_frame->opaque_surfaces.empty()) {
       LOG_WARN(
-          "[ForwardPass] Skipping execute: scene has no renderables with "
-          "shader bindings");
+          "[ForwardPass] Skipping record: scene has no extracted surfaces"
+      );
       return;
     }
 
-    auto camera = rendering::select_main_camera(world);
-    if (!camera.has_value()) {
-      LOG_WARN("[ForwardPass] Skipping execute: no main camera selected");
+    const auto *shadow_map = ctx.find_graph_image("shadow_map");
+    const auto *scene_color_resource = ctx.find_graph_image("scene_color");
+    const auto *bloom_extract = ctx.find_graph_image("bloom_extract");
+    const auto *entity_pick_resource = ctx.find_graph_image("entity_pick");
+    const auto *scene_depth_resource = ctx.find_graph_image("scene_depth");
+
+    if (shadow_map == nullptr || scene_color_resource == nullptr ||
+        bloom_extract == nullptr || entity_pick_resource == nullptr ||
+        scene_depth_resource == nullptr || m_shader == nullptr) {
       return;
     }
-
-    const auto light_frame = rendering::collect_light_frame(world);
-    rendering::RenderFrameData frame =
-        rendering::collect_render_frame(world, m_runtime_store);
-    if (frame.packets.empty()) {
-      LOG_WARN("[ForwardPass] Skipping execute: no render packets collected");
-      return;
-    }
-
-    auto renderer_api = m_render_target->renderer_api();
-    const auto backend = renderer_api->get_backend();
-
-    std::unordered_map<ResourceDescriptorID, Ref<Shader>> shader_cache;
-    shader_cache.reserve(frame.packets.size());
-
-    m_scene_color->bind();
-    renderer_api->enable_buffer_testing();
-    renderer_api->depth(RendererAPI::DepthMode::Less);
 
     using namespace shader_bindings::engine_shaders_lighting_forward_axsl;
-    if (m_pick_id_lut != nullptr) {
-      m_pick_id_lut->clear();
+    const rendering::MaterialBindingLayout engine_material_layout{
+        .base_color = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::base_color.logical_name,
+            .binding_id = MaterialResources::base_color.binding_id,
+        },
+        .normal = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::normal.logical_name,
+            .binding_id = MaterialResources::normal.binding_id,
+        },
+        .metallic = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::metallic.logical_name,
+            .binding_id = MaterialResources::metallic.binding_id,
+        },
+        .roughness = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::roughness.logical_name,
+            .binding_id = MaterialResources::roughness.binding_id,
+        },
+        .occlusion = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::occlusion.logical_name,
+            .binding_id = MaterialResources::occlusion.binding_id,
+        },
+        .emissive = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::emissive.logical_name,
+            .binding_id = MaterialResources::emissive.binding_id,
+        },
+        .displacement = rendering::MaterialTextureBindingPoint{
+            .logical_name = MaterialResources::displacement.logical_name,
+            .binding_id = MaterialResources::displacement.binding_id,
+        },
+    };
+
+    auto &frame = ctx.frame();
+    const auto extent = ctx.graph_image_extent(*scene_color_resource);
+
+    bool rendering_started = false;
+    ImageHandle scene_color{};
+    ImageHandle bloom{};
+    ImageHandle entity_id{};
+    ImageHandle scene_depth{};
+    ImageHandle shadow_depth{};
+    RenderPipelineHandle pipeline{};
+    RenderBindingGroupHandle scene_bindings{};
+    std::unordered_map<
+        rendering::MaterialGroupKey,
+        RenderBindingGroupHandle,
+        rendering::MaterialGroupKeyHash>
+        material_bindings;
+
+    RenderPipelineDesc pipeline_desc;
+    pipeline_desc.debug_name = "forward-pass";
+    pipeline_desc.depth_stencil.depth_test = true;
+    pipeline_desc.depth_stencil.depth_write = true;
+    pipeline_desc.depth_stencil.compare_op = CompareOp::Less;
+    pipeline_desc.blend_attachments = {
+        BlendAttachmentState::replace(),
+    };
+
+    const auto ensure_rendering_started = [&] {
+      if (rendering_started) {
+        return;
+      }
+
+      scene_color = ctx.register_graph_image(
+          "forward.scene-color", *scene_color_resource
+      );
+      bloom = ctx.register_graph_image("forward.bloom", *bloom_extract);
+      entity_id = ctx.register_graph_image(
+          "forward.entity-id", *entity_pick_resource
+      );
+      scene_depth = ctx.register_graph_image(
+          "forward.scene-depth", *scene_depth_resource, ImageAspect::Depth
+      );
+      shadow_depth = ctx.register_graph_image(
+          "forward.shadow-map", *shadow_map, ImageAspect::Depth
+      );
+
+      RenderingInfo info;
+      info.debug_name = "forward-pass";
+      info.extent = extent;
+      info.color_attachments.push_back(ColorAttachmentRef{
+          .view = ImageViewRef{.image = scene_color},
+          .load_op = AttachmentLoadOp::Clear,
+          .store_op = AttachmentStoreOp::Store,
+          .clear_color = {0.0f, 0.0f, 0.0f, 1.0f},
+      });
+      info.color_attachments.push_back(ColorAttachmentRef{
+          .view = ImageViewRef{.image = bloom},
+          .load_op = AttachmentLoadOp::Clear,
+          .store_op = AttachmentStoreOp::Store,
+          .clear_color = {0.0f, 0.0f, 0.0f, 0.0f},
+      });
+      info.color_attachments.push_back(ColorAttachmentRef{
+          .view = ImageViewRef{.image = entity_id},
+          .load_op = AttachmentLoadOp::Clear,
+          .store_op = AttachmentStoreOp::Store,
+          .clear_color = {0.0f, 0.0f, 0.0f, 0.0f},
+      });
+      info.depth_stencil_attachment = DepthStencilAttachmentRef{
+          .view = ImageViewRef{
+              .image = scene_depth,
+              .aspect = ImageAspect::Depth,
+          },
+          .depth_load_op = AttachmentLoadOp::Clear,
+          .depth_store_op = AttachmentStoreOp::Store,
+          .clear_depth = 1.0f,
+          .stencil_load_op = AttachmentLoadOp::DontCare,
+          .stencil_store_op = AttachmentStoreOp::DontCare,
+          .clear_stencil = 0,
+      };
+
+      recorder.begin_rendering(info);
+      rendering_started = true;
+    };
+
+    const auto ensure_pipeline_and_scene_bindings = [&] {
+      ensure_rendering_started();
+
+      if (!pipeline.valid()) {
+        pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+      }
+
+      if (scene_bindings.valid()) {
+        return;
+      }
+
+      scene_bindings = frame.register_binding_group(
+          make_binding_group_desc(
+              "forward-pass.scene",
+              "forward-pass",
+              m_shader,
+              0,
+              "forward-pass.scene",
+              RenderBindingScope::Pass,
+              RenderBindingCachePolicy::Reuse,
+              RenderBindingSharing::LocalOnly,
+              0,
+              RenderBindingStability::FrameLocal
+          )
+      );
+      frame.add_sampled_image_binding(
+          scene_bindings,
+          SceneLightResources::shadow_map.binding_id,
+          ImageViewRef{
+              .image = shadow_depth,
+              .aspect = ImageAspect::Depth,
+          }
+      );
+      rendering::record_shader_params(frame, scene_bindings, CameraParams{
+                                                                .view = scene_frame->main_camera->view,
+                                                                .projection = scene_frame->main_camera->projection,
+                                                                .position = scene_frame->main_camera->position,
+                                                            });
+      rendering::record_shader_params(
+          frame,
+          scene_bindings,
+          rendering::build_forward_scene_params(scene_frame->light_frame)
+      );
+    };
+
+    for (const auto &surface : scene_frame->opaque_surfaces) {
+      if (surface.mesh.vertex_array == nullptr ||
+          surface.mesh.index_count == 0) {
+        continue;
+      }
+
+      ensure_pipeline_and_scene_bindings();
+
+      const auto material_key =
+          rendering::make_material_group_key(surface.material);
+      auto material_it = material_bindings.find(material_key);
+      if (material_it == material_bindings.end()) {
+        const auto material_group = frame.register_binding_group(
+            make_binding_group_desc(
+                "forward-pass.material",
+                "forward-pass",
+                m_shader,
+                1,
+                "forward-pass.material",
+                RenderBindingScope::Material,
+                RenderBindingCachePolicy::Reuse,
+                RenderBindingSharing::LocalOnly,
+                0,
+                RenderBindingStability::FrameLocal
+            )
+        );
+        const auto material_binding =
+            rendering::record_resolved_material_bindings(
+                frame, material_group, surface.material, engine_material_layout
+            );
+        rendering::record_shader_params(
+            frame,
+            material_group,
+            rendering::build_forward_material_params(material_binding)
+        );
+        material_it =
+            material_bindings.emplace(material_key, material_group).first;
+      }
+
+      const auto draw_bindings = frame.register_binding_group(
+          make_binding_group_desc(
+              "forward-pass.draw",
+              "forward-pass",
+              m_shader,
+              2,
+              "forward-pass.draw",
+              RenderBindingScope::Draw,
+              RenderBindingCachePolicy::Ephemeral,
+              RenderBindingSharing::LocalOnly,
+              0,
+              RenderBindingStability::Transient
+          )
+      );
+      rendering::record_shader_params(
+          frame, draw_bindings, DrawParams{
+                                    .use_instancing = false,
+                                    .g_model = surface.model,
+                                    .bloom_enabled = surface.bloom_enabled,
+                                    .bloom_layer = surface.bloom_layer,
+                                    .entity_id = static_cast<int>(surface.pick_id),
+                                }
+      );
+
+      const auto mesh_buffer = frame.register_vertex_array(
+          "forward-pass.mesh", surface.mesh.vertex_array
+      );
+
+      recorder.bind_pipeline(pipeline);
+      recorder.bind_binding_group(scene_bindings);
+      recorder.bind_binding_group(material_it->second);
+      recorder.bind_binding_group(draw_bindings);
+      recorder.bind_vertex_buffer(mesh_buffer);
+      recorder.bind_index_buffer(mesh_buffer, IndexType::Uint32);
+      recorder.draw_indexed(DrawIndexedArgs{
+          .index_count = surface.mesh.index_count,
+      });
     }
 
-    for (const auto &packet : frame.packets) {
-      if (packet.transform == nullptr ||
-          (packet.model_ref == nullptr && packet.mesh_set == nullptr) ||
-          packet.shader == nullptr) {
-        continue;
-      }
-
-      auto [shader_it, inserted] =
-          shader_cache.emplace(packet.shader->shader, nullptr);
-      if (inserted) {
-        resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-            backend, {packet.shader->shader});
-        shader_it->second = resource_manager()->get_by_descriptor_id<Shader>(
-            packet.shader->shader);
-      }
-
-      auto shader = shader_it->second;
-      if (shader == nullptr) {
-        continue;
-      }
-
-      int pick_id = 0;
-      if (m_pick_id_lut != nullptr) {
-        m_pick_id_lut->push_back(packet.entity_id);
-        pick_id = static_cast<int>(m_pick_id_lut->size());
-      }
-
-      shader->bind();
-
-      auto entity = world.entity(packet.entity_id);
-      const auto bloom_settings =
-          rendering::resolve_bloom_settings(
-              entity.get<rendering::BloomSettings>());
-
-      const auto material_binding = rendering::bind_material_slots(
-          renderer_api, shader, packet.model_ref, packet.materials,
-          packet.textures);
-      if (material_binding.diffuse_slot < 0 ||
-          material_binding.specular_slot < 0) {
-        shader->unbind();
-        continue;
-      }
-
-      const int shadow_map_slot = material_binding.next_texture_slot;
-      renderer_api->bind_texture_2d(m_shadow_map->get_depth_attachment_id(),
-                                    shadow_map_slot);
-
-      shader->set_all(CameraParams{
-          .view = camera->camera->view_matrix,
-          .projection = camera->camera->projection_matrix,
-          .position = camera->transform->position,
-      });
-      shader->set_all(EntityParams{
-          .use_instancing = false,
-          .g_model = packet.transform->matrix,
-          .bloom_enabled = bloom_settings.enabled,
-          .bloom_layer = bloom_settings.render_layer,
-          .entity_id = pick_id,
-      });
-      shader->set_all(rendering::build_forward_light_params(
-          light_frame, material_binding, shadow_map_slot));
-
-      rendering::for_each_render_mesh(
-          packet.model_ref, packet.mesh_set, m_render_target, [&](Mesh &mesh) {
-            renderer_api->draw_indexed(mesh.vertex_array, mesh.draw_type);
-          });
-
-      shader->unbind();
+    if (rendering_started) {
+      recorder.end_rendering();
     }
-
-    m_scene_color->unbind();
-#endif
   }
-
-  void end(double dt) override {}
-
-  void cleanup() override {}
 
   std::string name() const override { return "ForwardPass"; }
 
 private:
-  Framebuffer *m_shadow_map = nullptr;
-  Framebuffer *m_scene_color = nullptr;
-  rendering::RenderRuntimeStore m_runtime_store;
-  std::vector<EntityID> *m_pick_id_lut = nullptr;
+  Ref<Shader> m_shader = nullptr;
 };
 
 } // namespace astralix

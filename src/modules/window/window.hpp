@@ -7,12 +7,17 @@
 #include "events/keyboard.hpp"
 #include "events/mouse.hpp"
 
-#include "glad/glad.h"
-
+#define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
 #include <string>
 
 namespace astralix {
+
+enum class WindowGraphicsAPI : uint8_t {
+  None,
+  OpenGL,
+  Vulkan,
+};
 
 enum class CursorIcon : uint8_t {
   Default,
@@ -33,9 +38,10 @@ public:
   static Ref<Window> create(WindowID &id, std::string &title, int &width,
                             int &height, bool headless);
 
-  void start();
+  void start(WindowGraphicsAPI api = WindowGraphicsAPI::OpenGL);
 
   WindowID id() const noexcept { return m_id; }
+  WindowGraphicsAPI graphics_api() const noexcept { return m_graphics_api; }
   int height() const noexcept { return m_height; }
   int width() const noexcept { return m_width; }
   GLFWwindow *handle() const noexcept { return m_value; }
@@ -83,6 +89,7 @@ private:
   Ref<input::Keyboard> m_keyboard;
   Ref<input::Mouse> m_mouse;
 
+  WindowGraphicsAPI m_graphics_api = WindowGraphicsAPI::None;
   bool m_headless = false;
   bool m_cursor_captured = false;
   CursorIcon m_cursor_icon = CursorIcon::Default;

@@ -5,7 +5,7 @@ if(POLICY CMP0079)
   cmake_policy(SET CMP0079 NEW)
 endif()
 
-option(ASTRA_EDITOR "Astra internal Layer Editor" ON)
+option(ASTRA_EDITOR "Astra internal Layer Editor" OFF)
 option(ASTRA_EDITOR_USOCKET "Astra forward serialization with USocket for external Editor" true)
 option(ASTRA_ENABLE_TESTS "Enable unit tests" false)
 option(ASTRA_TRACE "Enable tracing" OFF)
@@ -35,15 +35,20 @@ if(ASTRA_TRACE)
 endif()
 
 find_package(OpenGL REQUIRED)
+find_package(Vulkan REQUIRED)
 find_package(assimp REQUIRED)
 
 set(freetype_DIR "${VCPKG_INSTALLED_ROOT}/share/freetype")
-set(imgui_DIR "${VCPKG_INSTALLED_ROOT}/share/imgui")
-set(imguizmo_DIR "${VCPKG_INSTALLED_ROOT}/share/imguizmo")
 set(glfw3_DIR "${VCPKG_INSTALLED_ROOT}/share/glfw3")
 set(uwebsockets_DIR "${VCPKG_INSTALLED_ROOT}/share/unofficial-uwebsockets")
 set(glad_DIR "${VCPKG_INSTALLED_ROOT}/share/glad")
 set(glm_DIR "${VCPKG_INSTALLED_ROOT}/share/glm")
+set(glslang_DIR "${VCPKG_INSTALLED_ROOT}/share/glslang")
+set(SPIRV-Tools_DIR "${VCPKG_INSTALLED_ROOT}/share/spirv-tools")
+set(SPIRV-Tools-opt_DIR "${VCPKG_INSTALLED_ROOT}/share/spirv-tools-opt")
+set(unofficial-shaderc_DIR "${VCPKG_INSTALLED_ROOT}/share/unofficial-shaderc")
+
+find_package(unofficial-shaderc CONFIG REQUIRED)
 
 find_path(USOCKET_LIB_A "${VCPKG_INSTALLED_ROOT}/lib/libuSockets.a")
 find_path(GLAD_LIB_A "${VCPKG_INSTALLED_ROOT}/lib/libglad.a")
@@ -56,7 +61,6 @@ find_package(ZLIB REQUIRED)
 
 find_package(glm CONFIG REQUIRED)
 find_package(freetype CONFIG REQUIRED)
-find_package(imgui CONFIG REQUIRED)
 
 find_package(PkgConfig)
 
@@ -322,6 +326,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       OpenMP::OpenMP_CXX
       glfw
       glad::glad
+      Vulkan::Vulkan
       glm::glm
       ${TRACE_LIBS}
       "${VCPKG_INSTALLED_ROOT}/lib/libuSockets.a"

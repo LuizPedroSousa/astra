@@ -2,7 +2,9 @@
 
 @uniform
 interface Text {
+  @set(1)
   sampler2D glyph;
+  @set(1)
   vec4 color;
 }
 

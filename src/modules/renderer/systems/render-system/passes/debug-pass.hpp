@@ -1,80 +1,56 @@
 #pragma once
 
+#include "framebuffer.hpp"
 #include "managers/resource-manager.hpp"
-#include "managers/window-manager.hpp"
 #include "render-pass.hpp"
-#include "resources/mesh.hpp"
+#include "resources/descriptors/shader-descriptor.hpp"
 #include "resources/shader.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+#include "systems/render-system/render-frame.hpp"
 #include "targets/render-target.hpp"
+#include "trace.hpp"
+
+#include ASTRALIX_ENGINE_BINDINGS_HEADER
 
 namespace astralix {
 
-struct DebugDepthState {
-  Mesh mesh = Mesh::quad(1.0f);
-  Ref<Shader> shader = nullptr;
-  bool active = false;
-  bool fullscreen = false;
-};
-
-struct DebugNormalState {
-  Ref<Shader> shader = nullptr;
-  bool active = false;
-};
-
-struct DebugGBufferState {
-  Mesh mesh = Mesh::quad(1.0f);
-  Ref<Shader> shader = nullptr;
-  bool active = false;
-  int attachment_index = 0;
-};
-
-class DebugGBufferPass : public RenderPass {
+class DebugGBufferPass : public FramePass {
 public:
-  DebugGBufferPass() = default;
+  explicit DebugGBufferPass(rendering::ResolvedMeshDraw fullscreen_quad = {})
+      : m_fullscreen_quad(std::move(fullscreen_quad)) {}
   ~DebugGBufferPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override;
-  void begin(double dt) override;
-  void execute(double dt) override;
-  void end(double dt) override;
-  void cleanup() override;
+  void setup(PassSetupContext &ctx) override;
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override;
 
   std::string name() const override { return "DebugGBufferPass"; }
 
 private:
-  void draw_gbuffer();
-
-  DebugGBufferState m_debug_gbuffer;
-  Framebuffer *m_scene_color = nullptr;
-  Framebuffer *m_g_buffer = nullptr;
+  Ref<Shader> m_shader = nullptr;
+  rendering::ResolvedMeshDraw m_fullscreen_quad{};
+  bool m_active = false;
+  int m_attachment_index = 0;
 };
 
-class DebugOverlayPass : public RenderPass {
+class DebugOverlayPass : public FramePass {
 public:
-  DebugOverlayPass() = default;
+  explicit DebugOverlayPass(rendering::ResolvedMeshDraw fullscreen_quad = {})
+      : m_fullscreen_quad(std::move(fullscreen_quad)) {}
   ~DebugOverlayPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override;
-  void begin(double dt) override;
-  void execute(double dt) override;
-  void end(double dt) override;
-  void cleanup() override;
+  void setup(PassSetupContext &ctx) override;
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override;
 
   std::string name() const override { return "DebugOverlayPass"; }
 
 private:
-  void draw_depth_overlay();
-  void draw_normal_overlay();
-
-  DebugDepthState m_debug_depth;
-  DebugNormalState m_debug_normal;
-  Framebuffer *m_scene_color = nullptr;
-  Framebuffer *m_shadow_map = nullptr;
+  Ref<Shader> m_depth_shader = nullptr;
+  rendering::ResolvedMeshDraw m_fullscreen_quad{};
+  bool m_depth_active = false;
+  bool m_depth_fullscreen = false;
 };
 
 } // namespace astralix

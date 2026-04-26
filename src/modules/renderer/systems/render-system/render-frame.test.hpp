@@ -57,7 +57,7 @@ TEST(RenderFrameTest, KeepsPacketsCleanUntilInputsChange) {
   EXPECT_TRUE(third.packets[0].dirty);
 }
 
-TEST(RenderFrameTest, CollectsDirectMeshPacketsForBridgedMeshes) {
+TEST(RenderFrameTest, CollectsDirectMeshPacketsForInlineMeshSets) {
   ecs::World world;
   RenderRuntimeStore runtime_store;
 
@@ -70,7 +70,7 @@ TEST(RenderFrameTest, CollectsDirectMeshPacketsForBridgedMeshes) {
       {0, 1, 2}
   );
 
-  auto entity = world.spawn("bridged");
+  auto entity = world.spawn("inline-mesh");
   entity.emplace<Renderable>();
   entity.emplace<scene::Transform>();
   entity.emplace<MeshSet>(MeshSet{.meshes = {mesh}});

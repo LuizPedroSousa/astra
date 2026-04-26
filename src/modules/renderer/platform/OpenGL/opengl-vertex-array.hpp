@@ -29,7 +29,5 @@ private:
   uint32_t m_renderer_id;
 
   static uint map_shader_data_type_to_opengl(ShaderDataType type);
-
-  static const void *get_offset(bool is_matrix, BufferElement element);
 };
 } // namespace astralix

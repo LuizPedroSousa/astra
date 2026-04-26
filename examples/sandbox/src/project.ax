@@ -116,9 +116,9 @@
       ]
     },
     {
-      "id": "textures::wood::diffuse",
+      "id": "textures::brick::base_color",
       "type": "Texture2D",
-      "path": "textures/wood.png",
+      "path": "textures/brick/base_color.jpg",
       "flip": false,
       "parameters": [
         {
@@ -140,9 +140,9 @@
       ]
     },
     {
-      "id": "textures::wood::normal",
+      "id": "textures::brick::normal",
       "type": "Texture2D",
-      "path": "textures/wood_normal.png",
+      "path": "textures/brick/normal.png",
       "flip": false,
       "parameters": [
         {
@@ -164,9 +164,9 @@
       ]
     },
     {
-      "id": "textures::wood::displacement",
+      "id": "textures::brick::metallic",
       "type": "Texture2D",
-      "path": "textures/wood_displacement.png",
+      "path": "textures/brick/metalic.jpg",
       "flip": false,
       "parameters": [
         {
@@ -188,16 +188,104 @@
       ]
     },
     {
-      "id": "materials::wood",
+      "id": "textures::brick::roughness",
+      "type": "Texture2D",
+      "path": "textures/brick/roughness.jpg",
+      "flip": false,
+      "parameters": [
+        {
+          "key": "wrap_s",
+          "value": "linear"
+        },
+        {
+          "key": "wrap_t",
+          "value": "linear"
+        },
+        {
+          "key": "mag_filter",
+          "value": "linear_mip_map"
+        },
+        {
+          "key": "min_filter",
+          "value": "linear"
+        }
+      ]
+    },
+    {
+      "id": "textures::brick::occlusion",
+      "type": "Texture2D",
+      "path": "textures/brick/ambient_occlusion.jpg",
+      "flip": false,
+      "parameters": [
+        {
+          "key": "wrap_s",
+          "value": "linear"
+        },
+        {
+          "key": "wrap_t",
+          "value": "linear"
+        },
+        {
+          "key": "mag_filter",
+          "value": "linear_mip_map"
+        },
+        {
+          "key": "min_filter",
+          "value": "linear"
+        }
+      ]
+    },
+    {
+      "id": "textures::brick::displacement",
+      "type": "Texture2D",
+      "path": "textures/brick/displacement.png",
+      "flip": false,
+      "parameters": [
+        {
+          "key": "wrap_s",
+          "value": "linear"
+        },
+        {
+          "key": "wrap_t",
+          "value": "linear"
+        },
+        {
+          "key": "mag_filter",
+          "value": "linear_mip_map"
+        },
+        {
+          "key": "min_filter",
+          "value": "linear"
+        }
+      ]
+    },
+    {
+      "id": "materials::brick",
       "type": "Material",
       "textures": {
-        "diffuse": [
-          "textures::wood::diffuse"
-        ],
-        "specular": [],
-        "normal": "textures::wood::normal",
-        "displacement": "textures::wood::displacement"
-      }
+        "base_color": "textures::brick::base_color",
+        "normal": "textures::brick::normal",
+        "metallic": "textures::brick::metallic",
+        "roughness": "textures::brick::roughness",
+        "occlusion": "textures::brick::occlusion",
+        "displacement": "textures::brick::displacement"
+      },
+      "base_color_factor": {
+        "x": 1.0,
+        "y": 1.0,
+        "z": 1.0,
+        "w": 1.0
+      },
+      "emissive_factor": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "metallic_factor": 1.0,
+      "roughness_factor": 1.0,
+      "occlusion_strength": 1.0,
+      "normal_scale": 1.0,
+      "bloom_intensity": 0.0
     },
     {
       "id": "shaders::post_processing",
@@ -260,6 +348,12 @@
       "fragment": "@engine/shaders/ui/text.axsl"
     },
     {
+      "id": "shaders::ui_polyline",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ui/polyline.axsl",
+      "fragment": "@engine/shaders/ui/polyline.axsl"
+    },
+    {
       "id": "shaders::g_buffer",
       "type": "Shader",
       "vertex": "@engine/shaders/g_buffer.axsl",
@@ -288,6 +382,12 @@
       "type": "Shader",
       "vertex": "@engine/shaders/shadow_map.axsl",
       "fragment": "@engine/shaders/shadow_map.axsl"
+    },
+    {
+      "id": "shaders::editor_gizmo",
+      "type": "Shader",
+      "vertex": "@engine/shaders/editor_gizmo.axsl",
+      "fragment": "@engine/shaders/editor_gizmo.axsl"
     },
     {
       "id": "shaders::grid",

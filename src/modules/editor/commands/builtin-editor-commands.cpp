@@ -604,6 +604,7 @@ ConsoleCommandResult handle_entity_command(
         entity.emplace<rendering::PointLightAttenuation>();
       } else if (type == rendering::LightType::Spot) {
         entity.emplace<rendering::SpotLightCone>();
+        entity.emplace<rendering::SpotLightAttenuation>();
       }
 
       editor_selection_store()->set_selected_entity(entity.id());

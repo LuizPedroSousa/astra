@@ -123,6 +123,19 @@ glm::vec3 read_vec3(ContextProxy ctx, const glm::vec3 &fallback = glm::vec3(0.0f
   return glm::vec3(read_number(ctx["x"], fallback.x), read_number(ctx["y"], fallback.y), read_number(ctx["z"], fallback.z));
 }
 
+glm::vec4 read_vec4(ContextProxy ctx, const glm::vec4 &fallback = glm::vec4(0.0f)) {
+  if (ctx.kind() != SerializationTypeKind::Object) {
+    return fallback;
+  }
+
+  return glm::vec4(
+      read_number(ctx["x"], fallback.x),
+      read_number(ctx["y"], fallback.y),
+      read_number(ctx["z"], fallback.z),
+      read_number(ctx["w"], fallback.w)
+  );
+}
+
 ResourceType asset_type_from_string(const std::string &type) {
   if (type == "Texture2D")
     return ResourceType::Texture2D;
@@ -371,32 +384,52 @@ void ProjectSerializer::deserialize() {
         break;
       }
       case ResourceType::Material: {
+        ASTRA_ENSURE(
+            asset["textures"]["diffuse"].kind() !=
+                    SerializationTypeKind::Unknown ||
+                asset["textures"]["specular"].kind() !=
+                    SerializationTypeKind::Unknown,
+            "Material '", id, "' still uses classic material keys"
+        );
+        ASTRA_ENSURE(
+            asset["emissive"].kind() != SerializationTypeKind::Unknown,
+            "Material '", id, "' still uses classic material fields"
+        );
+
         auto textures = asset["textures"];
 
-        std::vector<std::string> diffuse;
-        std::vector<std::string> specular;
+        auto read_optional_id = [](ContextProxy ctx)
+            -> std::optional<ResourceDescriptorID> {
+          if (ctx.kind() != SerializationTypeKind::String) {
+            return std::nullopt;
+          }
 
-        auto diffuse_size = textures["diffuse"].size();
-        auto specular_size = textures["specular"].size();
+          const auto value = ctx.as<std::string>();
+          if (value.empty()) {
+            return std::nullopt;
+          }
 
-        for (int j = 0; j < diffuse_size; j++) {
-          diffuse.push_back(textures["diffuse"][j].as<std::string>());
-        }
+          return value;
+        };
 
-        for (int j = 0; j < specular_size; j++) {
-          specular.push_back(textures["specular"][j].as<std::string>());
-        }
-
-        std::string normal = textures["normal"].as<std::string>();
-
-        std::string displacement = textures["displacement"].as<std::string>();
-
-        const glm::vec3 emissive =
-            read_vec3(asset["emissive"], glm::vec3(0.0f));
-        const float bloom_intensity =
-            read_number(asset["bloom_intensity"], 0.0f);
-
-        Material::create(id, diffuse, specular, normal, displacement, emissive, bloom_intensity);
+        Material::create(
+            id,
+            read_optional_id(textures["base_color"]),
+            read_optional_id(textures["normal"]),
+            read_optional_id(textures["metallic"]),
+            read_optional_id(textures["roughness"]),
+            read_optional_id(textures["metallic_roughness"]),
+            read_optional_id(textures["occlusion"]),
+            read_optional_id(textures["emissive"]),
+            read_optional_id(textures["displacement"]),
+            read_vec4(asset["base_color_factor"], glm::vec4(1.0f)),
+            read_vec3(asset["emissive_factor"], glm::vec3(0.0f)),
+            read_number(asset["metallic_factor"], 1.0f),
+            read_number(asset["roughness_factor"], 1.0f),
+            read_number(asset["occlusion_strength"], 1.0f),
+            read_number(asset["normal_scale"], 1.0f),
+            read_number(asset["bloom_intensity"], 0.0f)
+        );
         break;
       }
       case ResourceType::Shader: {

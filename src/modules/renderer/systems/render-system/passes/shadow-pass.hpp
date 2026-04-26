@@ -2,146 +2,163 @@
 
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
-#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
-#include "systems/render-system/light-frame.hpp"
-#include "systems/render-system/mesh-resolution.hpp"
+#include "resources/shader.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
+#include "systems/render-system/render-frame.hpp"
 #include "trace.hpp"
 
-#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
-#define ASTRALIX_HAS_ENGINE_BINDINGS
-#endif
 
 namespace astralix {
 
-class ShadowPass : public RenderPass {
+class ShadowPass : public FramePass {
 public:
   ShadowPass() = default;
   ~ShadowPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override {
-    m_render_target = render_target;
+  void setup(PassSetupContext &ctx) override {
+    m_shader = ctx.require_shader("shadow_shader");
 
-    for (auto resource : resources) {
-      if (resource->desc.type == RenderGraphResourceType::Framebuffer &&
-          resource->desc.name == "shadow_map") {
-        m_shadow_mapping_framebuffer = resource->get_framebuffer();
-        break;
+    if (m_shader == nullptr) {
+      LOG_WARN("[ShadowPass] Missing graph dependency: shadow_shader");
+      set_enabled(false);
+      return;
+    }
+
+    if (m_shader->descriptor_id() != "shaders::shadow_map") {
+      LOG_WARN("[ShadowPass] Wrong shader dependency wired into graph");
+      set_enabled(false);
+      return;
+    }
+  }
+
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override {
+    ASTRA_PROFILE_N("ShadowPass::record");
+
+    const auto *shadow_map_resource = ctx.find_graph_image("shadow_map");
+    if (shadow_map_resource == nullptr) {
+      return;
+    }
+
+    const auto *scene_frame = ctx.scene();
+    if (scene_frame == nullptr || scene_frame->shadow_draws.empty() ||
+        !scene_frame->light_frame.directional.valid || m_shader == nullptr) {
+      return;
+    }
+
+    const auto extent = ctx.graph_image_extent(*shadow_map_resource);
+
+    auto &frame = ctx.frame();
+    const auto shadow_depth = ctx.register_graph_image(
+        "shadow-pass.depth", *shadow_map_resource, ImageAspect::Depth
+    );
+
+    RenderPipelineDesc pipeline_desc;
+    pipeline_desc.debug_name = "shadow-pass";
+    pipeline_desc.depth_format =
+        shadow_map_resource->get_graph_image()->desc.format;
+    pipeline_desc.raster.cull_mode = CullMode::None;
+    pipeline_desc.raster.depth_bias.enabled = true;
+    pipeline_desc.raster.depth_bias.constant_factor = 1.0f;
+    pipeline_desc.raster.depth_bias.slope_factor = 1.75f;
+    pipeline_desc.depth_stencil.depth_test = true;
+    pipeline_desc.depth_stencil.depth_write = true;
+    pipeline_desc.depth_stencil.compare_op = CompareOp::Less;
+
+    const auto pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+
+    RenderingInfo info;
+    info.debug_name = "shadow-pass";
+    info.extent = extent;
+    info.depth_stencil_attachment = DepthStencilAttachmentRef{
+        .view = ImageViewRef{.image = shadow_depth, .aspect = ImageAspect::Depth},
+        .depth_load_op = AttachmentLoadOp::Clear,
+        .depth_store_op = AttachmentStoreOp::Store,
+        .clear_depth = 1.0f,
+        .stencil_load_op = AttachmentLoadOp::DontCare,
+        .stencil_store_op = AttachmentStoreOp::DontCare,
+        .clear_stencil = 0,
+    };
+
+    recorder.begin_rendering(info);
+    recorder.bind_pipeline(pipeline);
+
+    const auto light_space_matrix =
+        scene_frame->light_frame.directional.light_space_matrix;
+    const auto scene_bindings = frame.register_binding_group(
+        make_binding_group_desc(
+            "shadow-pass.scene",
+            "shadow-pass",
+            m_shader,
+            0,
+            "shadow-pass.scene",
+            RenderBindingScope::Pass,
+            RenderBindingCachePolicy::Reuse,
+            RenderBindingSharing::LocalOnly,
+            0,
+            RenderBindingStability::FrameLocal
+        )
+    );
+    rendering::record_shader_params(
+        frame,
+        scene_bindings,
+        shader_bindings::engine_shaders_shadow_map_axsl::ShadowPassParams{
+            .light_space_matrix = light_space_matrix,
+        }
+    );
+    recorder.bind_binding_group(scene_bindings);
+
+    for (const auto &shadow_draw : scene_frame->shadow_draws) {
+      if (shadow_draw.mesh.vertex_array == nullptr ||
+          shadow_draw.mesh.index_count == 0) {
+        continue;
       }
-    }
 
-    if (m_shadow_mapping_framebuffer == nullptr) {
-      LOG_WARN("[ShadowPass] Skipping setup: shadow_map framebuffer is not "
-               "available");
-      return;
-    }
-
-    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        m_render_target->renderer_api()->get_backend(),
-        {"shaders::shadow_map"});
-  }
-
-  void begin(double dt) override {}
-
-  void execute(double dt) override {
-    ASTRA_PROFILE_N("ShadowPass");
-    if (m_shadow_mapping_framebuffer == nullptr) {
-      LOG_WARN("[ShadowPass] Skipping execute: shadow_map framebuffer is not "
-               "available");
-      return;
-    }
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-    auto scene = SceneManager::get()->get_active_scene();
-    if (scene == nullptr) {
-      LOG_WARN("[ShadowPass] Skipping execute: no active scene");
-      return;
-    }
-
-    auto &world = scene->world();
-    if (!rendering::has_renderables(world)) {
-      LOG_WARN("[ShadowPass] Skipping execute: scene has no renderables");
-      return;
-    }
-
-    const auto light_frame = rendering::collect_light_frame(world);
-    if (!light_frame.directional.valid) {
-      LOG_WARN("[ShadowPass] Skipping execute: no valid directional light");
-      return;
-    }
-
-    const auto backend = m_render_target->renderer_api()->get_backend();
-    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::shadow_map"});
-
-    auto shader =
-        resource_manager()->get_by_descriptor_id<Shader>("shaders::shadow_map");
-    if (shader == nullptr) {
-      LOG_WARN(
-          "[ShadowPass] Skipping execute: failed to load shaders::shadow_map");
-      return;
-    }
-
-    const auto light_space_matrix = light_frame.directional.light_space_matrix;
-
-    auto renderer_api = m_render_target->renderer_api();
-
-    m_shadow_mapping_framebuffer->bind();
-    renderer_api->enable_buffer_testing();
-    renderer_api->clear_buffers();
-    renderer_api->clear_color();
-    renderer_api->cull_face(RendererAPI::CullFaceMode::Front);
-
-    world.each<rendering::Renderable, scene::Transform>(
-        [&](EntityID entity_id, rendering::Renderable &,
-            scene::Transform &transform) {
-          if (!world.active(entity_id)) {
-            return;
+      const auto bindings = frame.register_binding_group(
+          make_binding_group_desc(
+              "shadow-pass.draw",
+              "shadow-pass",
+              m_shader,
+              1,
+              "shadow-pass.draw",
+              RenderBindingScope::Draw,
+              RenderBindingCachePolicy::Ephemeral,
+              RenderBindingSharing::LocalOnly,
+              0,
+              RenderBindingStability::Transient
+          )
+      );
+      rendering::record_shader_params(
+          frame,
+          bindings,
+          shader_bindings::engine_shaders_shadow_map_axsl::ShadowDrawParams{
+              .g_model = shadow_draw.model,
           }
+      );
 
-          auto entity = world.entity(entity_id);
-          auto *model_ref = entity.get<rendering::ModelRef>();
-          auto *mesh_set = entity.get<rendering::MeshSet>();
-          if (model_ref == nullptr && mesh_set == nullptr) {
-            return;
-          }
+      const auto mesh_buffer = frame.register_vertex_array(
+          "shadow-pass.mesh", shadow_draw.mesh.vertex_array
+      );
 
-          shader->bind();
+      recorder.bind_binding_group(bindings);
+      recorder.bind_vertex_buffer(mesh_buffer);
+      recorder.bind_index_buffer(mesh_buffer, IndexType::Uint32);
+      recorder.draw_indexed(DrawIndexedArgs{
+          .index_count = shadow_draw.mesh.index_count,
+      });
+    }
 
-          using namespace shader_bindings::engine_shaders_shadow_map_axsl;
-          shader->set_all(LightParams{
-              .light_space_matrix = light_space_matrix,
-              .g_model = transform.matrix,
-          });
-
-          rendering::for_each_render_mesh(
-              model_ref, mesh_set, m_render_target, [&](Mesh &mesh) {
-                renderer_api->draw_indexed(mesh.vertex_array, mesh.draw_type);
-              });
-
-          shader->unbind();
-        });
-
-    renderer_api->cull_face(RendererAPI::CullFaceMode::Back);
-
-    m_shadow_mapping_framebuffer->unbind();
-    m_render_target->framebuffer()->bind();
-#endif
+    recorder.end_rendering();
   }
-
-  void end(double dt) override {}
-
-  void cleanup() override {}
 
   std::string name() const override { return "ShadowPass"; }
 
 private:
-  Framebuffer *m_shadow_mapping_framebuffer = nullptr;
+  Ref<Shader> m_shader = nullptr;
 };
 
 } // namespace astralix

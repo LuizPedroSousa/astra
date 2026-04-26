@@ -1,12 +1,20 @@
 #pragma once
 
 #ifdef ASTRA_TRACE
+#include <vulkan/vulkan.h>
 #define TRACY_ENABLE
 #include <tracy/Tracy.hpp>
 #include <tracy/TracyC.h>
+#include <tracy/TracyVulkan.hpp>
 #endif
 
 namespace astralix {
+
+#ifdef ASTRA_TRACE
+using AstraVkTraceContext = TracyVkCtx;
+#else
+using AstraVkTraceContext = void *;
+#endif
 
 #ifdef ASTRA_TRACE
 
@@ -20,6 +28,31 @@ namespace astralix {
 #define ASTRA_PROFILE_BEGIN(name) TracyCZoneN(__astra_zone, name, true)
 #define ASTRA_PROFILE_END() TracyCZoneEnd(__astra_zone)
 #define ASTRA_FRAME_MARK FrameMark
+#define ASTRA_VK_TRACE_CONTEXT_CREATE(var, physdev, device, queue, cmdbuf)     \
+  do {                                                                          \
+    (var) = TracyVkContext((physdev), (device), (queue), (cmdbuf));            \
+  } while (false)
+#define ASTRA_VK_TRACE_CONTEXT_DESTROY(ctx)                                     \
+  do {                                                                          \
+    if ((ctx) != nullptr) {                                                     \
+      TracyVkDestroy((ctx));                                                    \
+      (ctx) = nullptr;                                                          \
+    }                                                                           \
+  } while (false)
+#define ASTRA_VK_TRACE_CONTEXT_NAME(ctx, name, len)                             \
+  do {                                                                          \
+    if ((ctx) != nullptr) {                                                     \
+      TracyVkContextName((ctx), (name), (len));                                 \
+    }                                                                           \
+  } while (false)
+#define ASTRA_VK_TRACE_COLLECT(ctx, cmdbuf)                                     \
+  do {                                                                          \
+    if ((ctx) != nullptr) {                                                     \
+      TracyVkCollect((ctx), (cmdbuf));                                          \
+    }                                                                           \
+  } while (false)
+#define ASTRA_VK_TRACE_SCOPE_DYN(ctx, varname, cmdbuf, name)                    \
+  TracyVkZoneTransient((ctx), varname, (cmdbuf), (name), (ctx) != nullptr)
 #else
 #define ASTRA_PROFILE(name, ...)
 #define ASTRA_PROFILE_N(name, ...)
@@ -29,6 +62,31 @@ namespace astralix {
 #define ASTRA_PROFILE_BEGIN(name)
 #define ASTRA_PROFILE_END()
 #define ASTRA_FRAME_MARK
+#define ASTRA_VK_TRACE_CONTEXT_CREATE(var, physdev, device, queue, cmdbuf)     \
+  do {                                                                          \
+    (var) = nullptr;                                                            \
+  } while (false)
+#define ASTRA_VK_TRACE_CONTEXT_DESTROY(ctx)                                     \
+  do {                                                                          \
+    (void)(ctx);                                                                \
+  } while (false)
+#define ASTRA_VK_TRACE_CONTEXT_NAME(ctx, name, len)                             \
+  do {                                                                          \
+    (void)(ctx);                                                                \
+    (void)(name);                                                               \
+    (void)(len);                                                                \
+  } while (false)
+#define ASTRA_VK_TRACE_COLLECT(ctx, cmdbuf)                                     \
+  do {                                                                          \
+    (void)(ctx);                                                                \
+    (void)(cmdbuf);                                                             \
+  } while (false)
+#define ASTRA_VK_TRACE_SCOPE_DYN(ctx, varname, cmdbuf, name)                    \
+  do {                                                                          \
+    (void)(ctx);                                                                \
+    (void)(cmdbuf);                                                             \
+    (void)(name);                                                               \
+  } while (false)
 #endif
 
 } // namespace astralix

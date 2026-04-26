@@ -24,6 +24,7 @@ collect_entity_component_snapshots(ecs::EntityRef entity) {
   append_snapshot_if_present<rendering::Light>(entity, components);
   append_snapshot_if_present<rendering::PointLightAttenuation>(entity, components);
   append_snapshot_if_present<rendering::SpotLightCone>(entity, components);
+  append_snapshot_if_present<rendering::SpotLightAttenuation>(entity, components);
   append_snapshot_if_present<rendering::DirectionalShadowSettings>(
       entity, components
   );

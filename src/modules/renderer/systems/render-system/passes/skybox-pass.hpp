@@ -2,145 +2,163 @@
 
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
-#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
-#include "renderer-api.hpp"
-#include "resources/descriptors/shader-descriptor.hpp"
-#include "resources/mesh.hpp"
-#include "systems/render-system/material-binding.hpp"
-#include "systems/render-system/mesh-resolution.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include "systems/render-system/scene-selection.hpp"
+#include "systems/render-system/render-frame.hpp"
 #include "trace.hpp"
 
-#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
-#define ASTRALIX_HAS_ENGINE_BINDINGS
-#endif
 
 namespace astralix {
 
-class SkyboxPass : public RenderPass {
+class SkyboxPass : public FramePass {
 public:
-  SkyboxPass() = default;
+  explicit SkyboxPass(rendering::ResolvedMeshDraw skybox_cube = {})
+      : m_skybox_cube(std::move(skybox_cube)) {}
   ~SkyboxPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target,
-        const std::vector<const RenderGraphResource *> &resources) override {
-    m_render_target = render_target;
-
-    for (auto resource : resources) {
-      if (resource->desc.type == RenderGraphResourceType::Framebuffer &&
-          resource->desc.name == "scene_color") {
-        m_scene_color = resource->get_framebuffer();
-      }
-    }
-
-    if (m_scene_color == nullptr) {
-      set_enabled(false);
-      LOG_WARN("[SkyboxPass] Skipping setup: scene_color framebuffer is not "
-               "available");
-      return;
-    }
-
-    rendering::ensure_mesh_uploaded(m_skybox_cube, m_render_target);
+  void setup(PassSetupContext &ctx) override {
+    (void)ctx;
   }
 
-  void begin(double dt) override {}
-
-  void execute(double dt) override {
-    ASTRA_PROFILE_N("SkyboxPass");
-    auto scene = SceneManager::get()->get_active_scene();
-
-    if (scene == nullptr) {
-      LOG_WARN("[SkyboxPass] Skipping execute: no active scene");
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override {
+    ASTRA_PROFILE_N("SkyboxPass::record");
+    const auto *scene_frame = ctx.scene();
+    if (scene_frame == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping record: scene frame is unavailable");
       return;
     }
 
-    if (m_scene_color == nullptr) {
-      LOG_WARN("[SkyboxPass] Skipping execute: scene_color framebuffer is not "
-               "available");
+    const auto *scene_color_resource = ctx.find_graph_image("scene_color");
+    const auto *scene_depth_resource = ctx.find_graph_image("scene_depth");
+
+    if (scene_color_resource == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping record: scene_color image is not available");
       return;
     }
 
-    auto &world = scene->world();
-    auto camera = rendering::select_main_camera(world);
-    auto skybox = rendering::select_skybox(world);
-
-    if (!camera.has_value()) {
-      LOG_WARN("[SkyboxPass] Skipping execute: no main camera selected");
+    if (!scene_frame->main_camera.has_value()) {
+      LOG_WARN("[SkyboxPass] Skipping record: no main camera selected");
       return;
     }
 
-    if (!skybox.has_value()) {
-      LOG_WARN("[SkyboxPass] Skipping execute: no skybox selected");
+    if (!scene_frame->skybox.has_value()) {
+      LOG_WARN("[SkyboxPass] Skipping record: no skybox selected");
       return;
     }
 
-    if (skybox->skybox == nullptr) {
-      LOG_WARN("[SkyboxPass] Skipping execute: skybox asset is not available");
+    const auto &skybox = *scene_frame->skybox;
+    if (skybox.shader == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping record: failed to resolve skybox shader");
       return;
     }
 
-    auto renderer_api = m_render_target->renderer_api();
-    const auto backend = renderer_api->get_backend();
-    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {skybox->skybox->shader});
-
-    auto shader = resource_manager()->get_by_descriptor_id<Shader>(
-        skybox->skybox->shader);
-    if (shader == nullptr) {
-      LOG_WARN("[SkyboxPass] Skipping execute: failed to load skybox shader '",
-               skybox->skybox->shader, "'");
+    if (skybox.cubemap == nullptr) {
+      LOG_WARN("[SkyboxPass] Skipping record: skybox asset is not available");
       return;
     }
 
-    const int cubemap_slot =
-        rendering::bind_texture_3d(renderer_api, skybox->skybox->cubemap, 0);
-    if (cubemap_slot < 0) {
-      LOG_WARN("[SkyboxPass] Skipping execute: failed to bind skybox cubemap");
+    if (m_skybox_cube.vertex_array == nullptr || m_skybox_cube.index_count == 0) {
+      LOG_WARN("[SkyboxPass] Skipping record: skybox mesh is unavailable");
       return;
     }
 
-    m_scene_color->bind();
-    renderer_api->disable_depth_write();
-    renderer_api->depth(RendererAPI::DepthMode::LessEqual);
-
-    shader->bind();
-
-    const glm::mat4 view_without_translation =
-        glm::mat4(glm::mat3(camera->camera->view_matrix));
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
     using namespace shader_bindings::engine_shaders_skybox_axsl;
 
-    shader->set_all(LightParams{
-        .view_without_transformation = view_without_translation,
-        .projection = camera->camera->projection_matrix,
+    auto &frame = ctx.frame();
+    const auto extent = ctx.graph_image_extent(*scene_color_resource);
+
+    const auto scene_color = ctx.register_graph_image(
+        "skybox.scene-color", *scene_color_resource
+    );
+    const auto scene_depth =
+        scene_depth_resource != nullptr
+            ? ctx.register_graph_image(
+                  "skybox.scene-depth", *scene_depth_resource, ImageAspect::Depth
+              )
+            : ImageHandle{};
+    const auto skybox_map = frame.register_texture_cube(
+        "skybox.cubemap", skybox.cubemap
+    );
+    const auto skybox_cube = frame.register_vertex_array(
+        "skybox.mesh", m_skybox_cube.vertex_array
+    );
+
+    RenderPipelineDesc pipeline_desc;
+    pipeline_desc.debug_name = "skybox-pass";
+    pipeline_desc.raster.cull_mode = CullMode::None;
+    pipeline_desc.depth_stencil.depth_test = true;
+    pipeline_desc.depth_stencil.depth_write = false;
+    pipeline_desc.depth_stencil.compare_op = CompareOp::LessEqual;
+    pipeline_desc.blend_attachments = {BlendAttachmentState::replace()};
+    const auto pipeline = frame.register_pipeline(pipeline_desc, skybox.shader);
+
+    const auto bindings = frame.register_binding_group(
+        make_binding_group_desc(
+            "skybox-pass",
+            "skybox-pass",
+            skybox.shader,
+            0,
+            "skybox-pass",
+            RenderBindingScope::Pass,
+            RenderBindingCachePolicy::Reuse,
+            RenderBindingSharing::LocalOnly,
+            0,
+            RenderBindingStability::FrameLocal
+        )
+    );
+    frame.add_sampled_image_binding(
+        bindings, EntityResources::skybox_map.binding_id,
+        ImageViewRef{.image = skybox_map},
+        CompiledSampledImageTarget::TextureCube
+    );
+
+    rendering::record_shader_params(frame, bindings, LightParams{
+                                                         .view_without_transformation = glm::mat4(glm::mat3(scene_frame->main_camera->view)),
+                                                         .projection = scene_frame->main_camera->projection,
+                                                     });
+
+    RenderingInfo info;
+    info.debug_name = "skybox-pass";
+    info.extent = extent;
+    info.color_attachments.push_back(ColorAttachmentRef{
+        .view = ImageViewRef{.image = scene_color},
+        .load_op = AttachmentLoadOp::Load,
+        .store_op = AttachmentStoreOp::Store,
     });
-    shader->set_all(EntityParams{.skybox_map = cubemap_slot});
-#endif
+    if (scene_depth.valid()) {
+      info.depth_stencil_attachment = DepthStencilAttachmentRef{
+          .view = ImageViewRef{
+              .image = scene_depth,
+              .aspect = ImageAspect::Depth,
+          },
+          .depth_load_op = AttachmentLoadOp::Load,
+          .depth_store_op = AttachmentStoreOp::Store,
+          .clear_depth = 1.0f,
+          .stencil_load_op = AttachmentLoadOp::Load,
+          .stencil_store_op = AttachmentStoreOp::Store,
+          .clear_stencil = 0,
+      };
+    }
 
-    renderer_api->draw_indexed(m_skybox_cube.vertex_array,
-                               m_skybox_cube.draw_type);
-
-    shader->unbind();
-    renderer_api->enable_depth_write();
-    renderer_api->depth(RendererAPI::DepthMode::Less);
-    m_scene_color->unbind();
+    recorder.begin_rendering(info);
+    recorder.bind_pipeline(pipeline);
+    recorder.bind_binding_group(bindings);
+    recorder.bind_vertex_buffer(skybox_cube);
+    recorder.bind_index_buffer(skybox_cube, IndexType::Uint32);
+    recorder.draw_indexed(DrawIndexedArgs{
+        .index_count = m_skybox_cube.index_count,
+    });
+    recorder.end_rendering();
   }
-
-  void end(double dt) override {}
-
-  void cleanup() override {}
 
   std::string name() const override { return "SkyboxPass"; }
 
 private:
-  Framebuffer *m_scene_color = nullptr;
-  Mesh m_skybox_cube = Mesh::cube(2.0f);
+  rendering::ResolvedMeshDraw m_skybox_cube{};
 };
 
 } // namespace astralix

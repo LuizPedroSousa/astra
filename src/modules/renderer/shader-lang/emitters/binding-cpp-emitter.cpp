@@ -72,8 +72,7 @@ std::string to_pascal_case(std::string_view value) {
     char normalized =
         static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     if (capitalize) {
-      result.push_back(static_cast<char>(
-          std::toupper(static_cast<unsigned char>(normalized))));
+      result.push_back(static_cast<char>(std::toupper(static_cast<unsigned char>(normalized))));
       capitalize = false;
     } else {
       result.push_back(normalized);
@@ -97,8 +96,7 @@ bool same_type_ref(const TypeRef &lhs, const TypeRef &rhs) {
          lhs.is_runtime_sized == rhs.is_runtime_sized;
 }
 
-bool same_default_value(const std::optional<ShaderDefaultValue> &lhs,
-                        const std::optional<ShaderDefaultValue> &rhs) {
+bool same_default_value(const std::optional<ShaderDefaultValue> &lhs, const std::optional<ShaderDefaultValue> &rhs) {
   if (lhs.has_value() != rhs.has_value()) {
     return false;
   }
@@ -114,8 +112,7 @@ bool same_default_value(const std::optional<ShaderDefaultValue> &lhs,
   return *lhs == *rhs;
 }
 
-bool same_declared_field_schema(const DeclaredFieldReflection &lhs,
-                                const DeclaredFieldReflection &rhs) {
+bool same_declared_field_schema(const DeclaredFieldReflection &lhs, const DeclaredFieldReflection &rhs) {
   if (lhs.name != rhs.name || lhs.logical_name != rhs.logical_name ||
       !same_type_ref(lhs.type, rhs.type) || lhs.array_size != rhs.array_size ||
       !same_default_value(lhs.default_value, rhs.default_value) ||
@@ -135,7 +132,8 @@ bool same_declared_field_schema(const DeclaredFieldReflection &lhs,
 
 bool same_declared_field_schema(
     const std::vector<DeclaredFieldReflection> &lhs,
-    const std::vector<DeclaredFieldReflection> &rhs) {
+    const std::vector<DeclaredFieldReflection> &rhs
+) {
   if (lhs.size() != rhs.size()) {
     return false;
   }
@@ -149,8 +147,7 @@ bool same_declared_field_schema(
   return true;
 }
 
-void merge_declared_field_stage_masks(DeclaredFieldReflection &dst,
-                                      const DeclaredFieldReflection &src) {
+void merge_declared_field_stage_masks(DeclaredFieldReflection &dst, const DeclaredFieldReflection &src) {
   dst.active_stage_mask |= src.active_stage_mask;
   for (size_t i = 0; i < dst.fields.size(); ++i) {
     merge_declared_field_stage_masks(dst.fields[i], src.fields[i]);
@@ -159,7 +156,8 @@ void merge_declared_field_stage_masks(DeclaredFieldReflection &dst,
 
 void merge_declared_field_stage_masks(
     std::vector<DeclaredFieldReflection> &dst,
-    const std::vector<DeclaredFieldReflection> &src) {
+    const std::vector<DeclaredFieldReflection> &src
+) {
   for (size_t i = 0; i < dst.size(); ++i) {
     merge_declared_field_stage_masks(dst[i], src[i]);
   }
@@ -188,7 +186,7 @@ std::optional<std::string> cpp_scalar_type(const TypeRef &type) {
     case TokenKind::TypeSampler2DShadow:
     case TokenKind::TypeIsampler2D:
     case TokenKind::TypeUsampler2D:
-      return "int";
+      return std::nullopt;
     default:
       return std::nullopt;
   }
@@ -208,8 +206,7 @@ bool supports_typed_uniform_field(const DeclaredFieldReflection &field) {
   return false;
 }
 
-std::string wrap_array_type(std::string type_name,
-                            const std::vector<uint32_t> &array_extents) {
+std::string wrap_array_type(std::string type_name, const std::vector<uint32_t> &array_extents) {
   for (auto it = array_extents.rbegin(); it != array_extents.rend(); ++it) {
     type_name = "std::array<" + type_name + ", " + std::to_string(*it) + ">";
   }
@@ -237,7 +234,8 @@ std::string format_default_value(const ShaderDefaultValue &default_value) {
           return formatted;
         }
       },
-      default_value);
+      default_value
+  );
 }
 
 std::string float_nan_expression() {
@@ -279,8 +277,7 @@ std::string invalid_scalar_initializer(const TypeRef &type) {
   }
 }
 
-std::string wrap_array_initializer(std::string base_initializer,
-                                   const std::vector<uint32_t> &array_extents) {
+std::string wrap_array_initializer(std::string base_initializer, const std::vector<uint32_t> &array_extents) {
   for (auto it = array_extents.rbegin(); it != array_extents.rend(); ++it) {
     base_initializer = "binding_detail::filled_array<" +
                        std::to_string(*it) + ">(" + base_initializer + ")";
@@ -342,8 +339,7 @@ std::string matrix_invalid_check(const std::string &access, int dimension) {
   return out.str();
 }
 
-std::string invalid_value_check(const std::string &access,
-                                const TypeRef &type) {
+std::string invalid_value_check(const std::string &access, const TypeRef &type) {
   switch (type.kind) {
     case TokenKind::TypeSampler2D:
     case TokenKind::TypeSamplerCube:
@@ -375,8 +371,7 @@ std::string invalid_value_check(const std::string &access,
 }
 
 std::string
-unique_nested_type_name(const DeclaredFieldReflection &field,
-                        std::unordered_set<std::string> &used_names) {
+unique_nested_type_name(const DeclaredFieldReflection &field, std::unordered_set<std::string> &used_names) {
   std::string candidate = field.type.name.empty()
                               ? to_pascal_case(field.name)
                               : sanitize_identifier(field.type.name);
@@ -390,17 +385,15 @@ unique_nested_type_name(const DeclaredFieldReflection &field,
   return candidate;
 }
 
-void collect_leaf_infos(const DeclaredFieldReflection &field,
-                        std::vector<PathSegment> path,
-                        std::vector<std::string> tag_segments,
-                        std::vector<LeafInfo> &leaves) {
+void collect_leaf_infos(const DeclaredFieldReflection &field, std::vector<PathSegment> path, std::vector<std::string> tag_segments, std::vector<LeafInfo> &leaves) {
   path.push_back(PathSegment{field.name, field.array_size});
   tag_segments.push_back(sanitize_identifier(field.name));
 
   if (field.fields.empty()) {
     if (supports_typed_uniform_field(field)) {
       leaves.push_back(
-          LeafInfo{&field, std::move(path), std::move(tag_segments)});
+          LeafInfo{&field, std::move(path), std::move(tag_segments)}
+      );
     }
     return;
   }
@@ -435,9 +428,7 @@ std::string build_leaf_tag_name(const LeafInfo &leaf) {
   return tag_name;
 }
 
-void expand_exact_logical_names(const std::vector<PathSegment> &path,
-                                size_t index, std::string prefix,
-                                std::vector<std::string> &logical_names) {
+void expand_exact_logical_names(const std::vector<PathSegment> &path, size_t index, std::string prefix, std::vector<std::string> &logical_names) {
   if (index >= path.size()) {
     logical_names.push_back(std::move(prefix));
     return;
@@ -450,7 +441,8 @@ void expand_exact_logical_names(const std::vector<PathSegment> &path,
   if (segment.array_size) {
     for (uint32_t i = 0; i < *segment.array_size; ++i) {
       expand_exact_logical_names(
-          path, index + 1, base + "[" + std::to_string(i) + "]", logical_names);
+          path, index + 1, base + "[" + std::to_string(i) + "]", logical_names
+      );
     }
     return;
   }
@@ -458,10 +450,10 @@ void expand_exact_logical_names(const std::vector<PathSegment> &path,
   expand_exact_logical_names(path, index + 1, std::move(base), logical_names);
 }
 
-std::vector<std::string> exact_logical_names(std::string_view resource_name,
-                                             const LeafInfo &leaf) {
+std::vector<std::string> exact_logical_names(std::string_view resource_name, const LeafInfo &leaf) {
   std::vector<PathSegment> full_path = {
-      PathSegment{std::string(resource_name), std::nullopt}};
+      PathSegment{std::string(resource_name), std::nullopt}
+  };
   full_path.insert(full_path.end(), leaf.path.begin(), leaf.path.end());
 
   std::vector<std::string> logical_names;
@@ -469,9 +461,7 @@ std::vector<std::string> exact_logical_names(std::string_view resource_name,
   return logical_names;
 }
 
-std::string build_params_access(std::string_view root,
-                                const std::vector<PathSegment> &path,
-                                const std::vector<std::string> &indices) {
+std::string build_params_access(std::string_view root, const std::vector<PathSegment> &path, const std::vector<std::string> &indices) {
   std::string access(root);
   size_t array_index = 0;
 
@@ -498,9 +488,7 @@ std::string build_values_access(const std::vector<std::string> &indices) {
   return access;
 }
 
-bool emit_params_struct_body(std::ostringstream &out,
-                             const std::vector<DeclaredFieldReflection> &fields,
-                             int depth, std::string *error) {
+bool emit_params_struct_body(std::ostringstream &out, const std::vector<DeclaredFieldReflection> &fields, int depth, std::string *error) {
   std::unordered_set<std::string> used_nested_type_names;
 
   for (const auto &field : fields) {
@@ -523,9 +511,7 @@ bool emit_params_struct_body(std::ostringstream &out,
       if (field.array_size) {
         array_extents.push_back(*field.array_size);
       }
-      emit_line(out, depth,
-                wrap_array_type(nested_type_name, array_extents) + " " +
-                    field_name + "{};");
+      emit_line(out, depth, wrap_array_type(nested_type_name, array_extents) + " " + field_name + "{};");
       continue;
     }
 
@@ -553,13 +539,9 @@ bool emit_params_struct_body(std::ostringstream &out,
     }
 
     if (!initializer.empty()) {
-      emit_line(out, depth,
-                wrap_array_type(*scalar_type, array_extents) + " " +
-                    field_name + " = " + initializer + ";");
+      emit_line(out, depth, wrap_array_type(*scalar_type, array_extents) + " " + field_name + " = " + initializer + ";");
     } else {
-      emit_line(out, depth,
-                wrap_array_type(*scalar_type, array_extents) + " " +
-                    field_name + "{};");
+      emit_line(out, depth, wrap_array_type(*scalar_type, array_extents) + " " + field_name + "{};");
     }
   }
 
@@ -569,8 +551,7 @@ bool emit_params_struct_body(std::ostringstream &out,
 void emit_binding_detail_helpers(std::ostringstream &out) {
   emit_line(out, 1, "namespace binding_detail {");
   emit_line(out, 2, "template <size_t N, typename T>");
-  emit_line(out, 2,
-            "inline std::array<T, N> filled_array(const T &value) {");
+  emit_line(out, 2, "inline std::array<T, N> filled_array(const T &value) {");
   emit_line(out, 3, "std::array<T, N> values{};");
   emit_line(out, 3, "values.fill(value);");
   emit_line(out, 3, "return values;");
@@ -578,10 +559,7 @@ void emit_binding_detail_helpers(std::ostringstream &out) {
   emit_line(out, 1, "} // namespace binding_detail");
 }
 
-bool emit_uniform_container(std::ostringstream &out,
-                            const MergedUniformInterface &resource,
-                            const std::string &container_name,
-                            std::string *error) {
+bool emit_uniform_container(std::ostringstream &out, const MergedUniformInterface &resource, const std::string &container_name, std::string *error) {
   emit_line(out, 1, "struct " + container_name + " {");
 
   std::vector<LeafInfo> leaves;
@@ -609,35 +587,20 @@ bool emit_uniform_container(std::ostringstream &out,
     }
 
     emit_line(out, 2, "struct " + tag_type_name + " {");
-    emit_line(out, 3,
-              "using value_type = " +
-                  wrap_array_type(*scalar_type, array_extents) + ";");
-    emit_line(out, 3,
-              "static constexpr uint64_t binding_id = " +
-                  std::to_string(leaf.field->binding_id) + "ull;");
-    emit_line(out, 3,
-              "static constexpr std::string_view logical_name = \"" +
-                  leaf.field->logical_name + "\";");
-    emit_line(out, 3,
-              "static constexpr uint32_t stage_mask = " +
-                  std::to_string(leaf.field->active_stage_mask) + "u;");
-    emit_line(out, 3,
-              "static constexpr std::array<uint64_t, " +
-                  std::to_string(logical_names.size()) + "> binding_ids = {" +
-                  binding_ids.str() + "};");
+    emit_line(out, 3, "using value_type = " + wrap_array_type(*scalar_type, array_extents) + ";");
+    emit_line(out, 3, "static constexpr uint64_t binding_id = " + std::to_string(leaf.field->binding_id) + "ull;");
+    emit_line(out, 3, "static constexpr std::string_view logical_name = \"" + leaf.field->logical_name + "\";");
+    emit_line(out, 3, "static constexpr uint32_t stage_mask = " + std::to_string(leaf.field->active_stage_mask) + "u;");
+    emit_line(out, 3, "static constexpr std::array<uint64_t, " + std::to_string(logical_names.size()) + "> binding_ids = {" + binding_ids.str() + "};");
     emit_line(out, 2, "};");
-    emit_line(out, 2,
-              "static inline constexpr " + tag_type_name + " " + tag_name +
-                  "{};");
+    emit_line(out, 2, "static inline constexpr " + tag_type_name + " " + tag_name + "{};");
   }
 
   emit_line(out, 1, "};");
   return true;
 }
 
-bool emit_params_struct(std::ostringstream &out,
-                        const MergedUniformInterface &resource,
-                        const std::string &params_name, std::string *error) {
+bool emit_params_struct(std::ostringstream &out, const MergedUniformInterface &resource, const std::string &params_name, std::string *error) {
   emit_line(out, 1, "struct " + params_name + " {");
   if (!emit_params_struct_body(out, resource.declared_fields, 2, error)) {
     return false;
@@ -646,72 +609,51 @@ bool emit_params_struct(std::ostringstream &out,
   return true;
 }
 
-void emit_apply_leaf(std::ostringstream &out, const std::string &container_name,
-                     const LeafInfo &leaf, int depth) {
+void emit_apply_leaf(std::ostringstream &out, const std::string &container_name, const LeafInfo &leaf, int depth) {
   const std::string tag_name = build_leaf_tag_name(leaf);
   const std::vector<uint32_t> array_extents = collect_array_extents(leaf);
 
   if (array_extents.empty()) {
-    emit_line(out, depth,
-              "shader.set(" + container_name + "::" + tag_name + ", " +
-                  build_params_access("params", leaf.path, {}) + ");");
+    emit_line(out, depth, "shader.set(" + container_name + "::" + tag_name + ", " + build_params_access("params", leaf.path, {}) + ");");
     return;
   }
 
   emit_line(out, depth, "{");
-  emit_line(out, depth + 1,
-            "decltype(" + container_name + "::" + tag_name +
-                ")::value_type values{};");
+  emit_line(out, depth + 1, "decltype(" + container_name + "::" + tag_name + ")::value_type values{};");
 
   std::vector<std::string> indices;
   for (size_t i = 0; i < array_extents.size(); ++i) {
     std::string index_name = "i" + std::to_string(i);
     indices.push_back(index_name);
-    emit_line(out, depth + 1 + static_cast<int>(i),
-              "for (size_t " + index_name + " = 0; " + index_name + " < " +
-                  std::to_string(array_extents[i]) + "; ++" + index_name +
-                  ") {");
+    emit_line(out, depth + 1 + static_cast<int>(i), "for (size_t " + index_name + " = 0; " + index_name + " < " + std::to_string(array_extents[i]) + "; ++" + index_name + ") {");
   }
 
-  emit_line(out, depth + 1 + static_cast<int>(array_extents.size()),
-            build_values_access(indices) + " = " +
-                build_params_access("params", leaf.path, indices) + ";");
+  emit_line(out, depth + 1 + static_cast<int>(array_extents.size()), build_values_access(indices) + " = " + build_params_access("params", leaf.path, indices) + ";");
 
   for (size_t i = array_extents.size(); i > 0; --i) {
     emit_line(out, depth + static_cast<int>(i), "}");
   }
 
-  emit_line(out, depth + 1,
-            "shader.set(" + container_name + "::" + tag_name + ", values);");
+  emit_line(out, depth + 1, "shader.set(" + container_name + "::" + tag_name + ", values);");
   emit_line(out, depth, "}");
 }
 
-void emit_validation_failure(std::ostringstream &out, int depth,
-                             const std::string &params_name,
-                             const std::string &logical_name) {
+void emit_validation_failure(std::ostringstream &out, int depth, const std::string &params_name, const std::string &logical_name) {
   emit_line(out, depth, "if (error != nullptr) {");
-  emit_line(out, depth + 1,
-            "*error = \"" + params_name + " is missing required field '" +
-                logical_name + "'\";");
+  emit_line(out, depth + 1, "*error = \"" + params_name + " is missing required field '" + logical_name + "'\";");
   emit_line(out, depth, "}");
   emit_line(out, depth, "return false;");
 }
 
-void emit_validate_leaf(std::ostringstream &out, const LeafInfo &leaf,
-                        int depth, const std::string &params_name) {
+void emit_validate_leaf(std::ostringstream &out, const LeafInfo &leaf, int depth, const std::string &params_name) {
   if (!supports_runtime_validation(*leaf.field)) {
     return;
   }
 
   const auto array_extents = collect_array_extents(leaf);
   if (array_extents.empty()) {
-    emit_line(out, depth,
-              "if (" +
-                  invalid_value_check(build_params_access("params", leaf.path, {}),
-                                      leaf.field->type) +
-                  ") {");
-    emit_validation_failure(out, depth + 1, params_name,
-                            leaf.field->logical_name);
+    emit_line(out, depth, "if (" + invalid_value_check(build_params_access("params", leaf.path, {}), leaf.field->type) + ") {");
+    emit_validation_failure(out, depth + 1, params_name, leaf.field->logical_name);
     emit_line(out, depth, "}");
     return;
   }
@@ -722,20 +664,11 @@ void emit_validate_leaf(std::ostringstream &out, const LeafInfo &leaf,
   for (size_t i = 0; i < array_extents.size(); ++i) {
     std::string index_name = "i" + std::to_string(i);
     indices.push_back(index_name);
-    emit_line(out, depth + 1 + static_cast<int>(i),
-              "for (size_t " + index_name + " = 0; " + index_name + " < " +
-                  std::to_string(array_extents[i]) + "; ++" + index_name +
-                  ") {");
+    emit_line(out, depth + 1 + static_cast<int>(i), "for (size_t " + index_name + " = 0; " + index_name + " < " + std::to_string(array_extents[i]) + "; ++" + index_name + ") {");
   }
 
-  emit_line(out, depth + 1 + static_cast<int>(array_extents.size()),
-            "if (" +
-                invalid_value_check(
-                    build_params_access("params", leaf.path, indices),
-                    leaf.field->type) +
-                ") {");
-  emit_validation_failure(out, depth + 2 + static_cast<int>(array_extents.size()),
-                          params_name, leaf.field->logical_name);
+  emit_line(out, depth + 1 + static_cast<int>(array_extents.size()), "if (" + invalid_value_check(build_params_access("params", leaf.path, indices), leaf.field->type) + ") {");
+  emit_validation_failure(out, depth + 2 + static_cast<int>(array_extents.size()), params_name, leaf.field->logical_name);
   emit_line(out, depth + 1 + static_cast<int>(array_extents.size()), "}");
 
   for (size_t i = array_extents.size(); i > 0; --i) {
@@ -745,12 +678,8 @@ void emit_validate_leaf(std::ostringstream &out, const LeafInfo &leaf,
   emit_line(out, depth, "}");
 }
 
-void emit_validate_shader_params(std::ostringstream &out,
-                                 const MergedUniformInterface &resource,
-                                 const std::string &params_name) {
-  emit_line(out, 1,
-            "inline bool validate_shader_params(const " + params_name +
-                " &params, std::string *error = nullptr) {");
+void emit_validate_shader_params(std::ostringstream &out, const MergedUniformInterface &resource, const std::string &params_name) {
+  emit_line(out, 1, "inline bool validate_shader_params(const " + params_name + " &params, std::string *error = nullptr) {");
 
   std::vector<LeafInfo> leaves;
   for (const auto &field : resource.declared_fields) {
@@ -765,12 +694,8 @@ void emit_validate_shader_params(std::ostringstream &out,
   emit_line(out, 1, "}");
 }
 
-void emit_apply_shader_params(std::ostringstream &out,
-                              const MergedUniformInterface &resource,
-                              const std::string &container_name,
-                              const std::string &params_name) {
-  emit_line(out, 1,
-            "inline void apply_shader_params(const astralix::Shader &shader,");
+void emit_apply_shader_params(std::ostringstream &out, const MergedUniformInterface &resource, const std::string &container_name, const std::string &params_name) {
+  emit_line(out, 1, "inline void apply_shader_params(const astralix::Shader &shader,");
   emit_line(out, 2, "const " + params_name + " &params) {");
 
   std::vector<LeafInfo> leaves;
@@ -785,9 +710,77 @@ void emit_apply_shader_params(std::ostringstream &out,
   emit_line(out, 1, "}");
 }
 
+bool is_sampler_type(TokenKind kind) {
+  switch (kind) {
+    case TokenKind::TypeSampler2D:
+    case TokenKind::TypeSamplerCube:
+    case TokenKind::TypeSampler2DShadow:
+    case TokenKind::TypeIsampler2D:
+    case TokenKind::TypeUsampler2D:
+      return true;
+    default:
+      return false;
+  }
+}
+
+struct MergedResourceBinding {
+  std::string container_logical_name;
+  std::string declared_name;
+  std::string field_name;
+  std::string logical_name;
+  uint64_t binding_id = 0;
+  uint32_t descriptor_set = 0;
+  uint32_t binding = 0;
+  uint32_t stage_mask = 0;
+  TokenKind type_kind = TokenKind::TypeSampler2D;
+};
+
+void collect_resource_fields(const std::vector<DeclaredFieldReflection> &fields, uint32_t stage_mask, std::vector<MergedResourceBinding> &result, const std::string &container_logical_name, const std::string &declared_name) {
+  for (const auto &field : fields) {
+    if (is_sampler_type(field.type.kind)) {
+      result.push_back(MergedResourceBinding{
+          .container_logical_name = container_logical_name,
+          .declared_name = declared_name,
+          .field_name = field.name,
+          .logical_name = field.logical_name,
+          .binding_id = field.binding_id,
+          .stage_mask = stage_mask | field.active_stage_mask,
+          .type_kind = field.type.kind,
+      });
+    } else if (!field.fields.empty()) {
+      collect_resource_fields(field.fields, stage_mask | field.active_stage_mask, result, container_logical_name, declared_name);
+    }
+  }
+}
+
+struct MergedResourceContainer {
+  std::string logical_name;
+  std::string declared_name;
+  std::vector<MergedResourceBinding> bindings;
+};
+
+void emit_resource_container(std::ostringstream &out, const MergedResourceContainer &container, const std::string &container_name) {
+  emit_line(out, 1, "struct " + container_name + " {");
+
+  for (const auto &binding : container.bindings) {
+    const std::string tag_name = sanitize_identifier(binding.field_name);
+    const std::string tag_type_name = tag_name + "_t";
+
+    emit_line(out, 2, "struct " + tag_type_name + " {");
+    emit_line(out, 3, "static constexpr uint64_t binding_id = " + std::to_string(binding.binding_id) + "ull;");
+    emit_line(out, 3, "static constexpr std::string_view logical_name = \"" + binding.logical_name + "\";");
+    emit_line(out, 3, "static constexpr uint32_t descriptor_set = " + std::to_string(binding.descriptor_set) + "u;");
+    emit_line(out, 3, "static constexpr uint32_t binding = " + std::to_string(binding.binding) + "u;");
+    emit_line(out, 3, "static constexpr uint32_t stage_mask = " + std::to_string(binding.stage_mask) + "u;");
+    emit_line(out, 2, "};");
+    emit_line(out, 2, "static inline constexpr " + tag_type_name + " " + tag_name + "{};");
+  }
+
+  emit_line(out, 1, "};");
+}
+
 std::optional<std::vector<MergedUniformInterface>>
-merge_uniform_interfaces(const ShaderReflection &reflection,
-                         std::string *error) {
+merge_uniform_interfaces(const ShaderReflection &reflection, std::string *error) {
   std::vector<MergedUniformInterface> merged;
   std::unordered_map<std::string, size_t> index_by_logical_name;
 
@@ -802,16 +795,13 @@ merge_uniform_interfaces(const ShaderReflection &reflection,
       auto [it, inserted] =
           index_by_logical_name.emplace(resource.logical_name, merged.size());
       if (inserted) {
-        merged.push_back(MergedUniformInterface{resource.logical_name,
-                                                resource.declared_name,
-                                                resource.declared_fields});
+        merged.push_back(MergedUniformInterface{resource.logical_name, resource.declared_name, resource.declared_fields});
         continue;
       }
 
       auto &existing = merged[it->second];
       if (existing.declared_name != resource.declared_name ||
-          !same_declared_field_schema(existing.declared_fields,
-                                      resource.declared_fields)) {
+          !same_declared_field_schema(existing.declared_fields, resource.declared_fields)) {
         if (error) {
           *error = "conflicting typed uniform schema for resource '" +
                    resource.logical_name + "'";
@@ -819,12 +809,115 @@ merge_uniform_interfaces(const ShaderReflection &reflection,
         return std::nullopt;
       }
 
-      merge_declared_field_stage_masks(existing.declared_fields,
-                                       resource.declared_fields);
+      merge_declared_field_stage_masks(existing.declared_fields, resource.declared_fields);
     }
   }
 
   return merged;
+}
+
+std::optional<std::vector<MergedResourceContainer>>
+merge_resource_containers(const ShaderReflection &reflection, std::string *error) {
+  std::vector<MergedResourceContainer> containers;
+  std::unordered_map<std::string, size_t> index_by_logical_name;
+
+  for (const auto &[stage_kind, stage] : reflection.stages) {
+    for (const auto &resource : stage.resources) {
+      if (resource.kind == ShaderResourceKind::UniformInterface) {
+        std::vector<MergedResourceBinding> bindings;
+        collect_resource_fields(resource.declared_fields, shader_stage_mask(stage_kind), bindings, resource.logical_name, resource.declared_name);
+
+        if (bindings.empty()) {
+          continue;
+        }
+
+        auto [it, inserted] =
+            index_by_logical_name.emplace(resource.logical_name, containers.size());
+        if (inserted) {
+          containers.push_back(MergedResourceContainer{resource.logical_name, resource.declared_name, std::move(bindings)});
+        } else {
+          auto &existing = containers[it->second];
+          for (auto &binding : bindings) {
+            bool found = false;
+            for (auto &existing_binding : existing.bindings) {
+              if (existing_binding.logical_name == binding.logical_name) {
+                existing_binding.stage_mask |= binding.stage_mask;
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              existing.bindings.push_back(std::move(binding));
+            }
+          }
+        }
+        continue;
+      }
+
+      if (resource.kind == ShaderResourceKind::UniformValue &&
+          is_sampler_type(resource.type.kind)) {
+        auto [it, inserted] =
+            index_by_logical_name.emplace("__globals", containers.size());
+        if (inserted) {
+          containers.push_back(MergedResourceContainer{"__globals", "Globals", {}});
+        }
+
+        auto &globals = containers[it->second];
+        bool found = false;
+        for (auto &existing : globals.bindings) {
+          if (existing.logical_name == resource.logical_name) {
+            existing.stage_mask |= shader_stage_mask(stage_kind);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          globals.bindings.push_back(MergedResourceBinding{
+              .container_logical_name = "__globals",
+              .declared_name = "Globals",
+              .field_name = resource.logical_name,
+              .logical_name = resource.logical_name,
+              .binding_id = resource.binding_id != 0 ? resource.binding_id : shader_binding_id(resource.logical_name),
+              .stage_mask = shader_stage_mask(stage_kind),
+              .type_kind = resource.type.kind,
+          });
+        }
+        continue;
+      }
+
+      if (resource.kind == ShaderResourceKind::Sampler) {
+        auto [it, inserted] =
+            index_by_logical_name.emplace("__globals", containers.size());
+        if (inserted) {
+          containers.push_back(MergedResourceContainer{"__globals", "Globals", {}});
+        }
+
+        auto &globals = containers[it->second];
+        bool found = false;
+        for (auto &existing : globals.bindings) {
+          if (existing.logical_name == resource.logical_name) {
+            existing.stage_mask |= shader_stage_mask(stage_kind);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          globals.bindings.push_back(MergedResourceBinding{
+              .container_logical_name = "__globals",
+              .declared_name = "Globals",
+              .field_name = resource.logical_name,
+              .logical_name = resource.logical_name,
+              .binding_id = resource.binding_id != 0 ? resource.binding_id : shader_binding_id(resource.logical_name),
+              .stage_mask = shader_stage_mask(stage_kind),
+              .type_kind = resource.type.kind,
+          });
+        }
+      }
+    }
+  }
+
+  (void)error;
+  return containers;
 }
 
 } // namespace
@@ -836,16 +929,72 @@ std::string BindingCppEmitter::sanitize_namespace(std::string_view input_path) {
 }
 
 std::optional<std::string>
-BindingCppEmitter::emit(const ShaderReflection &reflection,
-                        std::string_view input_path, std::string *error) {
+BindingCppEmitter::emit(const ShaderReflection &reflection, std::string_view input_path, std::string *error) {
   auto merged_uniforms = merge_uniform_interfaces(reflection, error);
   if (!merged_uniforms) {
     return std::nullopt;
   }
 
+  auto merged_resources = merge_resource_containers(reflection, error);
+  if (!merged_resources) {
+    return std::nullopt;
+  }
+
+  MergedUniformInterface globals_value_interface;
+  globals_value_interface.logical_name = "__globals";
+  globals_value_interface.declared_name = "Globals";
+  bool has_globals_values = false;
+
+  for (const auto &[stage_kind, stage] : reflection.stages) {
+    for (const auto &resource : stage.resources) {
+      if (resource.kind != ShaderResourceKind::UniformValue) {
+        continue;
+      }
+      if (is_sampler_type(resource.type.kind)) {
+        continue;
+      }
+
+      bool already_exists = false;
+      for (const auto &existing : globals_value_interface.declared_fields) {
+        if (existing.logical_name == resource.logical_name) {
+          already_exists = true;
+          break;
+        }
+      }
+      if (already_exists) {
+        continue;
+      }
+
+      DeclaredFieldReflection field;
+      field.name = resource.logical_name;
+      field.logical_name = resource.logical_name;
+      field.type = resource.type;
+      field.array_size = resource.array_size;
+      field.active_stage_mask = shader_stage_mask(stage_kind);
+      field.binding_id = resource.binding_id != 0
+                             ? resource.binding_id
+                             : shader_binding_id(resource.logical_name);
+
+      for (const auto &member : resource.members) {
+        if (member.binding_id != 0) {
+          field.binding_id = member.binding_id;
+          break;
+        }
+      }
+
+      globals_value_interface.declared_fields.push_back(std::move(field));
+      has_globals_values = true;
+    }
+  }
+
   std::unordered_map<std::string, size_t> interface_counts;
   for (const auto &resource : *merged_uniforms) {
     interface_counts[resource.declared_name]++;
+  }
+
+  std::unordered_map<std::string, size_t> resource_container_counts;
+  for (const auto &container : *merged_resources) {
+    resource_container_counts[container.declared_name]++;
   }
 
   std::ostringstream out;
@@ -886,6 +1035,42 @@ BindingCppEmitter::emit(const ShaderReflection &reflection,
     out << '\n';
 
     emit_apply_shader_params(out, resource, uniform_name, params_name);
+    out << '\n';
+  }
+
+  if (has_globals_values) {
+    const std::string globals_uniform_name = "GlobalsUniform";
+    const std::string globals_params_name = "GlobalsParams";
+
+    if (!emit_uniform_container(out, globals_value_interface, globals_uniform_name, error)) {
+      return std::nullopt;
+    }
+    out << '\n';
+
+    if (!emit_params_struct(out, globals_value_interface, globals_params_name, error)) {
+      return std::nullopt;
+    }
+    out << '\n';
+
+    emit_validate_shader_params(out, globals_value_interface, globals_params_name);
+    out << '\n';
+
+    emit_apply_shader_params(out, globals_value_interface, globals_uniform_name, globals_params_name);
+    out << '\n';
+  }
+
+  for (const auto &container : *merged_resources) {
+    if (container.bindings.empty()) {
+      continue;
+    }
+
+    std::string base_name = sanitize_identifier(container.declared_name);
+    if (resource_container_counts[container.declared_name] > 1) {
+      base_name += to_pascal_case(container.logical_name);
+    }
+
+    const std::string resources_name = base_name + "Resources";
+    emit_resource_container(out, container, resources_name);
     out << '\n';
   }
 

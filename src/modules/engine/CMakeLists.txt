@@ -16,8 +16,6 @@ target_link_libraries(
   PUBLIC
   glad::glad
   window
-  imgui::imgui
-  # imgui_impl
   shared::ecs
   physics
   renderer

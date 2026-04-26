@@ -85,6 +85,7 @@ public:
   };
 
 private:
+  void invalidate_runtime_handles();
   void update();
   void refresh(bool force = false);
   void render_visible_entries(ui::im::Children &parent);

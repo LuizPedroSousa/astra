@@ -9,7 +9,7 @@
 
 namespace astralix {
 
-enum class RendererBackend { None = 0, OpenGL = 1 };
+enum class RendererBackend { None = 0, OpenGL = 1, Vulkan = 2 };
 
 enum class ClearBufferType : uint32_t {
   None = 0,
@@ -71,6 +71,10 @@ public:
   virtual void disable_depth_test() = 0;
   virtual void enable_depth_write() = 0;
   virtual void disable_depth_write() = 0;
+  virtual void enable_depth_bias() = 0;
+  virtual void disable_depth_bias() = 0;
+  virtual void set_depth_bias(float slope_factor,
+                              float constant_factor) = 0;
   virtual void enable_blend() = 0;
   virtual void disable_blend() = 0;
   virtual void set_blend_func(BlendFactor src, BlendFactor dst) = 0;
@@ -78,6 +82,8 @@ public:
   virtual void disable_scissor() = 0;
   virtual void set_scissor_rect(uint32_t x, uint32_t y, uint32_t width,
                                 uint32_t height) = 0;
+  virtual void enable_cull() = 0;
+  virtual void disable_cull() = 0;
   virtual void bind_texture_2d(uint32_t texture_id, uint32_t slot) = 0;
   virtual void bind_texture_cube(uint32_t texture_id, uint32_t slot) = 0;
 
@@ -126,6 +132,9 @@ Ref<T> create_renderer_component_ref(RendererBackend backend,
   case RendererBackend::OpenGL:
     return create_ref<O>(std::forward<Args>(params)...);
 
+  case RendererBackend::Vulkan:
+    ASTRA_EXCEPTION("Vulkan resource creation through legacy factories is not supported");
+
   default:
     ASTRA_EXCEPTION("NONE ins't a valid renderer api");
   }
@@ -137,6 +146,9 @@ Scope<T> create_renderer_component_scope(RendererBackend api,
   switch (api) {
   case RendererBackend::OpenGL:
     return create_scope<O>(std::forward<Args>(params)...);
+
+  case RendererBackend::Vulkan:
+    ASTRA_EXCEPTION("Vulkan resource creation through legacy factories is not supported");
 
   default:
     ASTRA_EXCEPTION("NONE ins't a valid renderer api");

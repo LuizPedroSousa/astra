@@ -8,6 +8,8 @@
 #include "tools/viewport/gizmo-math.hpp"
 #include "trace.hpp"
 
+#include <limits>
+
 namespace astralix::editor {
 
 using namespace ui::dsl;
@@ -210,7 +212,9 @@ void ViewportPanelController::render(ui::im::Frame &ui) {
 }
 
 void ViewportPanelController::mount(const PanelMountContext &context) {
+  LOG_INFO("[ViewportPanelController] mount() called, runtime=", context.runtime);
   m_runtime = context.runtime;
+  m_last_rendered_toolbar_version = std::numeric_limits<uint64_t>::max();
   sync_panel_rect();
 }
 
@@ -234,10 +238,17 @@ std::optional<uint64_t> ViewportPanelController::render_version() const {
 void ViewportPanelController::unmount() {
   m_runtime = nullptr;
   m_viewport_image_widget = ui::im::k_invalid_widget_id;
+  m_last_rendered_toolbar_version = std::numeric_limits<uint64_t>::max();
   editor_gizmo_store()->set_panel_rect(std::nullopt);
 }
 
-void ViewportPanelController::update(const PanelUpdateContext &) { sync_panel_rect(); }
+void ViewportPanelController::update(const PanelUpdateContext &) {
+  static int update_count = 0;
+  if (update_count++ < 3) {
+    LOG_INFO("[ViewportPanelController] update() called");
+  }
+  sync_panel_rect();
+}
 
 void ViewportPanelController::set_mode(EditorGizmoMode mode) {
   editor_gizmo_store()->set_mode(mode);
@@ -269,10 +280,21 @@ void ViewportPanelController::swap_attachment_into_main(size_t index) {
 
 void ViewportPanelController::sync_panel_rect() {
   if (m_runtime != nullptr && m_viewport_image_widget) {
-    editor_gizmo_store()->set_panel_rect(
-        m_runtime->layout_bounds(m_viewport_image_widget)
-    );
+    auto bounds = m_runtime->layout_bounds(m_viewport_image_widget);
+    static int sync_log_count = 0;
+    if (sync_log_count++ < 5) {
+      LOG_INFO("[ViewportPanelController] sync_panel_rect: widget=",
+               m_viewport_image_widget.value,
+               " bounds=", bounds.has_value());
+    }
+    editor_gizmo_store()->set_panel_rect(bounds);
     return;
+  }
+  static int sync_fail_count = 0;
+  if (sync_fail_count++ < 5) {
+    LOG_WARN("[ViewportPanelController] sync_panel_rect: runtime=",
+             m_runtime != nullptr, " widget=",
+             m_viewport_image_widget.value);
   }
   editor_gizmo_store()->set_panel_rect(std::nullopt);
 }

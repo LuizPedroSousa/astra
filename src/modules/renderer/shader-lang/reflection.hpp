@@ -70,6 +70,7 @@ struct ResourceReflection {
   std::string declared_name;
   TypeRef type{};
   std::optional<uint32_t> array_size;
+  uint64_t binding_id = 0;
   BackendLayoutReflection glsl;
   std::vector<MemberReflection> members;
   std::vector<DeclaredFieldReflection> declared_fields;
@@ -91,8 +92,10 @@ struct StageReflection {
   std::vector<ResourceReflection> resources;
 };
 
+inline constexpr int k_shader_reflection_version = 4;
+
 struct ShaderReflection {
-  int version = 2;
+  int version = k_shader_reflection_version;
   std::map<StageKind, StageReflection> stages;
 
   bool empty() const { return stages.empty(); }

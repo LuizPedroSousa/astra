@@ -15,8 +15,7 @@ target_include_directories(application
 target_link_libraries(
   application
   PUBLIC
-  glad::glad imgui::imgui
-  # imgui_impl
+  glad::glad
   project
   engine window shared::foundation
 )

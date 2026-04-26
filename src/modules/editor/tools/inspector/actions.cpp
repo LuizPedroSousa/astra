@@ -1,7 +1,9 @@
 #include "fields.hpp"
 
 #include "entities/serializers/scene-snapshot.hpp"
+#include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
+#include "resources/descriptors/material-descriptor.hpp"
 
 #include <utility>
 
@@ -13,6 +15,88 @@ namespace {
 Scene *active_scene() {
   auto scene_manager = SceneManager::get();
   return scene_manager != nullptr ? scene_manager->get_active_scene() : nullptr;
+}
+
+Ref<MaterialDescriptor> inspected_material_descriptor(
+    std::vector<serialization::ComponentSnapshot> &components,
+    std::string_view component_name
+) {
+  if (!panel::is_material_properties_component(component_name)) {
+    return nullptr;
+  }
+
+  auto *component = panel::find_component_snapshot(components, component_name);
+  if (component == nullptr) {
+    return nullptr;
+  }
+
+  const auto material_id =
+      serialization::fields::read_string(component->fields, "material_id");
+  if (!material_id.has_value() || material_id->empty()) {
+    return nullptr;
+  }
+
+  auto manager = resource_manager();
+  return manager != nullptr
+             ? manager->get_by_descriptor_id<MaterialDescriptor>(*material_id)
+             : nullptr;
+}
+
+bool apply_material_numeric_field(
+    MaterialDescriptor &material,
+    std::string_view field_name,
+    float value
+) {
+  if (field_name == "base_color_factor.x") {
+    material.base_color_factor.x = value;
+    return true;
+  }
+  if (field_name == "base_color_factor.y") {
+    material.base_color_factor.y = value;
+    return true;
+  }
+  if (field_name == "base_color_factor.z") {
+    material.base_color_factor.z = value;
+    return true;
+  }
+  if (field_name == "base_color_factor.w") {
+    material.base_color_factor.w = value;
+    return true;
+  }
+  if (field_name == "emissive_factor.x") {
+    material.emissive_factor.x = value;
+    return true;
+  }
+  if (field_name == "emissive_factor.y") {
+    material.emissive_factor.y = value;
+    return true;
+  }
+  if (field_name == "emissive_factor.z") {
+    material.emissive_factor.z = value;
+    return true;
+  }
+  if (field_name == "metallic_factor") {
+    material.metallic_factor = value;
+    return true;
+  }
+  if (field_name == "roughness_factor") {
+    material.roughness_factor = value;
+    return true;
+  }
+  if (field_name == "occlusion_strength") {
+    material.occlusion_strength = value;
+    return true;
+  }
+  if (field_name == "normal_scale") {
+    material.normal_scale = value;
+    return true;
+  }
+  if (field_name == "bloom_intensity") {
+    material.bloom_intensity = value;
+    return true;
+  }
+
+  return false;
 }
 
 } // namespace
@@ -147,6 +231,20 @@ void InspectorPanelController::commit_numeric_field(
     return;
   }
 
+  if (panel::is_material_properties_component(component_name)) {
+    auto material =
+        inspected_material_descriptor(m_snapshot.components, component_name);
+    auto parsed = panel::parse_float(draft_it->second);
+    if (material == nullptr || !parsed.has_value() ||
+        !apply_material_numeric_field(*material, field_name, *parsed)) {
+      return;
+    }
+
+    field->value = *parsed;
+    refresh(true);
+    return;
+  }
+
   if (std::holds_alternative<int>(field->value)) {
     auto parsed = panel::parse_int(draft_it->second);
     if (!parsed.has_value()) {
@@ -195,6 +293,25 @@ void InspectorPanelController::commit_numeric_group(
       return;
     }
     parsed_values.push_back(*parsed);
+  }
+
+  if (panel::is_material_properties_component(component_name)) {
+    auto material =
+        inspected_material_descriptor(m_snapshot.components, component_name);
+    if (material == nullptr) {
+      return;
+    }
+
+    for (size_t index = 0u; index < field_names.size(); ++index) {
+      if (!apply_material_numeric_field(
+              *material, field_names[index], parsed_values[index]
+          )) {
+        return;
+      }
+    }
+
+    refresh(true);
+    return;
   }
 
   for (size_t index = 0u; index < field_names.size(); ++index) {

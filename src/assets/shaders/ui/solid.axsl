@@ -4,14 +4,19 @@
 
 @uniform
 interface SolidBorder {
+  @set(1)
   vec4 color;
+  @set(1)
   float width;
+  @set(1)
   float radius;
 }
 
 @uniform
 interface Solid {
+  @set(1)
   vec4 rect;
+  @set(1)
   vec4 fill_color;
 }
 

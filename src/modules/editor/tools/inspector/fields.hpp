@@ -13,6 +13,9 @@
 
 namespace astralix::editor::inspector_panel {
 
+inline constexpr std::string_view k_material_properties_component_name =
+    "material_properties";
+
 enum class FieldMode : uint8_t {
   ReadOnly,
   Text,
@@ -50,6 +53,7 @@ bool same_entity(
 const ComponentDescriptor *component_descriptors();
 size_t component_descriptor_count();
 const ComponentDescriptor *find_component_descriptor(std::string_view name);
+bool is_material_properties_component(std::string_view name);
 
 serialization::ComponentSnapshot *find_component_snapshot(
     std::vector<serialization::ComponentSnapshot> &components,

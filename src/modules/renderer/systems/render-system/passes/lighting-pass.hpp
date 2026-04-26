@@ -2,162 +2,188 @@
 
 #include "framebuffer.hpp"
 #include "log.hpp"
-#include "managers/resource-manager.hpp"
-#include "managers/scene-manager.hpp"
 #include "render-pass.hpp"
-#include "resources/descriptors/shader-descriptor.hpp"
-#include "resources/mesh.hpp"
-#include "shaders/engine_shaders_g_buffer_axsl.hpp"
+#include "systems/render-system/core/compiled-frame.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
+#include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/light-frame.hpp"
-#include "systems/render-system/material-binding.hpp"
-#include "systems/render-system/mesh-resolution.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
-#include "systems/render-system/scene-selection.hpp"
+#include "systems/render-system/render-frame.hpp"
+#include "targets/render-target.hpp"
+#include "trace.hpp"
 
-#if __has_include(ASTRALIX_ENGINE_BINDINGS_HEADER)
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
-#define ASTRALIX_HAS_ENGINE_BINDINGS
-#endif
 
 namespace astralix {
 
-class LightingPass : public RenderPass {
+class LightingPass : public FramePass {
 public:
-  LightingPass() = default;
+  explicit LightingPass(rendering::ResolvedMeshDraw fullscreen_quad = {})
+      : m_fullscreen_quad(std::move(fullscreen_quad)) {}
   ~LightingPass() override = default;
 
-  void
-  setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource *> &resources) override {
-    m_render_target = render_target;
+  void setup(PassSetupContext &ctx) override {
+    m_shader = ctx.require_shader("lighting_shader");
 
-    for (auto resource : resources) {
-      switch (resource->desc.type) {
-        case RenderGraphResourceType::Framebuffer: {
-          if (resource->desc.name == "shadow_map") {
-            m_shadow_map = resource->get_framebuffer();
-          }
-
-          if (resource->desc.name == "scene_color") {
-            m_scene_color = resource->get_framebuffer();
-          }
-
-          if (resource->desc.name == "g_buffer") {
-            m_g_buffer = resource->get_framebuffer();
-          }
-
-          if (resource->desc.name == "ssao_blur") {
-            m_ssao = resource->get_framebuffer();
-          }
-          break;
-        }
-
-        default:
-          break;
-      }
-    }
-
-    if (m_scene_color == nullptr || m_g_buffer == nullptr || m_ssao == nullptr) {
+    if (m_shader == nullptr) {
+      LOG_WARN("[LightingPass] Missing graph dependency: lighting_shader");
       set_enabled(false);
     }
   }
 
-  void begin(double dt) override {}
-
-  void execute(double dt) override {
-    ASTRA_PROFILE_N("LightingPass Update");
-
-#ifdef ASTRALIX_HAS_ENGINE_BINDINGS
-    auto scene = SceneManager::get()->get_active_scene();
-    if (scene == nullptr) {
-      LOG_WARN("[LightingPass] Skipping execute: no active scene");
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override {
+    ASTRA_PROFILE_N("LightingPass::record");
+    const auto *scene_frame = ctx.scene();
+    if (scene_frame == nullptr || !scene_frame->main_camera.has_value()) {
       return;
     }
 
-    if (m_shadow_map == nullptr) {
-      LOG_WARN("[LightingPass] Skipping execute: shadow_map framebuffer is not "
-               "available");
+    const auto *shadow_map = ctx.find_graph_image("shadow_map");
+    const auto *scene_color_resource = ctx.find_graph_image("scene_color");
+    const auto *bloom_extract = ctx.find_graph_image("bloom_extract");
+    const auto *entity_pick = ctx.find_graph_image("entity_pick");
+    const auto *g_position_resource = ctx.find_graph_image("g_position");
+    const auto *g_normal_resource = ctx.find_graph_image("g_normal");
+    const auto *g_albedo_resource = ctx.find_graph_image("g_albedo");
+    const auto *g_emissive_resource = ctx.find_graph_image("g_emissive");
+    const auto *g_entity_id_resource = ctx.find_graph_image("g_entity_id");
+    const auto *ssao_resource = ctx.find_graph_image("ssao_blur");
+
+    if (shadow_map == nullptr || scene_color_resource == nullptr ||
+        bloom_extract == nullptr || entity_pick == nullptr ||
+        g_position_resource == nullptr || g_normal_resource == nullptr ||
+        g_albedo_resource == nullptr || g_emissive_resource == nullptr ||
+        g_entity_id_resource == nullptr || ssao_resource == nullptr ||
+        m_shader == nullptr ||
+        m_fullscreen_quad.vertex_array == nullptr ||
+        m_fullscreen_quad.index_count == 0) {
       return;
     }
-
-    auto &world = scene->world();
-    auto camera = rendering::select_main_camera(world);
-    if (!camera.has_value()) {
-      LOG_WARN("[LightingPass] Skipping execute: no main camera selected");
-      return;
-    }
-
-    auto renderer_api = m_render_target->renderer_api();
-    const auto backend = renderer_api->get_backend();
-    resource_manager()->load_from_descriptors_by_ids<ShaderDescriptor>(
-        backend, {"shaders::lighting"}
-    );
-
-    auto shader =
-        resource_manager()->get_by_descriptor_id<Shader>("shaders::lighting");
-    if (shader == nullptr) {
-      LOG_WARN(
-          "[LightingPass] Skipping execute: failed to load shaders::lighting"
-      );
-      return;
-    }
-
-    const auto light_frame = rendering::collect_light_frame(world);
-    rendering::ensure_mesh_uploaded(m_fullscreen_quad, m_render_target);
-    shader->bind();
 
     using namespace shader_bindings::engine_shaders_light_axsl;
 
-    int32_t texture_unit = 0;
-    int32_t shadow_map_slot = -1;
+    auto &frame = ctx.frame();
+    const auto extent = ctx.graph_image_extent(*scene_color_resource);
 
-    if (m_shadow_map != nullptr) {
-      shadow_map_slot = texture_unit;
-      renderer_api->bind_texture_2d(m_shadow_map->get_depth_attachment_id(), texture_unit);
-      texture_unit++;
-    }
+    auto shadow_depth = ctx.register_graph_image(
+        "lighting.shadow-map", *shadow_map, ImageAspect::Depth
+    );
+    auto g_position = ctx.register_graph_image(
+        "lighting.g-position", *g_position_resource
+    );
+    auto g_normal =
+        ctx.register_graph_image("lighting.g-normal", *g_normal_resource);
+    auto g_albedo =
+        ctx.register_graph_image("lighting.g-albedo", *g_albedo_resource);
+    auto g_emissive = ctx.register_graph_image(
+        "lighting.g-emissive", *g_emissive_resource
+    );
+    auto g_entity_id = ctx.register_graph_image(
+        "lighting.g-entity-id", *g_entity_id_resource
+    );
+    auto ssao_blur =
+        ctx.register_graph_image("lighting.ssao-blur", *ssao_resource);
+    auto scene_color = ctx.register_graph_image(
+        "lighting.scene-color", *scene_color_resource
+    );
+    auto bright_color = ctx.register_graph_image(
+        "lighting.scene-bright", *bloom_extract
+    );
+    auto entity_id = ctx.register_graph_image(
+        "lighting.scene-entity-id", *entity_pick
+    );
 
-    auto color_attachments = m_g_buffer->get_color_attachments();
-    for (uint32_t i = 0; i < color_attachments.size(); i++) {
-      renderer_api->bind_texture_2d(color_attachments[i], texture_unit + i);
-    }
+    const auto bindings = frame.register_binding_group(
+        make_binding_group_desc(
+            "lighting-pass",
+            "lighting-pass",
+            m_shader,
+            0,
+            "lighting-pass",
+            RenderBindingScope::Pass,
+            RenderBindingCachePolicy::Reuse,
+            RenderBindingSharing::LocalOnly,
+            0,
+            RenderBindingStability::FrameLocal
+        )
+    );
 
-    const int32_t ssao_slot =
-        texture_unit + static_cast<int32_t>(color_attachments.size());
-    renderer_api->bind_texture_2d(m_ssao->get_color_attachment_id(), ssao_slot);
+    frame.add_sampled_image_binding(
+        bindings, LightResources::shadow_map.binding_id,
+        ImageViewRef{.image = shadow_depth, .aspect = ImageAspect::Depth});
+    frame.add_sampled_image_binding(
+        bindings, LightResources::g_position.binding_id,
+        ImageViewRef{.image = g_position});
+    frame.add_sampled_image_binding(
+        bindings, LightResources::g_normal.binding_id,
+        ImageViewRef{.image = g_normal});
+    frame.add_sampled_image_binding(
+        bindings, LightResources::g_albedo.binding_id,
+        ImageViewRef{.image = g_albedo});
+    frame.add_sampled_image_binding(
+        bindings, LightResources::g_emissive.binding_id,
+        ImageViewRef{.image = g_emissive});
+    frame.add_sampled_image_binding(
+        bindings, LightResources::g_entity_id.binding_id,
+        ImageViewRef{.image = g_entity_id});
+    frame.add_sampled_image_binding(
+        bindings, LightResources::g_ssao.binding_id,
+        ImageViewRef{.image = ssao_blur});
 
-    shader->set_all(rendering::build_deferred_light_params(
-        light_frame,
-        shadow_map_slot,
-        texture_unit,
-        texture_unit + 1,
-        texture_unit + 2,
-        texture_unit + 3,
-        texture_unit + 4,
-        ssao_slot
-    ));
-    shader->set(CameraUniform::position, camera->transform->position);
+    rendering::record_shader_params(
+        frame, bindings,
+        rendering::build_deferred_light_params(scene_frame->light_frame));
+    rendering::record_shader_params(frame, bindings, CameraParams{
+        .position = scene_frame->main_camera->position,
+    });
 
-    m_scene_color->bind();
-    renderer_api->disable_depth_test();
-    renderer_api->draw_indexed(m_fullscreen_quad.vertex_array, m_fullscreen_quad.draw_type);
-    renderer_api->enable_depth_test();
-    shader->unbind();
-    m_scene_color->unbind();
-#endif
+    RenderPipelineDesc pipeline_desc;
+    pipeline_desc.debug_name = "lighting-pass";
+    pipeline_desc.depth_stencil.depth_test = false;
+    pipeline_desc.depth_stencil.depth_write = false;
+
+    const auto pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+    const auto quad_buffer = frame.register_vertex_array(
+        "lighting-pass.fullscreen-quad", m_fullscreen_quad.vertex_array);
+
+    RenderingInfo info;
+    info.debug_name = "lighting-pass";
+    info.extent = extent;
+    info.color_attachments.push_back(ColorAttachmentRef{
+        .view = ImageViewRef{.image = scene_color},
+        .load_op = AttachmentLoadOp::Clear,
+        .store_op = AttachmentStoreOp::Store,
+        .clear_color = {0.0f, 0.0f, 0.0f, 1.0f},
+    });
+    info.color_attachments.push_back(ColorAttachmentRef{
+        .view = ImageViewRef{.image = bright_color},
+        .load_op = AttachmentLoadOp::Clear,
+        .store_op = AttachmentStoreOp::Store,
+        .clear_color = {0.0f, 0.0f, 0.0f, 1.0f},
+    });
+    info.color_attachments.push_back(ColorAttachmentRef{
+        .view = ImageViewRef{.image = entity_id},
+        .load_op = AttachmentLoadOp::Clear,
+        .store_op = AttachmentStoreOp::Store,
+        .clear_color = {0.0f, 0.0f, 0.0f, 0.0f},
+    });
+
+    recorder.begin_rendering(info);
+    recorder.bind_pipeline(pipeline);
+    recorder.bind_binding_group(bindings);
+    recorder.bind_vertex_buffer(quad_buffer);
+    recorder.bind_index_buffer(quad_buffer, IndexType::Uint32);
+    recorder.draw_indexed(DrawIndexedArgs{
+        .index_count = m_fullscreen_quad.index_count,
+    });
+    recorder.end_rendering();
   }
 
-  void end(double dt) override {}
-
-  void cleanup() override {}
-
-  std::string name() const noexcept override { return "LightingPass"; }
+  std::string name() const override { return "LightingPass"; }
 
 private:
-  Framebuffer *m_shadow_map = nullptr;
-  Framebuffer *m_scene_color = nullptr;
-  Framebuffer *m_g_buffer = nullptr;
-  Framebuffer *m_ssao = nullptr;
-  Mesh m_fullscreen_quad = Mesh::quad(1.0f);
+  Ref<Shader> m_shader = nullptr;
+  rendering::ResolvedMeshDraw m_fullscreen_quad{};
 };
 
 } // namespace astralix

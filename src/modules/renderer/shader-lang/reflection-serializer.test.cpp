@@ -48,7 +48,7 @@ fn main(Entity entity) -> VertexOutput {
   auto from_content = deserialize_shader_reflection(
       *serialized, SerializationFormat::Json, &deserialize_error);
   ASSERT_TRUE(from_content.has_value()) << deserialize_error;
-  EXPECT_EQ(from_content->version, 2);
+  EXPECT_EQ(from_content->version, k_shader_reflection_version);
 
   const auto path = std::filesystem::temp_directory_path() /
                     "astralix-reflection-roundtrip.json";
@@ -61,7 +61,7 @@ fn main(Entity entity) -> VertexOutput {
   auto loaded =
       read_shader_reflection(path, SerializationFormat::Json, &read_error);
   ASSERT_TRUE(loaded.has_value()) << read_error;
-  EXPECT_EQ(loaded->version, 2);
+  EXPECT_EQ(loaded->version, k_shader_reflection_version);
 
   auto stage_it = loaded->stages.find(StageKind::Vertex);
   ASSERT_NE(stage_it, loaded->stages.end());

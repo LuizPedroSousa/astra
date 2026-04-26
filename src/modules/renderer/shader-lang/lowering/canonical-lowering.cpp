@@ -300,6 +300,42 @@ BackendLayoutReflection make_layout_from_annotations(
   return layout;
 }
 
+BackendLayoutReflection make_layout_from_field_annotations(
+    const std::vector<CanonicalFieldDecl> &fields,
+    std::optional<std::string> storage = std::nullopt
+) {
+  BackendLayoutReflection layout;
+  layout.storage = std::move(storage);
+
+  auto collect_common_annotation =
+      [&](AnnotationKind kind) -> std::optional<uint32_t> {
+    std::optional<uint32_t> common_value;
+    for (const auto &field : fields) {
+      const auto value = find_annotation_slot(field.annotations, kind);
+      if (!value.has_value()) {
+        continue;
+      }
+
+      if (!common_value.has_value()) {
+        common_value = value;
+        continue;
+      }
+
+      if (common_value != value) {
+        return std::nullopt;
+      }
+    }
+
+    return common_value;
+  };
+
+  layout.descriptor_set =
+      collect_common_annotation(AnnotationKind::Set);
+  layout.binding =
+      collect_common_annotation(AnnotationKind::Binding);
+  return layout;
+}
+
 bool is_sampler_type(const TypeRef &type) {
   return type.kind == TokenKind::Identifier &&
          type.name.rfind("sampler", 0) == 0;
@@ -647,7 +683,7 @@ StageReflection build_stage_reflection(const CanonicalStage &stage) {
     resource.stage = stage.stage;
     resource.declared_name = binding.interface_name;
     resource.type = TypeRef{TokenKind::Identifier, binding.interface_name};
-    resource.glsl.storage = "uniform";
+    resource.glsl = make_layout_from_field_annotations(binding.fields, "uniform");
 
     std::unordered_map<std::string, uint32_t> active_leaf_stage_masks;
 

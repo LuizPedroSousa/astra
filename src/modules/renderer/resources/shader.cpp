@@ -4,6 +4,7 @@
 #include "managers/resource-manager.hpp"
 #include "platform/OpenGL/opengl-shader.hpp"
 #include "renderer-api.hpp"
+#include "virtual-shader.hpp"
 
 namespace astralix {
 
@@ -25,8 +26,14 @@ Ref<ShaderDescriptor> Shader::define(const ResourceDescriptorID &id,
 
 Ref<Shader> Shader::from_descriptor(const ResourceHandle &id,
                                     Ref<ShaderDescriptor> descriptor) {
-  return create_renderer_component_ref<Shader, OpenGLShader>(
-      descriptor->backend, id, descriptor);
+  switch (descriptor->backend) {
+  case RendererBackend::OpenGL:
+    return create_ref<OpenGLShader>(id, descriptor);
+  case RendererBackend::Vulkan:
+    return create_ref<VirtualShader>(id, descriptor);
+  default:
+    ASTRA_EXCEPTION("NONE ins't a valid renderer api");
+  }
 }
 
 } // namespace astralix

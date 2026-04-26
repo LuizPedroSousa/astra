@@ -81,7 +81,7 @@ private:
   std::optional<EntityID> pick_entity_at_cursor(
       glm::vec2 cursor,
       const ui::UIRect &interaction_rect
-  ) const;
+  );
   std::optional<ui::UIRect> visible_document_rect(ui::UINodeId node_id) const;
   ui::dsl::NodeSpec build_shell();
   ui::dsl::NodeSpec build_floating_shell();
@@ -136,6 +136,7 @@ private:
       WorkspacePresentation::Docked;
   ResourceDescriptorID m_default_font_id = "fonts::roboto";
   float m_default_font_size = 18.0f;
+  std::optional<glm::ivec2> m_pending_viewport_pick_pixel;
   ui::UINodeId m_shell_bar_node = ui::k_invalid_node_id;
   ui::UINodeId m_panel_row_node = ui::k_invalid_node_id;
   std::optional<std::string> m_requested_workspace_id;

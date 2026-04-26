@@ -7,6 +7,7 @@ interface Mesh {
 }
 
 @std430 
+@set(1)
 @binding(0) 
 in InstanceBuffer {
     mat4 models[];
@@ -14,16 +15,22 @@ in InstanceBuffer {
 
 
 @uniform
-interface Light {
+interface ShadowPass {
+  @set(0)
   mat4 light_space_matrix;
+}
+
+@uniform
+interface ShadowDraw {
+  @set(1)
   mat4 g_model;
 }
 
 @vertex
-fn main(Mesh mesh, Light light) -> void {
-    mat4 model = light.g_model;
+fn main(Mesh mesh, ShadowPass shadow_pass, ShadowDraw shadow_draw) -> void {
+    mat4 model = shadow_draw.g_model;
 
-    gl_Position = light.light_space_matrix * model * vec4(mesh.position, 1.0);
+    gl_Position = shadow_pass.light_space_matrix * model * vec4(mesh.position, 1.0);
 }
 
 @fragment

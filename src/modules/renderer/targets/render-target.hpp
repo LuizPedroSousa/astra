@@ -3,6 +3,7 @@
 #include "framebuffer.hpp"
 #include "guid.hpp"
 #include "renderer-api.hpp"
+#include "systems/render-system/core/pass-recorder.hpp"
 
 namespace astralix {
 
@@ -16,16 +17,24 @@ public:
   void unbind();
   void init();
 
-  RenderTarget(Scope<RendererAPI> renderer_api, Ref<Framebuffer> framebuffer,
-               MSAA msaa, WindowID window_id);
+  RenderTarget(Scope<RendererAPI> renderer_api, Ref<Framebuffer> framebuffer, MSAA msaa, WindowID window_id);
   ~RenderTarget() = default;
 
-  static Ref<RenderTarget> create(RendererBackend api, MSAA msaa,
-                                  WindowID window_id);
+  static Ref<RenderTarget> create(RendererBackend api, MSAA msaa, WindowID window_id);
 
   bool has_msaa_enabled() const noexcept { return m_msaa.is_enabled; }
+  RendererBackend backend() const noexcept { return m_backend; }
 
-  inline RendererAPI *renderer_api() const noexcept {
+  inline RendererAPI *renderer_api() const {
+    ASTRA_ENSURE(
+        RenderApiAccessScope::active(),
+        "FramePass::record() cannot access RendererAPI directly"
+    );
+    ASTRA_ENSURE(
+        m_renderer_api == nullptr,
+        "RendererAPI is unavailable for render backend ",
+        static_cast<int>(m_backend)
+    );
     return m_renderer_api.get();
   }
 
@@ -38,6 +47,7 @@ private:
   Scope<RendererAPI> m_renderer_api;
   MSAA m_msaa;
   WindowID m_window_id;
+  RendererBackend m_backend = RendererBackend::None;
 };
 
 } // namespace astralix

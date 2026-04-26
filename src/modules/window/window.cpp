@@ -1,5 +1,7 @@
 #include "window.hpp"
 
+#include "glad/glad.h"
+
 #include "clipboard.hpp"
 
 #include "events/keyboard.hpp"
@@ -32,19 +34,12 @@ Window::Window(WindowID &id, std::string &title, int &width, int &height,
       m_headless(headless) {
   glfwSetErrorCallback(handle_errors);
   glfwInit();
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
-  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
   auto initial_mouse_x = static_cast<double>(height) / 2;
   auto initial_mouse_y = static_cast<double>(width) / 2;
 
   m_keyboard = create_ref<input::Keyboard>(id);
   m_mouse = create_ref<input::Mouse>(id, initial_mouse_x, initial_mouse_y);
-
-  // auto engine = Engine::get();
-  // if (engine->has_msaa_enabled())
-  //   glfwWindowHint(GLFW_SAMPLES, engine->msaa.samples);
 }
 
 Window::~Window() {
@@ -79,15 +74,28 @@ void Window::resizing(GLFWwindow *window, int width, int height) {
   self->m_width = width;
   self->m_height = height;
 
-  glViewport(0, 0, width, height);
+  if (self->m_graphics_api != WindowGraphicsAPI::Vulkan) {
+    glViewport(0, 0, width, height);
+  }
 
   self->was_resized = true;
 }
 
-void Window::start() {
+void Window::start(WindowGraphicsAPI api) {
   ASTRA_PROFILE_N("Window::start");
+  m_graphics_api = api;
+
   if (m_headless) {
     glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+  }
+
+  if (api == WindowGraphicsAPI::Vulkan) {
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+  } else {
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_API);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
   }
 
   GLFWwindow *window =
@@ -101,16 +109,18 @@ void Window::start() {
     const char *description;
     int errorCode = glfwGetError(&description);
 
-    ASTRA_EXCEPTION(std::string("Couldn't create window for OpenGL. ") +
+    ASTRA_EXCEPTION(std::string("Couldn't create window. ") +
                     description);
   }
 
-  glfwMakeContextCurrent(m_value);
+  if (api == WindowGraphicsAPI::OpenGL || api == WindowGraphicsAPI::None) {
+    glfwMakeContextCurrent(m_value);
 
-  ASTRA_ENSURE(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress),
-               "Couldn't load GLAD");
+    ASTRA_ENSURE(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress),
+                 "Couldn't load GLAD");
 
-  glViewport(0, 0, m_width, m_height);
+    glViewport(0, 0, m_width, m_height);
+  }
 
   glfwSetWindowUserPointer(window, this);
 
@@ -374,7 +384,9 @@ void Window::swap() {
   m_mouse->reset_delta();
   m_keyboard->destroy_release_keys();
 
-  glfwSwapBuffers(m_value);
+  if (m_graphics_api != WindowGraphicsAPI::Vulkan) {
+    glfwSwapBuffers(m_value);
+  }
 
   if (was_resized) {
     was_resized = false;

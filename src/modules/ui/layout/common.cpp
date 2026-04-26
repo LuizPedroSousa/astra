@@ -124,17 +124,13 @@ void append_text_commands(
 
   auto font = resolve_ui_font(node, context);
   const float font_size = resolve_ui_font_size(node, context);
-  if (font == nullptr) {
-    return;
-  }
-
-  const uint32_t resolved_font_size =
-      static_cast<uint32_t>(std::max(1.0f, std::round(font_size)));
-  const auto &glyphs = font->glyphs(resolved_font_size);
-  const auto &glyph_lut = font->glyph_lut(resolved_font_size);
   const glm::vec2 text_origin(text_rect.x - text_scroll_x, text_rect.y);
 
-  if (draw_selection && !node.selection.empty()) {
+  if (font != nullptr && draw_selection && !node.selection.empty()) {
+    const uint32_t resolved_font_size =
+        static_cast<uint32_t>(std::max(1.0f, std::round(font_size)));
+    const auto &glyphs = font->glyphs(resolved_font_size);
+    const auto &glyph_lut = font->glyph_lut(resolved_font_size);
     const float start_x = measure_text_prefix_advance(
         node.text, node.selection.start(), [&](char character) {
           return ui_glyph_advance(glyphs, glyph_lut, character);
@@ -175,7 +171,11 @@ void append_text_commands(
   apply_content_clip(command, node);
   document.draw_list().commands.push_back(std::move(command));
 
-  if (draw_caret && node.caret.active && node.caret.visible) {
+  if (font != nullptr && draw_caret && node.caret.active && node.caret.visible) {
+    const uint32_t resolved_font_size =
+        static_cast<uint32_t>(std::max(1.0f, std::round(font_size)));
+    const auto &glyphs = font->glyphs(resolved_font_size);
+    const auto &glyph_lut = font->glyph_lut(resolved_font_size);
     const float caret_x = measure_text_prefix_advance(
         node.text, node.caret.index, [&](char character) {
           return ui_glyph_advance(glyphs, glyph_lut, character);

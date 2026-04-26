@@ -96,6 +96,10 @@ bool panel::same_entity(
   return same_entity(*lhs, *rhs);
 }
 
+bool panel::is_material_properties_component(std::string_view name) {
+  return name == k_material_properties_component_name;
+}
+
 serialization::ComponentSnapshot *panel::find_component_snapshot(
     std::vector<serialization::ComponentSnapshot> &components,
     std::string_view name

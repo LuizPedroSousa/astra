@@ -1,54 +1,109 @@
 #pragma once
 
-#include "render-pass.hpp"
-#include "resources/mesh.hpp"
-#include "resources/shader.hpp"
-#include "types.hpp"
-#include "vertex-array.hpp"
-#include "vertex-buffer.hpp"
+#include "renderer-api.hpp"
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 
-#include <cstddef>
+#include "render-pass.hpp"
+#include "resources/shader.hpp"
+#include "systems/render-system/render-frame.hpp"
 
 namespace astralix {
 
-  class UIPass : public RenderPass {
-  public:
-    UIPass() = default;
-    ~UIPass() override = default;
+namespace ui_pass_detail {
 
-    void setup(Ref<RenderTarget> render_target, const std::vector<const RenderGraphResource*>& resources) override;
-    void begin(double dt) override;
-    void execute(double dt) override;
-    void end(double dt) override;
-    void cleanup() override;
+struct ScissorRect {
+  bool enabled = false;
+  uint32_t x = 0;
+  uint32_t y = 0;
+  uint32_t width = 0;
+  uint32_t height = 0;
+};
 
-    std::string name() const override { return "UIPass"; }
-    bool has_side_effects() const override { return true; }
+inline ScissorRect resolve_scissor_rect(
+    const ui::UIRect &clip,
+    float ui_width,
+    float ui_height,
+    const ImageExtent &target_extent
+) {
+  ScissorRect scissor{.enabled = true};
+  if (clip.width <= 0.0f || clip.height <= 0.0f || ui_width <= 0.0f ||
+      ui_height <= 0.0f || target_extent.width == 0 ||
+      target_extent.height == 0) {
+    return scissor;
+  }
 
-  private:
-    void ensure_shaders_loaded();
-    void draw_rect_command(const ui::UIDrawCommand& command, glm::mat4 projection);
-    void draw_image_command(const ui::UIDrawCommand& command, glm::mat4 projection);
-    void draw_svg_image_command(const ui::UIDrawCommand& command, glm::mat4 projection);
-    void draw_render_image_view_command(const ui::UIDrawCommand& command, glm::mat4 projection);
-    void draw_text_command(const ui::UIDrawCommand& command, glm::mat4 projection);
-    void draw_polyline_command(const ui::UIDrawCommand& command, glm::mat4 projection);
-    void draw_color_triangles(
-        const std::vector<ui::UIPolylineVertex>& triangle_vertices,
-        glm::mat4 projection
-    );
-    void apply_clip(const ui::UIDrawCommand& command, uint32_t framebuffer_height);
-    void ensure_polyline_resources(size_t required_vertices);
+  const ui::UIRect clamped = ui::intersect_rect(
+      clip,
+      ui::UIRect{
+          .x = 0.0f,
+          .y = 0.0f,
+          .width = ui_width,
+          .height = ui_height,
+      }
+  );
+  if (clamped.width <= 0.0f || clamped.height <= 0.0f) {
+    return scissor;
+  }
 
-    Ref<Shader> m_solid_shader;
-    Ref<Shader> m_image_shader;
-    Ref<Shader> m_text_shader;
-    Mesh m_quad = Mesh::quad(1.0f);
+  const float scale_x = static_cast<float>(target_extent.width) / ui_width;
+  const float scale_y = static_cast<float>(target_extent.height) / ui_height;
+  const float max_x = static_cast<float>(target_extent.width);
+  const float max_y = static_cast<float>(target_extent.height);
 
-    Ref<Shader> m_polyline_shader;
-    Ref<VertexArray> m_polyline_vertex_array = nullptr;
-    Ref<VertexBuffer> m_polyline_vertex_buffer = nullptr;
-    size_t m_polyline_vertex_capacity = 0u;
+  const uint32_t left = static_cast<uint32_t>(std::clamp(
+      std::floor(clamped.x * scale_x), 0.0f, max_x
+  ));
+  const uint32_t right = static_cast<uint32_t>(std::clamp(
+      std::ceil((clamped.x + clamped.width) * scale_x), 0.0f, max_x
+  ));
+  const uint32_t top = static_cast<uint32_t>(std::clamp(
+      std::floor(clamped.y * scale_y), 0.0f, max_y
+  ));
+  const uint32_t bottom = static_cast<uint32_t>(std::clamp(
+      std::ceil((clamped.y + clamped.height) * scale_y), 0.0f, max_y
+  ));
+
+  if (right <= left || bottom <= top) {
+    return scissor;
+  }
+
+  scissor.x = left;
+  scissor.y = top;
+  scissor.width = right - left;
+  scissor.height = bottom - top;
+  return scissor;
+}
+
+inline float render_image_sample_flip_y(RendererBackend backend) {
+  return backend == RendererBackend::OpenGL ? 1.0f : 0.0f;
+}
+
+} // namespace ui_pass_detail
+
+class UIPass : public FramePass {
+public:
+  explicit UIPass(rendering::ResolvedMeshDraw quad = {});
+  ~UIPass() override = default;
+
+  void setup(PassSetupContext &ctx) override;
+  void record(PassRecordContext &ctx, PassRecorder &recorder) override;
+
+  std::string name() const override { return "UIPass"; }
+  bool has_side_effects() const override { return true; }
+
+private:
+  struct Shaders {
+    Ref<Shader> solid;
+    Ref<Shader> image;
+    Ref<Shader> text;
+    Ref<Shader> polyline;
   };
+
+  Shaders m_shaders{};
+  rendering::ResolvedMeshDraw m_quad{};
+  float m_render_image_sample_flip_y = 1.0f;
+};
 
 } // namespace astralix

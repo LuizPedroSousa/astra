@@ -12,6 +12,11 @@
 namespace astralix::editor {
 namespace {
 
+constexpr float k_rows_padding_left = 8.0f;
+constexpr float k_rows_padding_top = 8.0f;
+constexpr float k_rows_padding_bottom = 8.0f;
+constexpr float k_rows_padding_right = 18.0f;
+
 using namespace ui::dsl::styles;
 
 ResourceDescriptorID resolve_image(
@@ -291,7 +296,10 @@ void SceneHierarchyPanelController::render_visible_rows(ui::im::Children &parent
           header.spacer("spacer");
           header.text("count", row.count_label)
               .visible(!is_entity)
-              .style(text_style(m_default_font_id, count_font_size, theme.text_muted));
+              .style(
+                  shrink(0.0f),
+                  text_style(m_default_font_id, count_font_size, theme.text_muted)
+              );
 
           if (is_entity && row.selected) {
             auto meta = body.row("meta").style(fill_x().items_center().gap(4.0f));
@@ -356,7 +364,14 @@ void SceneHierarchyPanelController::render_visible_rows(ui::im::Children &parent
           fill_x()
               .flex(1.0f)
               .min_height(px(0.0f))
-              .padding(8.0f)
+              .padding(
+                  ui::UIEdges{
+                      .left = k_rows_padding_left,
+                      .top = k_rows_padding_top,
+                      .right = k_rows_padding_right,
+                      .bottom = k_rows_padding_bottom,
+                  }
+              )
               .gap(4.0f)
               .background(theme.panel_background)
               .border(1.0f, theme.panel_border)

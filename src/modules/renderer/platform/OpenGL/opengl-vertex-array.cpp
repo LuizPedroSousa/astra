@@ -32,20 +32,6 @@ GLenum OpenGLVertexArray::map_shader_data_type_to_opengl(ShaderDataType type) {
   ASTRA_EXCEPTION("Unknown shader data type");
 }
 
-const void *OpenGLVertexArray::get_offset(bool is_matrix,
-                                          BufferElement element) {
-
-  if (is_matrix) {
-    uint8_t count = element.get_component_count();
-
-    for (uint8_t i = 0; i < count; i++) {
-      return (const void *)(element.offset + sizeof(float) * count * i);
-    }
-  }
-
-  return (const void *)element.offset;
-}
-
 OpenGLVertexArray::OpenGLVertexArray() { glGenVertexArrays(1, &m_renderer_id); }
 OpenGLVertexArray::~OpenGLVertexArray() {
   glDeleteVertexArrays(1, &m_renderer_id);
@@ -65,20 +51,46 @@ void OpenGLVertexArray::add_vertex_buffer(
   bind();
 
   for (const auto &element : layout.get_elements()) {
-    glEnableVertexAttribArray(m_vertex_buffer_index);
+    uint32_t location = element.has_explicit_location()
+                            ? element.location
+                            : m_vertex_buffer_index;
+
     bool is_matrix = element.type == ShaderDataType::Mat4 ||
                      element.type == ShaderDataType::Mat3;
 
-    glVertexAttribPointer(m_vertex_buffer_index, element.get_component_count(),
-                          map_shader_data_type_to_opengl(element.type),
-                          element.normalized ? GL_TRUE : GL_FALSE,
-                          layout.get_stride(), get_offset(is_matrix, element));
-
     if (is_matrix) {
-      glVertexAttribDivisor(m_vertex_buffer_index, 1);
-    }
+      uint32_t column_count = element.get_component_count();
+      uint32_t column_size = sizeof(float) * column_count;
 
-    m_vertex_buffer_index++;
+      for (uint32_t column = 0; column < column_count; column++) {
+        uint32_t slot = location + column;
+        glEnableVertexAttribArray(slot);
+        glVertexAttribPointer(
+            slot, static_cast<int>(column_count),
+            map_shader_data_type_to_opengl(element.type),
+            element.normalized ? GL_TRUE : GL_FALSE,
+            layout.get_stride(),
+            reinterpret_cast<const void *>(element.offset +
+                                           column_size * column));
+        glVertexAttribDivisor(slot, 1);
+      }
+
+      if (!element.has_explicit_location()) {
+        m_vertex_buffer_index += column_count;
+      }
+    } else {
+      glEnableVertexAttribArray(location);
+      glVertexAttribPointer(
+          location, element.get_component_count(),
+          map_shader_data_type_to_opengl(element.type),
+          element.normalized ? GL_TRUE : GL_FALSE,
+          layout.get_stride(),
+          reinterpret_cast<const void *>(element.offset));
+
+      if (!element.has_explicit_location()) {
+        m_vertex_buffer_index++;
+      }
+    }
   }
   m_vertex_buffers.push_back(vertex_buffer);
 }

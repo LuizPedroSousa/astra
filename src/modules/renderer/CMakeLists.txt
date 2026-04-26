@@ -36,6 +36,8 @@ target_link_libraries(
   PUBLIC
   glad::glad
   ${OPENGL_LIBRARIES}
+  Vulkan::Vulkan
+  unofficial::shaderc::shaderc
   ${GLFW_LIBRARIES}
   assimp
   engine
@@ -45,8 +47,6 @@ target_link_libraries(
   stb_image
   shared::ecs
   shared::foundation
-  imgui::imgui
-  # imgui_impl
   Freetype::Freetype
   streams
   shader-lang)

@@ -2,6 +2,7 @@
 
 #include "assert.hpp"
 #include "assimp/Importer.hpp"
+#include "assimp/material.h"
 #include "assimp/postprocess.h"
 #include "guid.hpp"
 #include "managers/path-manager.hpp"
@@ -11,6 +12,76 @@
 #include <optional>
 
 namespace astralix {
+
+namespace {
+
+// Assimp 5.4 names this slot, but older distro headers may not.
+constexpr aiTextureType k_gltf_metallic_roughness_texture_type =
+    static_cast<aiTextureType>(27);
+
+std::optional<ResourceDescriptorID> load_material_texture(
+    const ResourceDescriptorID &material_id, aiMaterial *ai_material,
+    aiTextureType type, const std::filesystem::path &path,
+    const std::string &suffix) {
+  if (ai_material->GetTextureCount(type) == 0) {
+    return std::nullopt;
+  }
+
+  aiString filename_str;
+  if (ai_material->GetTexture(type, 0, &filename_str) != aiReturn_SUCCESS) {
+    return std::nullopt;
+  }
+
+  const std::string filename = filename_str.C_Str();
+  if (filename.empty()) {
+    return std::nullopt;
+  }
+
+  const std::string material_name =
+      material_id.starts_with("materials::")
+          ? material_id.substr(std::string("materials::").size())
+          : std::string(material_id);
+  const ResourceDescriptorID texture_id =
+      "textures::" + material_name + "::" + suffix;
+  Texture2D::create(
+      texture_id, Path::create((path.parent_path() / filename).string()));
+  return texture_id;
+}
+
+glm::vec4 read_base_color_factor(aiMaterial *ai_material) {
+  aiColor4D base_color(1.0f, 1.0f, 1.0f, 1.0f);
+  if (ai_material->Get(AI_MATKEY_BASE_COLOR, base_color) == aiReturn_SUCCESS) {
+    return glm::vec4(base_color.r, base_color.g, base_color.b, base_color.a);
+  }
+
+  aiColor3D diffuse(1.0f, 1.0f, 1.0f);
+  if (ai_material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse) == aiReturn_SUCCESS) {
+    return glm::vec4(diffuse.r, diffuse.g, diffuse.b, 1.0f);
+  }
+
+  return glm::vec4(1.0f);
+}
+
+glm::vec3 read_emissive_factor(aiMaterial *ai_material) {
+  aiColor3D emissive(0.0f, 0.0f, 0.0f);
+  if (ai_material->Get(AI_MATKEY_COLOR_EMISSIVE, emissive) == aiReturn_SUCCESS) {
+    return glm::vec3(emissive.r, emissive.g, emissive.b);
+  }
+
+  return glm::vec3(0.0f);
+}
+
+float read_assimp_factor(aiMaterial *ai_material, const char *key,
+                         unsigned int type, unsigned int index,
+                         float fallback) {
+  float value = fallback;
+  if (ai_material->Get(key, type, index, value) == aiReturn_SUCCESS) {
+    return value;
+  }
+  return fallback;
+}
+
+} // namespace
 
 Ref<ModelDescriptor> Model::create(const ResourceDescriptorID &id,
                                    Ref<Path> path) {
@@ -63,7 +134,7 @@ Mesh Model::process_mesh(aiMesh *node_mesh, const aiScene *scene,
   std::vector<unsigned int> indices;
 
   for (u_int i = 0; i < node_mesh->mNumVertices; i++) {
-    Vertex vertex;
+    Vertex vertex{};
 
     vertex.position =
         glm::vec3(node_mesh->mVertices[i].x, node_mesh->mVertices[i].y,
@@ -97,70 +168,69 @@ Mesh Model::process_mesh(aiMesh *node_mesh, const aiScene *scene,
       indices.push_back(face.mIndices[j]);
   }
 
-  if (node_mesh->mMaterialIndex > 0) {
+  if (node_mesh->mMaterialIndex < scene->mNumMaterials) {
     aiMaterial *ai_material = scene->mMaterials[node_mesh->mMaterialIndex];
-    if (ai_material->GetTextureCount(aiTextureType_DIFFUSE) > 0 ||
-        ai_material->GetTextureCount(aiTextureType_SPECULAR) > 0) {
 
-      auto resource_manager = ResourceManager::get();
+    auto manager = ResourceManager::get();
+    std::string name = ai_material->GetName().C_Str();
+    ResourceDescriptorID id = "materials::" + name;
 
-      std::string name = ai_material->GetName().C_Str();
-
-      ResourceDescriptorID id = "materials::" + name;
-
-      auto material_exists =
-          resource_manager->get_by_descriptor_id<Material>(id);
-
-      if (material_exists == nullptr) {
-        load_material(id, ai_material, path);
-      }
-
-      materials.push_back(id);
+    auto material_exists = manager->get_by_descriptor_id<Material>(id);
+    if (material_exists == nullptr) {
+      load_material(id, ai_material, path);
     }
+
+    materials.push_back(id);
   }
 
   return Mesh(vertices, indices);
 }
+
 void Model::load_material(ResourceDescriptorID material_id,
-                          aiMaterial *ai_material, std::filesystem::path path) {
+                          aiMaterial *ai_material,
+                          std::filesystem::path path) {
+  const auto base_color = load_material_texture(
+      material_id, ai_material, aiTextureType_BASE_COLOR, path, "base_color");
+  const auto normal = load_material_texture(
+      material_id, ai_material, aiTextureType_NORMALS, path, "normal");
+  const auto metallic = load_material_texture(
+      material_id, ai_material, aiTextureType_METALNESS, path, "metallic");
+  const auto roughness = load_material_texture(
+      material_id, ai_material, aiTextureType_DIFFUSE_ROUGHNESS, path,
+      "roughness");
+  const auto metallic_roughness = load_material_texture(
+      material_id, ai_material, k_gltf_metallic_roughness_texture_type, path,
+      "metallic_roughness");
+  const auto occlusion = load_material_texture(
+      material_id, ai_material, aiTextureType_AMBIENT_OCCLUSION, path,
+      "occlusion");
+  const auto emissive = load_material_texture(
+      material_id, ai_material, aiTextureType_EMISSIVE, path, "emissive");
+  const auto displacement = load_material_texture(
+      material_id, ai_material, aiTextureType_HEIGHT, path, "displacement");
 
-  auto manager = ResourceManager::get();
+  const bool has_metallic_texture =
+      metallic.has_value() || metallic_roughness.has_value();
+  const bool has_roughness_texture =
+      roughness.has_value() || metallic_roughness.has_value();
+  const float metallic_factor =
+      has_metallic_texture
+          ? 1.0f
+          : read_assimp_factor(
+                ai_material, AI_MATKEY_METALLIC_FACTOR, 0.0f
+            );
+  const float roughness_factor =
+      has_roughness_texture
+          ? 1.0f
+          : read_assimp_factor(
+                ai_material, AI_MATKEY_ROUGHNESS_FACTOR, 1.0f
+            );
 
-  auto get_texture = [&](aiTextureType type) {
-    std::vector<ResourceDescriptorID> textures;
-    for (unsigned int i = 0; i < ai_material->GetTextureCount(type); i++) {
-      aiString filename_str;
-      ai_material->GetTexture(type, i, &filename_str);
-
-      const char *filename = filename_str.C_Str();
-
-      ResourceDescriptorID texture_id =
-          "textures::" + material_id + "::" + filename;
-
-      auto get_name = [type]() -> std::string {
-        std::string prefix = "materials[0].";
-
-        std::string type_str =
-            type == aiTextureType_DIFFUSE ? "diffuse" : "specular";
-
-        std::string name = prefix + type_str;
-
-        return name;
-      };
-
-      std::string texture_path = path.parent_path() / filename;
-
-      Texture2D::create(texture_id, Path::create(texture_path));
-
-      textures.push_back(texture_id);
-    };
-
-    return textures;
-  };
-
-  auto diffuses = get_texture(aiTextureType_DIFFUSE);
-  auto speculars = get_texture(aiTextureType_SPECULAR);
-
-  Material::create(material_id, diffuses, speculars, std::nullopt);
+  Material::create(material_id, base_color, normal, metallic, roughness,
+                   metallic_roughness, occlusion, emissive, displacement,
+                   read_base_color_factor(ai_material),
+                   read_emissive_factor(ai_material), metallic_factor,
+                   roughness_factor, 1.0f, 1.0f, 0.0f);
 }
+
 } // namespace astralix

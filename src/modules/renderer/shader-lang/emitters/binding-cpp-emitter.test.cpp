@@ -141,6 +141,43 @@ fn main(Entity entity) -> FragmentOutput {
   EXPECT_NE(header->find("stage_mask = 3u;"), std::string::npos);
 }
 
+TEST(BindingCppEmitter, CanonicalizesLooseGlobalBindingIds) {
+  static constexpr std::string_view src = R"axsl(
+@version 450;
+
+uniform float exposure = 1.0;
+
+interface FragmentOutput {
+    @location(0) vec4 color;
+}
+
+@fragment
+fn main() -> FragmentOutput {
+    return FragmentOutput(vec4(exposure));
+}
+)axsl";
+
+  Compiler compiler;
+  auto result = compiler.compile(src, {}, "hdr.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  BindingCppEmitter emitter;
+  std::string error;
+  auto header = emitter.emit(result.reflection, "hdr.axsl", &error);
+  ASSERT_TRUE(header.has_value()) << error;
+
+  const auto exposure_binding_id =
+      std::to_string(shader_binding_id("__globals.exposure")) + "ull";
+  const auto binding_id_line =
+      std::string("binding_id = ") + exposure_binding_id + ";";
+  const auto binding_ids_line =
+      std::string("binding_ids = {") + exposure_binding_id + "};";
+
+  EXPECT_NE(header->find("struct GlobalsUniform"), std::string::npos);
+  EXPECT_NE(header->find(binding_id_line), std::string::npos);
+  EXPECT_NE(header->find(binding_ids_line), std::string::npos);
+}
+
 TEST(BindingCppEmitter, RejectsConflictingSchemasForSameLogicalResource) {
   ShaderReflection reflection;
 
@@ -176,7 +213,7 @@ TEST(BindingCppEmitter, RejectsConflictingSchemasForSameLogicalResource) {
   EXPECT_NE(error.find("conflicting typed uniform schema"), std::string::npos);
 }
 
-TEST(BindingCppEmitter, EmitsSamplerFieldsAsIntBindings) {
+TEST(BindingCppEmitter, EmitsSamplerFieldsAsResourceBindings) {
   static constexpr std::string_view src = R"axsl(
 @version 450;
 
@@ -207,15 +244,12 @@ fn main(VertexOutput vertex, FragmentInput fragment) -> FragmentOutput {
   auto header = emitter.emit(result.reflection, "skybox.axsl", &error);
   ASSERT_TRUE(header.has_value()) << error;
 
-  EXPECT_NE(header->find("struct FragmentInputUniform"), std::string::npos);
-  EXPECT_NE(header->find("struct FragmentInputParams"), std::string::npos);
+  EXPECT_NE(header->find("struct FragmentInputResources"), std::string::npos);
   EXPECT_NE(header->find("struct skybox_t"), std::string::npos);
-  EXPECT_NE(header->find("using value_type = int;"), std::string::npos);
   EXPECT_NE(header->find("static constexpr std::string_view logical_name = \"fragment.skybox\""),
             std::string::npos);
-  EXPECT_NE(header->find("int skybox = -1;"), std::string::npos);
-  EXPECT_NE(header->find("shader.set(FragmentInputUniform::skybox, params.skybox);"),
-            std::string::npos);
+  EXPECT_EQ(header->find("int skybox = -1;"), std::string::npos);
+  EXPECT_EQ(header->find("using value_type = int;"), std::string::npos);
 }
 
 TEST(BindingCppEmitter, CompilerCanOptionallyEmitBindingHeader) {

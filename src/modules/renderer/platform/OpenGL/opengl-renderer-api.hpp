@@ -16,6 +16,9 @@ public:
   void disable_depth_test() override;
   void enable_depth_write() override;
   void disable_depth_write() override;
+  void enable_depth_bias() override;
+  void disable_depth_bias() override;
+  void set_depth_bias(float slope_factor, float constant_factor) override;
   void enable_blend() override;
   void disable_blend() override;
   void set_blend_func(BlendFactor src, BlendFactor dst) override;
@@ -23,6 +26,8 @@ public:
   void disable_scissor() override;
   void set_scissor_rect(uint32_t x, uint32_t y, uint32_t width,
                         uint32_t height) override;
+  void enable_cull() override;
+  void disable_cull() override;
   void bind_texture_2d(uint32_t texture_id, uint32_t slot) override;
   void bind_texture_cube(uint32_t texture_id, uint32_t slot) override;
 

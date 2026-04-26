@@ -8,10 +8,17 @@ glm::vec2 measure_text_size(
     const UIDocument::UINode &node,
     const UILayoutContext &context
 ) {
-  auto font = resolve_ui_font(node, context);
   const float font_size = resolve_ui_font_size(node, context);
-  if (font == nullptr) {
+  if (node.text.empty()) {
     return glm::vec2(0.0f);
+  }
+
+  auto font = resolve_ui_font(node, context);
+  if (font == nullptr) {
+    return glm::vec2(
+        measure_ui_text_width(node, context, node.text),
+        measure_ui_line_height(node, context)
+    );
   }
 
   return font->measure_text(node.text, font_size);

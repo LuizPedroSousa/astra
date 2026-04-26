@@ -9,6 +9,8 @@
 #include "platform/OpenGL/opengl-texture3D.hpp"
 #include "renderer-api.hpp"
 #include "stb_image/stb_image.h"
+#include "virtual-texture2D.hpp"
+#include "virtual-texture3D.hpp"
 
 namespace astralix {
 
@@ -38,8 +40,14 @@ Image Texture::load_image(Ref<Path> path, bool flip_image_on_loading) {
   data = stbi_load(resolved_path.c_str(), &width, &height, &nr_channels, 0);
 
   if (!data) {
-    free_image(data);
-    ASTRA_EXCEPTION("Cant't load image: ", path);
+    const char *reason = stbi_failure_reason();
+    ASTRA_EXCEPTION(
+        "Can't load image: ",
+        resolved_path,
+        reason != nullptr ? " (" : "",
+        reason != nullptr ? reason : "",
+        reason != nullptr ? ")" : ""
+    );
   }
 
   return Image{width, height, nr_channels, data};
@@ -69,9 +77,14 @@ Texture2D::define(const ResourceDescriptorID &resource_id, TextureConfig config)
 };
 
 Ref<Texture2D> Texture2D::from_descriptor(const ResourceHandle &id, Ref<Texture2DDescriptor> descriptor) {
-  return create_renderer_component_ref<Texture2D, OpenGLTexture2D>(
-      descriptor->backend, id, descriptor
-  );
+  switch (descriptor->backend) {
+  case RendererBackend::OpenGL:
+    return create_ref<OpenGLTexture2D>(id, descriptor);
+  case RendererBackend::Vulkan:
+    return create_ref<VirtualTexture2D>(id, descriptor);
+  default:
+    ASTRA_EXCEPTION("NONE ins't a valid renderer api");
+  }
 };
 
 Ref<Texture3DDescriptor>
@@ -87,9 +100,14 @@ Texture3D::define(const ResourceDescriptorID &id, const std::vector<Ref<Path>> &
 };
 
 Ref<Texture3D> Texture3D::from_descriptor(const ResourceHandle &id, Ref<Texture3DDescriptor> descriptor) {
-  return create_renderer_component_ref<Texture3D, OpenGLTexture3D>(
-      descriptor->backend, id, descriptor
-  );
+  switch (descriptor->backend) {
+  case RendererBackend::OpenGL:
+    return create_ref<OpenGLTexture3D>(id, descriptor);
+  case RendererBackend::Vulkan:
+    return create_ref<VirtualTexture3D>(id, descriptor);
+  default:
+    ASTRA_EXCEPTION("NONE ins't a valid renderer api");
+  }
 };
 
 } // namespace astralix

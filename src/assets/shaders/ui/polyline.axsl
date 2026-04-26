@@ -11,6 +11,7 @@ interface Mesh {
 
 @uniform
 interface Camera {
+  @set(0)
   mat4 projection;
 }
 
