@@ -69,6 +69,11 @@ target_include_directories(
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include/astralix/modules/editor>)
 
+target_include_directories(
+  editor
+  PRIVATE
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/audio>)
+
 target_link_libraries(
   editor
   PRIVATE

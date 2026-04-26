@@ -11,6 +11,8 @@
 #include "components/tags.hpp"
 #include "components/text.hpp"
 #include "components/transform.hpp"
+#include "components/audio-emitter.hpp"
+#include "components/audio-listener.hpp"
 
 namespace astralix::editor::inspector_panel {
 namespace {
@@ -289,6 +291,20 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .can_add = &can_add_if_missing<rendering::ShadowCaster>,
         .remove_component = &erase_component<rendering::ShadowCaster>,
         .field_editable = &editable_no_fields,
+        .enum_options = &no_enum_options,
+    },
+    {
+        .name = "AudioListener",
+        .can_add = &can_add_if_missing<audio::AudioListener>,
+        .remove_component = &erase_component<audio::AudioListener>,
+        .field_editable = &editable_all_fields,
+        .enum_options = &no_enum_options,
+    },
+    {
+        .name = "AudioEmitter",
+        .can_add = &can_add_if_missing<audio::AudioEmitter>,
+        .remove_component = &erase_component<audio::AudioEmitter>,
+        .field_editable = &editable_all_fields,
         .enum_options = &no_enum_options,
     },
 };

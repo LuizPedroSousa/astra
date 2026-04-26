@@ -20,6 +20,8 @@ target_link_libraries(
   physics
   renderer
   ui
-  streams)
+  streams
+  PRIVATE
+  audio)
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${ENGINE_SOURCES} ${ENGINE_HEADERS})

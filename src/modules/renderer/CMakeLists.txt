@@ -24,6 +24,7 @@ target_include_directories(renderer
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/editor>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/ui>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/physics>
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/modules/audio>
     ${ASSIMP_INCLUDE_DIRS}
     $<BUILD_INTERFACE:${ASTRALIX_ENGINE_GENERATED_DIR}>
     $<INSTALL_INTERFACE:include/astralix/modules/physics>

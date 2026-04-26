@@ -11,6 +11,8 @@
 #include "components/serialization/tags.hpp"
 #include "components/serialization/text.hpp"
 #include "components/serialization/transform.hpp"
+#include "components/serialization/audio-emitter.hpp"
+#include "components/serialization/audio-listener.hpp"
 #include "scene-snapshot-types.hpp"
 #include <string_view>
 #include <utility>
@@ -47,6 +49,8 @@ enum class ComponentType {
   RigidBody,
   BoxCollider,
   FitBoxColliderFromRenderMesh,
+  AudioListener,
+  AudioEmitter,
   Unknown,
 };
 
@@ -81,6 +85,8 @@ inline ComponentType component_type_from_string(std::string_view name) {
       {"BoxCollider", ComponentType::BoxCollider},
       {"FitBoxColliderFromRenderMesh",
        ComponentType::FitBoxColliderFromRenderMesh},
+      {"AudioListener", ComponentType::AudioListener},
+      {"AudioEmitter", ComponentType::AudioEmitter},
   };
 
   for (const auto &[key, value] : mapping) {
@@ -215,6 +221,13 @@ inline void apply_component_snapshot(ecs::EntityRef entity, const ComponentSnaps
       apply_fit_box_collider_from_render_mesh_snapshot(entity);
       break;
 
+    case ComponentType::AudioListener:
+      apply_audio_listener_snapshot(entity, fields);
+      break;
+
+    case ComponentType::AudioEmitter:
+      apply_audio_emitter_snapshot(entity, fields);
+      break;
     case ComponentType::Unknown:
       break;
   }
