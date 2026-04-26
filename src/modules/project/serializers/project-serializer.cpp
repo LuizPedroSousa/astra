@@ -3,6 +3,7 @@
 #include "context-proxy.hpp"
 #include "path.hpp"
 #include "project.hpp"
+#include "resources/audio-clip.hpp"
 #include "resources/font.hpp"
 #include "resources/material.hpp"
 #include "resources/model.hpp"
@@ -29,6 +30,7 @@ enum class ResourceType {
   Font,
   Model,
   Svg,
+  AudioClip,
   Unknown
 };
 
@@ -151,6 +153,8 @@ ResourceType asset_type_from_string(const std::string &type) {
     return ResourceType::Model;
   if (type == "Svg")
     return ResourceType::Svg;
+  if (type == "AudioClip")
+    return ResourceType::AudioClip;
 
   return ResourceType::Unknown;
 }
@@ -242,6 +246,8 @@ static SystemType system_type_from_string(const std::string &name) {
     return SystemType::Physics;
   if (name == "render")
     return SystemType::Render;
+  if (name == "audio")
+    return SystemType::Audio;
 
   ASTRA_EXCEPTION("Unknown system type:", name);
 }
@@ -457,6 +463,14 @@ void ProjectSerializer::deserialize() {
         Svg::create(id, path);
         break;
       }
+      case ResourceType::AudioClip: {
+        auto path = parse_path(asset["path"]);
+
+        ASTRA_ENSURE(path == nullptr, "AudioClip path is required");
+
+        AudioClip::create(id, path);
+        break;
+      }
       default:
         ASTRA_EXCEPTION("Unknown asset type", type_str);
     }
@@ -517,6 +531,22 @@ void ProjectSerializer::deserialize() {
             .content = render,
         });
       } break;
+
+      case SystemType::Audio: {
+        AudioSystemConfig audio;
+
+        audio.backend = sys["content"]["backend"].as<std::string>();
+        audio.master_gain = read_number(sys["content"]["master_gain"], 1.0f);
+
+        config.systems.push_back({
+            .name = name,
+            .type = system_type,
+            .content = audio,
+        });
+
+        break;
+      }
+
 
       default:
         ASTRA_EXCEPTION("Unkown system type", name)

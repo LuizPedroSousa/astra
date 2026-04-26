@@ -3,6 +3,7 @@
 #include "base.hpp"
 #include "guid.hpp"
 #include "renderer-api.hpp"
+#include "resources/descriptors/audio-clip-descriptor.hpp"
 #include "resources/descriptors/font-descriptor.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
 #include "resources/descriptors/model-descriptor.hpp"
@@ -220,6 +221,7 @@ public:
   Ref<FontDescriptor> register_font(Ref<FontDescriptor> font);
   Ref<ModelDescriptor> register_model(Ref<ModelDescriptor> model);
   Ref<SvgDescriptor> register_svg(Ref<SvgDescriptor> svg);
+  Ref<AudioClipDescriptor> register_audio_clip(Ref<AudioClipDescriptor> clip);
   std::vector<Ref<ShaderDescriptor>> shader_descriptors() const;
   void register_models(std::initializer_list<Ref<ModelDescriptor>> models);
 
@@ -346,6 +348,7 @@ private:
   ResourceDescriptorPool<MaterialDescriptor> m_material_descriptor_pool;
   ResourceDescriptorPool<FontDescriptor> m_font_descriptor_pool;
   ResourceDescriptorPool<SvgDescriptor> m_svg_descriptor_pool;
+  ResourceDescriptorPool<AudioClipDescriptor> m_audio_clip_descriptor_pool;
 
   ResourcePool<Texture2D, Texture2DDescriptor> m_texture_2d_pool;
   ResourcePool<Texture3D, Texture3DDescriptor> m_texture_3d_pool;
@@ -372,6 +375,7 @@ private:
   MAP(ModelDescriptor, m_model_descriptor_pool)          \
   MAP(FontDescriptor, m_font_descriptor_pool)            \
   MAP(SvgDescriptor, m_svg_descriptor_pool)              \
+  MAP(AudioClipDescriptor, m_audio_clip_descriptor_pool) \
                                                          \
   MAP(Material, m_material_pool)                         \
   MAP(Texture2D, m_texture_2d_pool)                      \
@@ -389,6 +393,7 @@ private:
   MAP(ModelDescriptor)              \
   MAP(FontDescriptor)               \
   MAP(SvgDescriptor)                \
+  MAP(AudioClipDescriptor)          \
   MAP(Material)                     \
   MAP(Texture2D)                    \
   MAP(Texture3D)                    \

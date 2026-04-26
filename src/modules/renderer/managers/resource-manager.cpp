@@ -95,6 +95,14 @@ void ResourceManager::register_svgs(
   }
 }
 
+Ref<AudioClipDescriptor>
+ResourceManager::register_audio_clip(Ref<AudioClipDescriptor> descriptor) {
+  return m_audio_clip_descriptor_pool.get(
+      m_audio_clip_descriptor_pool.register_or_get(descriptor));
+}
+
+Ref<TerrainRecipeDescriptor>
+
 Ref<FontDescriptor>
 ResourceManager::register_font(Ref<FontDescriptor> descriptor) {
   return m_font_descriptor_pool.get(

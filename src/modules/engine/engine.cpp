@@ -3,6 +3,7 @@
 #include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
 #include "managers/window-manager.hpp"
+#include "systems/audio-system.hpp"
 #include "systems/physics-system.hpp"
 #include "systems/render-system/render-system.hpp"
 #include "systems/scene-system.hpp"
@@ -42,6 +43,13 @@ void Engine::start() {
             std::get<PhysicsSystemConfig>(system.content));
         continue;
       }
+
+      case SystemType::Audio: {
+        system_manager->add_system<AudioSystem>(
+            std::get<AudioSystemConfig>(system.content));
+        continue;
+      }
+
 
       default:
         continue;

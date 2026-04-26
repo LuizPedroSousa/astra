@@ -73,7 +73,9 @@ struct WindowConfig {
 
 enum SystemType {
   Physics,
-  Render
+  Render,
+  Audio,
+  Terrain
 };
 
 struct PhysicsSystemConfig {
@@ -110,10 +112,21 @@ struct RenderSystemConfig {
   }
 };
 
+struct AudioSystemConfig {
+  std::string backend = "miniaudio";
+  float master_gain = 1.0f;
+};
+
+struct TerrainSystemConfig {
+  uint32_t default_resolution = 1025;
+  uint32_t clipmap_levels = 6;
+  float tile_world_size = 256.0f;
+};
+
 struct SystemConfig {
   std::string name;
   SystemType type;
-  std::variant<std::monostate, PhysicsSystemConfig, RenderSystemConfig> content;
+  std::variant<std::monostate, PhysicsSystemConfig, RenderSystemConfig, AudioSystemConfig, TerrainSystemConfig> content;
 };
 
 struct ProjectConfig {
