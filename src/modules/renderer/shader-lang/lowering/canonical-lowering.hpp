@@ -1,5 +1,6 @@
 #pragma once
 
+#include "base.hpp"
 #include "shader-lang/ast.hpp"
 #include "shader-lang/linker.hpp"
 #include "shader-lang/reflection.hpp"
@@ -12,278 +13,278 @@
 
 namespace astralix {
 
-struct CanonicalExpr;
-struct CanonicalStmt;
+  struct CanonicalExpr;
+  struct CanonicalStmt;
 
-using CanonicalExprPtr = std::unique_ptr<CanonicalExpr>;
-using CanonicalStmtPtr = std::unique_ptr<CanonicalStmt>;
+  using CanonicalExprPtr = Scope<CanonicalExpr>;
+  using CanonicalStmtPtr = Scope<CanonicalStmt>;
 
-struct CanonicalLiteralExpr {
-  std::variant<bool, int64_t, double> value;
-};
+  struct CanonicalLiteralExpr {
+    std::variant<bool, int64_t, double> value;
+  };
 
-struct CanonicalIdentifierExpr {
-  std::string name;
-};
+  struct CanonicalIdentifierExpr {
+    std::string name;
+  };
 
-struct CanonicalStageInputFieldRef {
-  std::string param_name;
-  std::string field;
-};
+  struct CanonicalStageInputFieldRef {
+    std::string param_name;
+    std::string field;
+  };
 
-struct CanonicalStageResourceFieldRef {
-  std::string param_name;
-  std::string field;
-};
+  struct CanonicalStageResourceFieldRef {
+    std::string param_name;
+    std::string field;
+  };
 
-struct CanonicalOutputFieldRef {
-  std::string field;
-};
+  struct CanonicalOutputFieldRef {
+    std::string field;
+  };
 
-struct CanonicalBinaryExpr {
-  CanonicalExprPtr lhs;
-  CanonicalExprPtr rhs;
-  TokenKind op;
-};
+  struct CanonicalBinaryExpr {
+    CanonicalExprPtr lhs;
+    CanonicalExprPtr rhs;
+    TokenKind op;
+  };
 
-struct CanonicalUnaryExpr {
-  CanonicalExprPtr operand;
-  TokenKind op;
-  bool prefix = true;
-};
+  struct CanonicalUnaryExpr {
+    CanonicalExprPtr operand;
+    TokenKind op;
+    bool prefix = true;
+  };
 
-struct CanonicalTernaryExpr {
-  CanonicalExprPtr cond;
-  CanonicalExprPtr then_expr;
-  CanonicalExprPtr else_expr;
-};
+  struct CanonicalTernaryExpr {
+    CanonicalExprPtr cond;
+    CanonicalExprPtr then_expr;
+    CanonicalExprPtr else_expr;
+  };
 
-struct CanonicalCallExpr {
-  CanonicalExprPtr callee;
-  std::vector<CanonicalExprPtr> args;
-};
+  struct CanonicalCallExpr {
+    CanonicalExprPtr callee;
+    std::vector<CanonicalExprPtr> args;
+  };
 
-struct CanonicalIndexExpr {
-  CanonicalExprPtr array;
-  CanonicalExprPtr index;
-};
+  struct CanonicalIndexExpr {
+    CanonicalExprPtr array;
+    CanonicalExprPtr index;
+  };
 
-struct CanonicalFieldExpr {
-  CanonicalExprPtr object;
-  std::string field;
-};
+  struct CanonicalFieldExpr {
+    CanonicalExprPtr object;
+    std::string field;
+  };
 
-struct CanonicalConstructExpr {
-  TypeRef type;
-  std::vector<CanonicalExprPtr> args;
-};
+  struct CanonicalConstructExpr {
+    TypeRef type;
+    std::vector<CanonicalExprPtr> args;
+  };
 
-struct CanonicalAssignExpr {
-  CanonicalExprPtr lhs;
-  CanonicalExprPtr rhs;
-  TokenKind op;
-};
+  struct CanonicalAssignExpr {
+    CanonicalExprPtr lhs;
+    CanonicalExprPtr rhs;
+    TokenKind op;
+  };
 
-using CanonicalExprData =
+  using CanonicalExprData =
     std::variant<CanonicalLiteralExpr, CanonicalIdentifierExpr,
-                 CanonicalStageInputFieldRef, CanonicalStageResourceFieldRef,
-                 CanonicalOutputFieldRef, CanonicalBinaryExpr,
-                 CanonicalUnaryExpr, CanonicalTernaryExpr, CanonicalCallExpr,
-                 CanonicalIndexExpr, CanonicalFieldExpr, CanonicalConstructExpr,
-                 CanonicalAssignExpr>;
+    CanonicalStageInputFieldRef, CanonicalStageResourceFieldRef,
+    CanonicalOutputFieldRef, CanonicalBinaryExpr,
+    CanonicalUnaryExpr, CanonicalTernaryExpr, CanonicalCallExpr,
+    CanonicalIndexExpr, CanonicalFieldExpr, CanonicalConstructExpr,
+    CanonicalAssignExpr>;
 
-struct CanonicalExpr {
-  SourceLocation location{};
-  TypeRef type{};
-  CanonicalExprData data;
-};
+  struct CanonicalExpr {
+    SourceLocation location{};
+    TypeRef type{};
+    CanonicalExprData data;
+  };
 
-struct CanonicalBlockStmt {
-  std::vector<CanonicalStmtPtr> stmts;
-};
+  struct CanonicalBlockStmt {
+    std::vector<CanonicalStmtPtr> stmts;
+  };
 
-struct CanonicalIfStmt {
-  CanonicalExprPtr cond;
-  CanonicalStmtPtr then_br;
-  CanonicalStmtPtr else_br;
-};
+  struct CanonicalIfStmt {
+    CanonicalExprPtr cond;
+    CanonicalStmtPtr then_br;
+    CanonicalStmtPtr else_br;
+  };
 
-struct CanonicalForStmt {
-  CanonicalStmtPtr init;
-  CanonicalExprPtr cond;
-  CanonicalExprPtr step;
-  CanonicalStmtPtr body;
-};
+  struct CanonicalForStmt {
+    CanonicalStmtPtr init;
+    CanonicalExprPtr cond;
+    CanonicalExprPtr step;
+    CanonicalStmtPtr body;
+  };
 
-struct CanonicalWhileStmt {
-  CanonicalExprPtr cond;
-  CanonicalStmtPtr body;
-};
+  struct CanonicalWhileStmt {
+    CanonicalExprPtr cond;
+    CanonicalStmtPtr body;
+  };
 
-struct CanonicalReturnStmt {
-  CanonicalExprPtr value;
-};
+  struct CanonicalReturnStmt {
+    CanonicalExprPtr value;
+  };
 
-struct CanonicalExprStmt {
-  CanonicalExprPtr expr;
-};
+  struct CanonicalExprStmt {
+    CanonicalExprPtr expr;
+  };
 
-struct CanonicalVarDeclStmt {
-  TypeRef type;
-  std::string name;
-  CanonicalExprPtr init;
-  bool is_const = false;
-};
+  struct CanonicalVarDeclStmt {
+    TypeRef type;
+    std::string name;
+    CanonicalExprPtr init;
+    bool is_const = false;
+  };
 
-struct CanonicalOutputAssignStmt {
-  std::string field;
-  CanonicalExprPtr value;
-  TokenKind op = TokenKind::Eq;
-};
+  struct CanonicalOutputAssignStmt {
+    std::string field;
+    CanonicalExprPtr value;
+    TokenKind op = TokenKind::Eq;
+  };
 
-struct CanonicalBreakStmt {};
-struct CanonicalContinueStmt {};
-struct CanonicalDiscardStmt {};
+  struct CanonicalBreakStmt {};
+  struct CanonicalContinueStmt {};
+  struct CanonicalDiscardStmt {};
 
-using CanonicalStmtData =
+  using CanonicalStmtData =
     std::variant<CanonicalBlockStmt, CanonicalIfStmt, CanonicalForStmt,
-                 CanonicalWhileStmt, CanonicalReturnStmt, CanonicalExprStmt,
-                 CanonicalVarDeclStmt, CanonicalOutputAssignStmt,
-                 CanonicalBreakStmt, CanonicalContinueStmt,
-                 CanonicalDiscardStmt>;
+    CanonicalWhileStmt, CanonicalReturnStmt, CanonicalExprStmt,
+    CanonicalVarDeclStmt, CanonicalOutputAssignStmt,
+    CanonicalBreakStmt, CanonicalContinueStmt,
+    CanonicalDiscardStmt>;
 
-struct CanonicalStmt {
-  SourceLocation location{};
-  CanonicalStmtData data;
-};
+  struct CanonicalStmt {
+    SourceLocation location{};
+    CanonicalStmtData data;
+  };
 
-struct CanonicalFieldDecl {
-  SourceLocation location{};
-  TypeRef type{};
-  std::string name;
-  std::optional<uint32_t> array_size;
-  CanonicalExprPtr init;
-  Annotations annotations;
-};
+  struct CanonicalFieldDecl {
+    SourceLocation location{};
+    TypeRef type{};
+    std::string name;
+    std::optional<uint32_t> array_size;
+    CanonicalExprPtr init;
+    Annotations annotations;
+  };
 
-struct CanonicalParamDecl {
-  SourceLocation location{};
-  TypeRef type{};
-  std::string name;
-  ParamQualifier qual = ParamQualifier::None;
-};
+  struct CanonicalParamDecl {
+    SourceLocation location{};
+    TypeRef type{};
+    std::string name;
+    ParamQualifier qual = ParamQualifier::None;
+  };
 
-struct CanonicalStructDecl {
-  SourceLocation location{};
-  std::string name;
-  std::vector<CanonicalFieldDecl> fields;
-};
+  struct CanonicalStructDecl {
+    SourceLocation location{};
+    std::string name;
+    std::vector<CanonicalFieldDecl> fields;
+  };
 
-struct CanonicalGlobalConstDecl {
-  SourceLocation location{};
-  TypeRef type{};
-  std::string name;
-  CanonicalExprPtr init;
-  bool is_const = true;
-};
+  struct CanonicalGlobalConstDecl {
+    SourceLocation location{};
+    TypeRef type{};
+    std::string name;
+    CanonicalExprPtr init;
+    bool is_const = true;
+  };
 
-struct CanonicalUniformDecl {
-  SourceLocation location{};
-  TypeRef type{};
-  std::string name;
-  Annotations annotations;
-  CanonicalExprPtr default_val;
-  std::optional<uint32_t> array_size;
-};
+  struct CanonicalUniformDecl {
+    SourceLocation location{};
+    TypeRef type{};
+    std::string name;
+    Annotations annotations;
+    CanonicalExprPtr default_val;
+    std::optional<uint32_t> array_size;
+  };
 
-struct CanonicalBufferDecl {
-  SourceLocation location{};
-  std::string name;
-  std::vector<CanonicalFieldDecl> fields;
-  Annotations annotations;
-  std::optional<std::string> instance_name;
-  bool is_uniform = false;
-};
+  struct CanonicalBufferDecl {
+    SourceLocation location{};
+    std::string name;
+    std::vector<CanonicalFieldDecl> fields;
+    Annotations annotations;
+    std::optional<std::string> instance_name;
+    bool is_uniform = false;
+  };
 
-struct CanonicalInterfaceBlockDecl {
-  SourceLocation location{};
-  bool is_in = false;
-  bool is_storage_block = false;
-  std::string name;
-  std::vector<CanonicalFieldDecl> fields;
-  std::optional<std::string> instance_name;
-  Annotations annotations;
-};
+  struct CanonicalInterfaceBlockDecl {
+    SourceLocation location{};
+    bool is_in = false;
+    bool is_storage_block = false;
+    std::string name;
+    std::vector<CanonicalFieldDecl> fields;
+    std::optional<std::string> instance_name;
+    Annotations annotations;
+  };
 
-struct CanonicalFunctionDecl {
-  SourceLocation location{};
-  TypeRef ret{};
-  std::string name;
-  std::vector<CanonicalParamDecl> params;
-  CanonicalStmtPtr body;
-};
+  struct CanonicalFunctionDecl {
+    SourceLocation location{};
+    TypeRef ret{};
+    std::string name;
+    std::vector<CanonicalParamDecl> params;
+    CanonicalStmtPtr body;
+  };
 
-using CanonicalDecl =
+  using CanonicalDecl =
     std::variant<CanonicalGlobalConstDecl, CanonicalUniformDecl,
-                 CanonicalBufferDecl, CanonicalInterfaceBlockDecl,
-                 CanonicalFunctionDecl>;
+    CanonicalBufferDecl, CanonicalInterfaceBlockDecl,
+    CanonicalFunctionDecl>;
 
-struct CanonicalInterfaceBinding {
-  SourceLocation location{};
-  std::string param_name;
-  std::string interface_name;
-  std::vector<CanonicalFieldDecl> fields;
-  InterfaceRole role = InterfaceRole::None;
-};
+  struct CanonicalInterfaceBinding {
+    SourceLocation location{};
+    std::string param_name;
+    std::string interface_name;
+    std::vector<CanonicalFieldDecl> fields;
+    InterfaceRole role = InterfaceRole::None;
+  };
 
-struct CanonicalStageOutput {
-  SourceLocation location{};
-  std::string interface_name;
-  std::vector<CanonicalFieldDecl> fields;
-  std::optional<std::string> sink_name;
-};
+  struct CanonicalStageOutput {
+    SourceLocation location{};
+    std::string interface_name;
+    std::vector<CanonicalFieldDecl> fields;
+    std::optional<std::string> sink_name;
+  };
 
-struct CanonicalEntryPoint {
-  SourceLocation location{};
-  StageKind stage = StageKind::Vertex;
-  TypeRef ret{};
-  std::string name = "main";
-  std::vector<CanonicalInterfaceBinding> varying_inputs;
-  std::vector<CanonicalInterfaceBinding> resource_inputs;
-  std::vector<CanonicalInterfaceBinding> declared_resource_inputs;
-  std::optional<CanonicalStageOutput> output;
-  CanonicalStmtPtr body;
-};
+  struct CanonicalEntryPoint {
+    SourceLocation location{};
+    StageKind stage = StageKind::Vertex;
+    TypeRef ret{};
+    std::string name = "main";
+    std::vector<CanonicalInterfaceBinding> varying_inputs;
+    std::vector<CanonicalInterfaceBinding> resource_inputs;
+    std::vector<CanonicalInterfaceBinding> declared_resource_inputs;
+    std::optional<CanonicalStageOutput> output;
+    CanonicalStmtPtr body;
+  };
 
-struct CanonicalStage {
-  int version = 450;
-  StageKind stage = StageKind::Vertex;
-  std::vector<CanonicalStructDecl> structs;
-  std::vector<CanonicalStructDecl> reflection_structs;
-  std::vector<CanonicalDecl> declarations;
-  CanonicalEntryPoint entry;
-};
+  struct CanonicalStage {
+    int version = 450;
+    StageKind stage = StageKind::Vertex;
+    std::vector<CanonicalStructDecl> structs;
+    std::vector<CanonicalStructDecl> reflection_structs;
+    std::vector<CanonicalDecl> declarations;
+    CanonicalEntryPoint entry;
+  };
 
-struct CanonicalLoweringResult {
-  CanonicalStage stage;
-  StageReflection reflection;
-  std::vector<std::string> errors;
+  struct CanonicalLoweringResult {
+    CanonicalStage stage;
+    StageReflection reflection;
+    std::vector<std::string> errors;
 
-  bool ok() const { return errors.empty(); }
-};
+    bool ok() const { return errors.empty(); }
+  };
 
-class CanonicalLowering {
-public:
-  explicit CanonicalLowering(const std::vector<ASTNode> &nodes);
+  class CanonicalLowering {
+  public:
+    explicit CanonicalLowering(const std::vector<ASTNode>& nodes);
 
-  CanonicalLoweringResult lower(const Program &program,
-                                const LinkResult &link_result,
-                                StageKind stage) const;
+    CanonicalLoweringResult lower(const Program& program,
+      const LinkResult& link_result,
+      StageKind stage) const;
 
-private:
-  struct EntryContext;
+  private:
+    struct EntryContext;
 
-  const std::vector<ASTNode> &m_nodes;
-};
+    const std::vector<ASTNode>& m_nodes;
+  };
 
 } // namespace astralix

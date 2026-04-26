@@ -3,6 +3,8 @@
 #include "commands.hpp"
 #include "shared/spawn.hpp"
 
+#include "astralix/modules/audio/components/audio-emitter.hpp"
+#include "astralix/modules/audio/components/audio-listener.hpp"
 #include "astralix/modules/physics/components/collider.hpp"
 #include "astralix/modules/physics/components/rigidbody.hpp"
 #include "astralix/modules/renderer/components/camera.hpp"
@@ -20,6 +22,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <log.hpp>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -30,6 +33,10 @@ namespace {
 const glm::vec3 arena_offset(0.0f, 1.0f, 0.0f);
 constexpr float cube_mesh_size = 1.0f;
 constexpr float minimum_collider_half_extent = 0.05f;
+constexpr float cube_audio_gain = 0.2f;
+constexpr float cube_audio_min_distance = 1.0f;
+constexpr float cube_audio_max_distance = 10.0f;
+constexpr float cube_audio_rolloff = 2.0f;
 
 const glm::vec3 inner_floor_position(0.0f, -0.25f, 0.0f);
 const glm::vec3 inner_floor_scale(14.0f, 0.5f, 14.0f);
@@ -87,6 +94,24 @@ scene::Transform make_cube_transform(
   }
 
   return transform;
+}
+
+bool should_attach_cube_audio(physics::RigidBodyMode mode) {
+  return mode == physics::RigidBodyMode::Dynamic;
+}
+
+audio::AudioEmitter make_cube_audio_emitter() {
+  return audio::AudioEmitter{
+      .clip_id = "audio_clips::tense",
+      .play_on_awake = true,
+      .looping = true,
+      .spatial = true,
+      .gain = cube_audio_gain,
+      .pitch = 1.0f,
+      .min_distance = cube_audio_min_distance,
+      .max_distance = cube_audio_max_distance,
+      .rolloff = cube_audio_rolloff,
+  };
 }
 
 template <typename SpawnFn>
@@ -206,10 +231,10 @@ void configure_cube_entity(
   cube.emplace<scene::Transform>(transform);
   cube.emplace<rendering::MeshSet>(rendering::MeshSet{.meshes = {cube_mesh}});
   cube.emplace<rendering::ShaderBinding>(
-      rendering::ShaderBinding{.shader = "shaders::deffered"}
+      rendering::ShaderBinding{.shader = "shaders::g_buffer"}
   );
   cube.emplace<rendering::MaterialSlots>(
-      rendering::MaterialSlots{.materials = {"materials::wood"}}
+      rendering::MaterialSlots{.materials = {"materials::brick"}}
   );
   cube.emplace<physics::RigidBody>(
       physics::RigidBody{.mode = mode, .mass = mass}
@@ -219,6 +244,10 @@ void configure_cube_entity(
           glm::max(scale * 0.5f, glm::vec3(minimum_collider_half_extent)),
       .center = glm::vec3(0.0f),
   });
+
+  if (should_attach_cube_audio(mode)) {
+    cube.emplace<audio::AudioEmitter>(make_cube_audio_emitter());
+  }
 }
 
 void configure_meta_cube(
@@ -243,16 +272,20 @@ void configure_meta_cube(
   cube.component(transform);
   cube.component(rendering::MeshSet{.meshes = {cube_mesh}});
   cube.component(
-      rendering::ShaderBinding{.shader = "shaders::deffered"}
+      rendering::ShaderBinding{.shader = "shaders::g_buffer"}
   );
   cube.component(
-      rendering::MaterialSlots{.materials = {"materials::wood"}}
+      rendering::MaterialSlots{.materials = {"materials::brick"}}
   );
   cube.component(physics::RigidBody{.mode = mode, .mass = mass});
   cube.component(physics::BoxCollider{
       .half_extents = glm::max(scale * 0.5f, glm::vec3(minimum_collider_half_extent)),
       .center = glm::vec3(0.0f),
   });
+
+  if (should_attach_cube_audio(mode)) {
+    cube.component(make_cube_audio_emitter());
+  }
 }
 
 } // namespace
@@ -300,11 +333,14 @@ void Arena::evaluate_build(SceneBuildContext &ctx) {
       .far_plane = sun_shadow_far_plane,
   });
 
+  camera.component(audio::AudioListener{.enabled = true, .gain = 1.0f});
+
   auto skybox = pass.entity("skybox", "skybox");
   skybox.component(rendering::SkyboxBinding{
       .cubemap = "cubemaps::skybox",
       .shader = "shaders::skybox",
   });
+
 
   emit_arena_layout(
       [&](std::string_view stable_key,

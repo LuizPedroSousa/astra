@@ -6,10 +6,42 @@
     "type": "sandbox.arena"
   },
   "build": {
-    "promoted_from_preview_revision": 1203,
-    "promoted_at_utc": "2026-04-04T06:49:30.586Z"
+    "promoted_from_preview_revision": 308,
+    "promoted_at_utc": "2026-04-26T21:59:35.256Z"
   },
   "entities": [
+    {
+      "active": true,
+      "id": "7536990731474218265",
+      "name": "terrain",
+      "tags": [
+        "SceneEntity"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": -1,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        }
+      ]
+    },
     {
       "active": true,
       "id": "8244983123996329122",
@@ -415,13 +447,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -495,13 +527,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -575,13 +607,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -655,13 +687,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -735,13 +767,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -815,13 +847,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -895,13 +927,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -975,13 +1007,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1055,13 +1087,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1135,13 +1167,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1215,13 +1247,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1295,13 +1327,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1346,9 +1378,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -1.59133112,
-              "y": 6.40152264,
-              "z": -18.2561531
+              "x": -4.75,
+              "y": 5.5,
+              "z": -1.5
             },
             "scale": {
               "x": 0.800000012,
@@ -1356,10 +1388,10 @@
               "z": 0.800000012
             },
             "rotation": {
-              "w": 0.605638266,
-              "x": -0.679302216,
-              "y": -0.389026165,
-              "z": -0.142862096
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1375,13 +1407,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1408,6 +1440,21 @@
               "y": 0,
               "z": 0
             }
+          }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
           }
         }
       ]
@@ -1426,9 +1473,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": 0.305178285,
-              "y": 6.68807745,
-              "z": -18.2800789
+              "x": -4.5,
+              "y": 7,
+              "z": -1
             },
             "scale": {
               "x": 0.800000012,
@@ -1436,10 +1483,10 @@
               "z": 0.800000012
             },
             "rotation": {
-              "w": 0.441697836,
-              "x": 0.0482914001,
-              "y": 0.89241612,
-              "z": -0.0785135403
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1455,13 +1502,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1489,6 +1536,21 @@
               "z": 0
             }
           }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
+          }
         }
       ]
     },
@@ -1506,9 +1568,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -0.227604806,
-              "y": 8.62516308,
-              "z": -18.0254898
+              "x": -4,
+              "y": 8.5,
+              "z": -1.79999995
             },
             "scale": {
               "x": 0.800000012,
@@ -1516,10 +1578,10 @@
               "z": 0.800000012
             },
             "rotation": {
-              "w": 0.983953357,
-              "x": -0.0911801234,
-              "y": 0.135981336,
-              "z": 0.0709305257
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1535,13 +1597,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1569,6 +1631,21 @@
               "z": 0
             }
           }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
+          }
         }
       ]
     },
@@ -1586,9 +1663,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -0.925457776,
-              "y": 2.82421279,
-              "z": -6.55001831
+              "x": 0,
+              "y": 2,
+              "z": 0
             },
             "scale": {
               "x": 0.899999976,
@@ -1596,10 +1673,10 @@
               "z": 0.899999976
             },
             "rotation": {
-              "w": 7.14054186e-05,
-              "x": -0.236929879,
-              "y": -0.971526742,
-              "z": 3.84459963e-05
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1615,13 +1692,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1648,6 +1725,21 @@
               "y": 0,
               "z": 0
             }
+          }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
           }
         }
       ]
@@ -1666,9 +1758,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -1.03751755,
-              "y": 4.71479082,
-              "z": -6.49827719
+              "x": 0,
+              "y": 3.25,
+              "z": 0
             },
             "scale": {
               "x": 0.899999976,
@@ -1676,10 +1768,10 @@
               "z": 0.899999976
             },
             "rotation": {
-              "w": -0.0249144156,
-              "x": -0.408566892,
-              "y": -0.910650492,
-              "z": -0.0562856607
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1695,13 +1787,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1728,6 +1820,21 @@
               "y": 0,
               "z": 0
             }
+          }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
           }
         }
       ]
@@ -1746,9 +1853,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": 1.00465584,
-              "y": 7.43653393,
-              "z": -17.8327065
+              "x": 0,
+              "y": 4.5,
+              "z": 0
             },
             "scale": {
               "x": 0.899999976,
@@ -1756,10 +1863,10 @@
               "z": 0.899999976
             },
             "rotation": {
-              "w": -0.295704693,
-              "x": 0.23973237,
-              "y": 0.777147591,
-              "z": 0.501127362
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1775,13 +1882,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1808,6 +1915,21 @@
               "y": 0,
               "z": 0
             }
+          }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
           }
         }
       ]
@@ -1826,9 +1948,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": 1.55540812,
-              "y": 2.49510598,
-              "z": -6.54989815
+              "x": 1.10000002,
+              "y": 2,
+              "z": 0
             },
             "scale": {
               "x": 0.899999976,
@@ -1836,10 +1958,10 @@
               "z": 0.899999976
             },
             "rotation": {
-              "w": 0.994475782,
-              "x": -6.17373735e-06,
-              "y": 5.63403592e-05,
-              "z": 0.10496641
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1855,13 +1977,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1888,6 +2010,21 @@
               "y": 0,
               "z": 0
             }
+          }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
           }
         }
       ]
@@ -1906,9 +2043,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": 1.07451892,
-              "y": 4.18370533,
-              "z": -6.55000114
+              "x": 1.10000002,
+              "y": 3.25,
+              "z": 0
             },
             "scale": {
               "x": 0.899999976,
@@ -1916,10 +2053,10 @@
               "z": 0.899999976
             },
             "rotation": {
-              "w": 0.938779771,
-              "x": -1.71725733e-05,
-              "y": 5.16969521e-05,
-              "z": -0.344517797
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -1935,13 +2072,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -1969,6 +2106,21 @@
               "z": 0
             }
           }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
+          }
         }
       ]
     },
@@ -1986,9 +2138,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": 7.71627855,
-              "y": 7.32894754,
-              "z": -17.8980141
+              "x": 3.75,
+              "y": 7.5,
+              "z": 2.5
             },
             "scale": {
               "x": 1.14999998,
@@ -1996,10 +2148,10 @@
               "z": 1.14999998
             },
             "rotation": {
-              "w": 0.990363181,
-              "x": 0.105313256,
-              "y": 0.0771249086,
-              "z": -0.0462774634
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
             },
             "dirty": false
           }
@@ -2015,13 +2167,13 @@
         {
           "type": "MaterialSlots",
           "fields": {
-            "material_0": "materials::wood"
+            "material_0": "materials::brick"
           }
         },
         {
           "type": "ShaderBinding",
           "fields": {
-            "shader": "shaders::deffered"
+            "shader": "shaders::g_buffer"
           }
         },
         {
@@ -2048,6 +2200,21 @@
               "y": 0,
               "z": 0
             }
+          }
+        },
+        {
+          "type": "AudioEmitter",
+          "fields": {
+            "clip_id": "audio_clips::tense",
+            "enabled": true,
+            "play_on_awake": true,
+            "looping": true,
+            "spatial": true,
+            "gain": 0.200000003,
+            "pitch": 1,
+            "min_distance": 1,
+            "max_distance": 10,
+            "rolloff": 2
           }
         }
       ]

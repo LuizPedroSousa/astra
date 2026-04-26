@@ -2,6 +2,7 @@
 #include "managers/path-manager.hpp"
 #include "managers/resource-manager.hpp"
 #include "resources/descriptors/audio-clip-descriptor.hpp"
+#include <unordered_set>
 
 namespace astralix::audio {
 
