@@ -111,6 +111,13 @@ ResourceManager::register_audio_clip(Ref<AudioClipDescriptor> descriptor) {
   );
 }
 
+Ref<TerrainRecipeDescriptor>
+ResourceManager::register_terrain_recipe(Ref<TerrainRecipeDescriptor> recipe) {
+  return m_terrain_recipe_descriptor_pool.get(
+      m_terrain_recipe_descriptor_pool.register_or_get(recipe)
+  );
+}
+
 Ref<FontDescriptor>
 ResourceManager::register_font(Ref<FontDescriptor> descriptor) {
   return m_font_descriptor_pool.get(

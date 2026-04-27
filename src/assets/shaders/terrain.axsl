@@ -1,0 +1,94 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec3 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface TerrainParams {
+  mat4 view;
+  mat4 projection;
+  mat4 model;
+  float height_scale;
+  float tile_world_size;
+}
+
+@uniform
+interface TerrainMaterials {
+  sampler2D heightmap;
+  sampler2D normalmap;
+  sampler2D splatmap;
+  sampler2D layer_r;
+  sampler2D layer_g;
+  sampler2D layer_b;
+  sampler2D layer_a;
+}
+
+@uniform
+interface LightData {
+  vec3 light_direction;
+  vec3 light_color;
+  vec3 ambient;
+  vec3 camera_position;
+}
+
+interface VertexOutput {
+  vec3 world_position;
+  vec3 world_normal;
+  vec2 uv;
+}
+
+interface FragmentOutput {
+  vec4 color;
+}
+
+@vertex
+fn main(mesh: Mesh) -> VertexOutput {
+  VertexOutput out;
+
+  float height = texture(heightmap, mesh.texture_coordinates).r * height_scale;
+  vec3 displaced = vec3(mesh.position.x, height, mesh.position.z);
+
+  vec4 world_pos = model * vec4(displaced, 1.0);
+  out.world_position = world_pos.xyz;
+  out.uv = mesh.texture_coordinates;
+  out.world_normal = texture(normalmap, mesh.texture_coordinates).xyz;
+
+  gl_Position = projection * view * world_pos;
+  return out;
+}
+
+@fragment
+fn main(input: VertexOutput) -> FragmentOutput {
+  FragmentOutput out;
+
+  vec4 splat = texture(splatmap, input.uv);
+
+  vec2 tiled_uv = input.uv * tile_world_size * 0.25;
+
+  vec3 color_r = texture(layer_r, tiled_uv).rgb;
+  vec3 color_g = texture(layer_g, tiled_uv).rgb;
+  vec3 color_b = texture(layer_b, tiled_uv).rgb;
+  vec3 color_a = texture(layer_a, tiled_uv).rgb;
+
+  vec3 albedo = color_r * splat.r + color_g * splat.g +
+                color_b * splat.b + color_a * splat.a;
+
+  vec3 N = normalize(input.world_normal);
+  vec3 L = normalize(-light_direction);
+  float NdotL = max(dot(N, L), 0.0);
+
+  vec3 diffuse = light_color * NdotL;
+  vec3 final_color = (ambient + diffuse) * albedo;
+
+  out.color = vec4(final_color, 1.0);
+  return out;
+}
