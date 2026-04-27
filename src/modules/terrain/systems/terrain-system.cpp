@@ -95,7 +95,7 @@ void TerrainSystem::update(double dt) {
         .shader = "shaders::g_buffer",
     });
     entity.emplace<rendering::MaterialSlots>(rendering::MaterialSlots{
-        .materials = {"materials::wood"},
+        .materials = {"materials::brick"},
     });
   }
 }

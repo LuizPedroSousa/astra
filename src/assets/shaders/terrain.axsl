@@ -51,44 +51,51 @@ interface FragmentOutput {
 }
 
 @vertex
-fn main(mesh: Mesh) -> VertexOutput {
-  VertexOutput out;
+fn main(Mesh mesh, TerrainParams terrain_params, TerrainMaterials terrain_materials) -> VertexOutput {
+  VertexOutput vertex_output;
 
-  float height = texture(heightmap, mesh.texture_coordinates).r * height_scale;
+  float height =
+      texture(terrain_materials.heightmap, mesh.texture_coordinates).r *
+      terrain_params.height_scale;
   vec3 displaced = vec3(mesh.position.x, height, mesh.position.z);
 
-  vec4 world_pos = model * vec4(displaced, 1.0);
-  out.world_position = world_pos.xyz;
-  out.uv = mesh.texture_coordinates;
-  out.world_normal = texture(normalmap, mesh.texture_coordinates).xyz;
+  vec4 world_pos = terrain_params.model * vec4(displaced, 1.0);
+  vertex_output.world_position = world_pos.xyz;
+  vertex_output.uv = mesh.texture_coordinates;
+  vertex_output.world_normal =
+      texture(terrain_materials.normalmap, mesh.texture_coordinates).xyz;
 
-  gl_Position = projection * view * world_pos;
-  return out;
+  gl_Position = terrain_params.projection * terrain_params.view * world_pos;
+  return vertex_output;
 }
 
 @fragment
-fn main(input: VertexOutput) -> FragmentOutput {
-  FragmentOutput out;
+fn main(
+    VertexOutput vertex,
+    TerrainParams terrain_params,
+    TerrainMaterials terrain_materials,
+    LightData light_data) -> FragmentOutput {
+  FragmentOutput fragment_output;
 
-  vec4 splat = texture(splatmap, input.uv);
+  vec4 splat = texture(terrain_materials.splatmap, vertex.uv);
 
-  vec2 tiled_uv = input.uv * tile_world_size * 0.25;
+  vec2 tiled_uv = vertex.uv * terrain_params.tile_world_size * 0.25;
 
-  vec3 color_r = texture(layer_r, tiled_uv).rgb;
-  vec3 color_g = texture(layer_g, tiled_uv).rgb;
-  vec3 color_b = texture(layer_b, tiled_uv).rgb;
-  vec3 color_a = texture(layer_a, tiled_uv).rgb;
+  vec3 color_r = texture(terrain_materials.layer_r, tiled_uv).rgb;
+  vec3 color_g = texture(terrain_materials.layer_g, tiled_uv).rgb;
+  vec3 color_b = texture(terrain_materials.layer_b, tiled_uv).rgb;
+  vec3 color_a = texture(terrain_materials.layer_a, tiled_uv).rgb;
 
   vec3 albedo = color_r * splat.r + color_g * splat.g +
                 color_b * splat.b + color_a * splat.a;
 
-  vec3 N = normalize(input.world_normal);
-  vec3 L = normalize(-light_direction);
+  vec3 N = normalize(vertex.world_normal);
+  vec3 L = normalize(-light_data.light_direction);
   float NdotL = max(dot(N, L), 0.0);
 
-  vec3 diffuse = light_color * NdotL;
-  vec3 final_color = (ambient + diffuse) * albedo;
+  vec3 diffuse = light_data.light_color * NdotL;
+  vec3 final_color = (light_data.ambient + diffuse) * albedo;
 
-  out.color = vec4(final_color, 1.0);
-  return out;
+  fragment_output.color = vec4(final_color, 1.0);
+  return fragment_output;
 }

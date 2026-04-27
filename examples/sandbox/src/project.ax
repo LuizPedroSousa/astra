@@ -364,6 +364,12 @@
       "fragment": "@engine/shaders/ui/polyline.axsl"
     },
     {
+      "id": "shaders::terrain",
+      "type": "Shader",
+      "vertex": "@engine/shaders/terrain.axsl",
+      "fragment": "@engine/shaders/terrain.axsl"
+    },
+    {
       "id": "shaders::g_buffer",
       "type": "Shader",
       "vertex": "@engine/shaders/g_buffer.axsl",

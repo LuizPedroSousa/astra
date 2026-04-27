@@ -571,6 +571,16 @@ namespace astralix {
       );
     }
 
+    if (resource_manager()->get_descriptor_by_id<ShaderDescriptor>(
+      "shaders::terrain"
+    ) == nullptr) {
+      Shader::create(
+        "shaders::terrain",
+        "shaders/terrain.axsl"_engine,
+        "shaders/terrain.axsl"_engine
+      );
+    }
+
     if (resource_manager()->get_descriptor_by_id<Texture2DDescriptor>(
       "noise_texture"
     ) == nullptr) {
