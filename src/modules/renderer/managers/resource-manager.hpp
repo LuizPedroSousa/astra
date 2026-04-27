@@ -4,6 +4,7 @@
 #include "guid.hpp"
 #include "renderer-api.hpp"
 #include "resources/descriptors/audio-clip-descriptor.hpp"
+#include "resources/descriptors/terrain-recipe-descriptor.hpp"
 #include "resources/descriptors/font-descriptor.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
 #include "resources/descriptors/model-descriptor.hpp"
@@ -222,6 +223,7 @@ public:
   Ref<ModelDescriptor> register_model(Ref<ModelDescriptor> model);
   Ref<SvgDescriptor> register_svg(Ref<SvgDescriptor> svg);
   Ref<AudioClipDescriptor> register_audio_clip(Ref<AudioClipDescriptor> clip);
+  Ref<TerrainRecipeDescriptor> register_terrain_recipe(Ref<TerrainRecipeDescriptor> recipe);
   std::vector<Ref<ShaderDescriptor>> shader_descriptors() const;
   void register_models(std::initializer_list<Ref<ModelDescriptor>> models);
 
@@ -349,6 +351,7 @@ private:
   ResourceDescriptorPool<FontDescriptor> m_font_descriptor_pool;
   ResourceDescriptorPool<SvgDescriptor> m_svg_descriptor_pool;
   ResourceDescriptorPool<AudioClipDescriptor> m_audio_clip_descriptor_pool;
+  ResourceDescriptorPool<TerrainRecipeDescriptor> m_terrain_recipe_descriptor_pool;
 
   ResourcePool<Texture2D, Texture2DDescriptor> m_texture_2d_pool;
   ResourcePool<Texture3D, Texture3DDescriptor> m_texture_3d_pool;
@@ -367,39 +370,41 @@ private:
   static std::string_view type_name();
 };
 
-#define RESOURCE_POOL_LIST(MAP)                          \
-  MAP(MaterialDescriptor, m_material_descriptor_pool)    \
-  MAP(Texture2DDescriptor, m_texture_2d_descriptor_pool) \
-  MAP(Texture3DDescriptor, m_texture_3d_descriptor_pool) \
-  MAP(ShaderDescriptor, m_shader_descriptor_pool)        \
-  MAP(ModelDescriptor, m_model_descriptor_pool)          \
-  MAP(FontDescriptor, m_font_descriptor_pool)            \
-  MAP(SvgDescriptor, m_svg_descriptor_pool)              \
-  MAP(AudioClipDescriptor, m_audio_clip_descriptor_pool) \
-                                                         \
-  MAP(Material, m_material_pool)                         \
-  MAP(Texture2D, m_texture_2d_pool)                      \
-  MAP(Texture3D, m_texture_3d_pool)                      \
-  MAP(Shader, m_shader_pool)                             \
-  MAP(Model, m_model_pool)                               \
-  MAP(Font, m_font_pool)                                 \
+#define RESOURCE_POOL_LIST(MAP)                                                \
+  MAP(MaterialDescriptor, m_material_descriptor_pool)                          \
+  MAP(Texture2DDescriptor, m_texture_2d_descriptor_pool)                       \
+  MAP(Texture3DDescriptor, m_texture_3d_descriptor_pool)                       \
+  MAP(ShaderDescriptor, m_shader_descriptor_pool)                              \
+  MAP(ModelDescriptor, m_model_descriptor_pool)                                \
+  MAP(FontDescriptor, m_font_descriptor_pool)                                  \
+  MAP(SvgDescriptor, m_svg_descriptor_pool)                                    \
+  MAP(AudioClipDescriptor, m_audio_clip_descriptor_pool)                       \
+  MAP(TerrainRecipeDescriptor, m_terrain_recipe_descriptor_pool)               \
+                                                                               \
+  MAP(Material, m_material_pool)                                               \
+  MAP(Texture2D, m_texture_2d_pool)                                            \
+  MAP(Texture3D, m_texture_3d_pool)                                            \
+  MAP(Shader, m_shader_pool)                                                   \
+  MAP(Model, m_model_pool)                                                     \
+  MAP(Font, m_font_pool)                                                       \
   MAP(Svg, m_svg_pool)
 
-#define RESOURCE_TYPENAME_LIST(MAP) \
-  MAP(MaterialDescriptor)           \
-  MAP(Texture2DDescriptor)          \
-  MAP(Texture3DDescriptor)          \
-  MAP(ShaderDescriptor)             \
-  MAP(ModelDescriptor)              \
-  MAP(FontDescriptor)               \
-  MAP(SvgDescriptor)                \
-  MAP(AudioClipDescriptor)          \
-  MAP(Material)                     \
-  MAP(Texture2D)                    \
-  MAP(Texture3D)                    \
-  MAP(Shader)                       \
-  MAP(Model)                        \
-  MAP(Font)                         \
+#define RESOURCE_TYPENAME_LIST(MAP)                                            \
+  MAP(MaterialDescriptor)                                                      \
+  MAP(Texture2DDescriptor)                                                     \
+  MAP(Texture3DDescriptor)                                                     \
+  MAP(ShaderDescriptor)                                                        \
+  MAP(ModelDescriptor)                                                         \
+  MAP(FontDescriptor)                                                          \
+  MAP(SvgDescriptor)                                                           \
+  MAP(AudioClipDescriptor)                                                     \
+  MAP(TerrainRecipeDescriptor)                                                 \
+  MAP(Material)                                                                \
+  MAP(Texture2D)                                                               \
+  MAP(Texture3D)                                                               \
+  MAP(Shader)                                                                  \
+  MAP(Model)                                                                   \
+  MAP(Font)                                                                    \
   MAP(Svg)
 
 #define DESCRIPTOR_TO_RESOURCE_POOL_LIST(MAP) \

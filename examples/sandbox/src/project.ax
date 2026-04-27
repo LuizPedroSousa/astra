@@ -54,6 +54,11 @@
       "path": "audios/tense.wav"
     },
     {
+      "id": "terrain::highland",
+      "type": "TerrainRecipe",
+      "path": "terrain/highland.axterrain"
+    },
+    {
       "id": "icons::adjust",
       "type": "Svg",
       "path": "@engine/icons/adjust.svg"
@@ -359,6 +364,12 @@
       "fragment": "@engine/shaders/ui/polyline.axsl"
     },
     {
+      "id": "shaders::terrain",
+      "type": "Shader",
+      "vertex": "@engine/shaders/terrain.axsl",
+      "fragment": "@engine/shaders/terrain.axsl"
+    },
+    {
       "id": "shaders::g_buffer",
       "type": "Shader",
       "vertex": "@engine/shaders/g_buffer.axsl",
@@ -431,6 +442,14 @@
       "content": {
         "backend": "miniaudio",
         "master_gain": 1
+      }
+    },
+    {
+      "name": "terrain",
+      "content": {
+        "default_resolution": 1024,
+        "clipmap_levels": 6,
+        "tile_world_size": 256.0
       }
     },
     {

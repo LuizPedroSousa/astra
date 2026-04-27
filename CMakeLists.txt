@@ -150,6 +150,7 @@ if(ASTRA_ENABLE_TESTS)
                                 ${CMAKE_SOURCE_DIR}/src/modules/ui
                                 ${CMAKE_SOURCE_DIR}/src/modules/physics
                                 ${CMAKE_SOURCE_DIR}/src/modules/audio
+                                ${CMAKE_SOURCE_DIR}/src/modules/terrain
                                 ${CMAKE_SOURCE_DIR}/src/modules/project
                                 ${CMAKE_SOURCE_DIR}/src/modules/window)
 endif()
@@ -166,8 +167,6 @@ target_include_directories(stb_image
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/stb_image>
 )
-
-# add_subdirectory(${PROJECT_SOURCE_DIR}/external/imgui/impl)
 
 set(LIB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external
                     ${VCPKG_INSTALLED_ROOT}/include)
@@ -203,6 +202,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/modules/ui)
   add_subdirectory(src/modules/physics)
   add_subdirectory(src/modules/audio)
+  add_subdirectory(src/modules/terrain)
   add_subdirectory(src/modules/engine)
   add_subdirectory(src/modules/application)
 endif()
@@ -247,6 +247,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       ui
       physics
       audio
+      terrain
       engine
       application
       stb_image
@@ -289,6 +290,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       astralix::ui
       astralix::physics
       astralix::audio
+      astralix::terrain
       astralix::engine
       astralix::application
       astralix::stb_image)
@@ -306,6 +308,7 @@ if(NOT ASTRA_ENABLE_TESTS)
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/ui>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/physics>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/audio>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/terrain>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/engine>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/application>
     $<BUILD_INTERFACE:${ASTRALIX_ENGINE_GENERATED_DIR}>
@@ -321,6 +324,7 @@ if(NOT ASTRA_ENABLE_TESTS)
     $<INSTALL_INTERFACE:include/astralix/modules/ui>
     $<INSTALL_INTERFACE:include/astralix/modules/physics>
     $<INSTALL_INTERFACE:include/astralix/modules/audio>
+    $<INSTALL_INTERFACE:include/astralix/modules/terrain>
     $<INSTALL_INTERFACE:include/astralix/modules/engine>
     $<INSTALL_INTERFACE:include/astralix/modules/application>
     $<INSTALL_INTERFACE:include/astralix/assets/.astralix/generated>
@@ -368,6 +372,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       ui
       physics
       audio
+      terrain
       engine
       application
   )
@@ -401,6 +406,7 @@ if(NOT ASTRA_ENABLE_TESTS)
           ui
           physics
           audio
+          terrain
           engine
           application
           editor

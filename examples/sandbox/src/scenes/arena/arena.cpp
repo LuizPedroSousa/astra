@@ -16,6 +16,7 @@
 #include "astralix/modules/renderer/components/transform.hpp"
 #include "astralix/modules/renderer/entities/scene-build-context.hpp"
 #include "astralix/modules/renderer/resources/mesh.hpp"
+#include "astralix/modules/terrain/components/terrain-tile.hpp"
 #include "astralix/modules/window/managers/window-manager.hpp"
 #include "astralix/shared/foundation/console.hpp"
 
@@ -341,6 +342,14 @@ void Arena::evaluate_build(SceneBuildContext &ctx) {
       .shader = "shaders::skybox",
   });
 
+  auto terrain_entity = pass.entity("terrain", "terrain");
+  terrain_entity.component(make_transform(glm::vec3(0.0f, -1.0f, 0.0f)));
+
+  terrain_entity.component(terrain::TerrainTile{
+      .recipe_id = "terrain::highland",
+      .height_scale = 64.0f,
+      .uv_scale = 1.0f,
+  });
 
   emit_arena_layout(
       [&](std::string_view stable_key,

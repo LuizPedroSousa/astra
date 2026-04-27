@@ -15,7 +15,7 @@ public:
 private:
   std::ifstream m_file;
   std::filesystem::path m_path;
-  size_t m_total_size;
+  size_t m_total_size = 0;
 };
 
 } // namespace astralix

@@ -9,6 +9,8 @@
 #include "components/rigidbody.hpp"
 #include "components/skybox.hpp"
 #include "components/tags.hpp"
+#include "components/terrain-clipmap-controller.hpp"
+#include "components/terrain-tile.hpp"
 #include "components/text.hpp"
 #include "components/transform.hpp"
 #include "components/audio-emitter.hpp"
@@ -304,6 +306,20 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .name = "AudioEmitter",
         .can_add = &can_add_if_missing<audio::AudioEmitter>,
         .remove_component = &erase_component<audio::AudioEmitter>,
+        .field_editable = &editable_all_fields,
+        .enum_options = &no_enum_options,
+    },
+    {
+        .name = "TerrainTile",
+        .can_add = &can_add_if_missing<terrain::TerrainTile>,
+        .remove_component = &erase_component<terrain::TerrainTile>,
+        .field_editable = &editable_all_fields,
+        .enum_options = &no_enum_options,
+    },
+    {
+        .name = "TerrainClipmapController",
+        .can_add = &can_add_if_missing<terrain::TerrainClipmapController>,
+        .remove_component = &erase_component<terrain::TerrainClipmapController>,
         .field_editable = &editable_all_fields,
         .enum_options = &no_enum_options,
     },

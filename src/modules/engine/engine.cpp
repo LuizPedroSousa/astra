@@ -4,6 +4,7 @@
 #include "managers/scene-manager.hpp"
 #include "managers/window-manager.hpp"
 #include "systems/audio-system.hpp"
+#include "systems/terrain-system.hpp"
 #include "systems/physics-system.hpp"
 #include "systems/render-system/render-system.hpp"
 #include "systems/scene-system.hpp"
@@ -50,6 +51,11 @@ void Engine::start() {
         continue;
       }
 
+      case SystemType::Terrain: {
+        system_manager->add_system<TerrainSystem>(
+            std::get<TerrainSystemConfig>(system.content));
+        continue;
+      }
 
       default:
         continue;
