@@ -56,38 +56,6 @@ bool has_component_named(const serialization::EntitySnapshot &entity,
   );
 }
 
-bool should_include_entity_in_artifact(
-    const serialization::EntitySnapshot &entity, SceneArtifactKind artifact_kind
-) {
-  switch (artifact_kind) {
-    case SceneArtifactKind::Source:
-      return !has_component_named(entity, "DerivedEntity");
-    case SceneArtifactKind::Preview:
-    case SceneArtifactKind::Runtime:
-      return !has_component_named(entity, "EditorOnly") &&
-             !has_component_named(entity, "GeneratorSpec");
-  }
-
-  return true;
-}
-
-bool should_strip_component_for_artifact(
-    const serialization::ComponentSnapshot &component,
-    SceneArtifactKind artifact_kind
-) {
-  switch (artifact_kind) {
-    case SceneArtifactKind::Source:
-      return false;
-    case SceneArtifactKind::Preview:
-      return false;
-    case SceneArtifactKind::Runtime:
-      return component.name == "MetaEntityOwner" ||
-             component.name == "DerivedEntity";
-  }
-
-  return false;
-}
-
 bool is_provenance_component(std::string_view name) {
   return name == "SceneEntity" || name == "DerivedEntity" ||
          name == "MetaEntityOwner";
@@ -162,6 +130,147 @@ filtered_derived_components(const serialization::EntitySnapshot &entity) {
   return components;
 }
 
+template <typename T>
+bool should_capture_component_in_derived_state(ecs::EntityRef entity) {
+  if (!entity.has<T>()) {
+    return false;
+  }
+
+  if (!entity.has<terrain::TerrainTile>()) {
+    return true;
+  }
+
+  using Component = std::remove_cvref_t<T>;
+  if constexpr (std::is_same_v<Component, rendering::Renderable> ||
+                std::is_same_v<Component, rendering::ShadowCaster> ||
+                std::is_same_v<Component, rendering::MeshSet> ||
+                std::is_same_v<Component, rendering::ShaderBinding> ||
+                std::is_same_v<Component, rendering::MaterialSlots>) {
+    return false;
+  }
+
+  return true;
+}
+
+template <typename T>
+void append_derived_state_component_if_present(
+    ecs::EntityRef entity,
+    std::vector<serialization::ComponentSnapshot> &components
+) {
+  if (!should_capture_component_in_derived_state<T>(entity)) {
+    return;
+  }
+
+  serialization::append_snapshot_if_present<T>(entity, components);
+}
+
+serialization::EntitySnapshot collect_derived_entity_snapshot(ecs::EntityRef entity) {
+  serialization::EntitySnapshot snapshot{
+      .id = entity.id(),
+      .name = std::string(entity.name()),
+      .active = entity.active(),
+  };
+
+  append_derived_state_component_if_present<scene::SceneEntity>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<scene::EditorOnly>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<scene::GeneratorSpec>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<scene::DerivedEntity>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<scene::MetaEntityOwner>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<scene::Transform>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::Camera>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<scene::CameraController>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::Light>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::PointLightAttenuation>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::SpotLightCone>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::SpotLightAttenuation>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::DirectionalShadowSettings>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::SpotLightTarget>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::ModelRef>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::MeshSet>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::MaterialSlots>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::ShaderBinding>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::TextureBindings>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::BloomSettings>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::SkyboxBinding>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::TextSprite>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<physics::RigidBody>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<physics::BoxCollider>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<physics::FitBoxColliderFromRenderMesh>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<audio::AudioListener>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<audio::AudioEmitter>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<terrain::TerrainTile>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<terrain::TerrainClipmapController>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::Renderable>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::MainCamera>(
+      entity, snapshot.components
+  );
+  append_derived_state_component_if_present<rendering::ShadowCaster>(
+      entity, snapshot.components
+  );
+
+  return snapshot;
+}
+
 std::optional<DerivedOverrideRecord> build_derived_override_record(
     const DerivedEntityKey &key,
     const serialization::EntitySnapshot &baseline_entity,
@@ -219,53 +328,22 @@ std::unordered_map<std::string, serialization::EntitySnapshot>
 collect_derived_entity_snapshot_map(const ecs::World &world) {
   std::unordered_map<std::string, serialization::EntitySnapshot> snapshots;
 
-  for (auto entity : serialization::collect_scene_snapshots(world)) {
-    if (!has_component_named(entity, "DerivedEntity")) {
-      continue;
-    }
-
-    const auto key = derived_entity_key(entity);
+  world.each<scene::DerivedEntity>([&](
+                                      EntityID entity_id,
+                                      const scene::DerivedEntity &
+                                  ) {
+    auto entity = const_cast<ecs::World &>(world).entity(entity_id);
+    auto snapshot = collect_derived_entity_snapshot(entity);
+    const auto key = derived_entity_key(snapshot);
     if (!key.has_value()) {
-      continue;
+      return;
     }
 
     snapshots.insert_or_assign(
         derived_entity_lookup_key(*key),
-        std::move(entity)
+        std::move(snapshot)
     );
-  }
-
-  return snapshots;
-}
-
-std::vector<serialization::EntitySnapshot>
-collect_artifact_snapshots(const ecs::World &world, SceneArtifactKind artifact_kind) {
-  auto snapshots = serialization::collect_scene_snapshots(world);
-  snapshots.erase(
-      std::remove_if(
-          snapshots.begin(),
-          snapshots.end(),
-          [&](const auto &entity) {
-            return !should_include_entity_in_artifact(entity, artifact_kind);
-          }
-      ),
-      snapshots.end()
-  );
-
-  for (auto &entity : snapshots) {
-    entity.components.erase(
-        std::remove_if(
-            entity.components.begin(),
-            entity.components.end(),
-            [&](const auto &component) {
-              return should_strip_component_for_artifact(
-                  component, artifact_kind
-              );
-            }
-        ),
-        entity.components.end()
-    );
-  }
+  });
 
   return snapshots;
 }
@@ -404,8 +482,9 @@ void Scene::capture_source_derived_state_from_overlay() {
     return;
   }
 
-  auto authored_source_snapshots = collect_artifact_snapshots(
-      m_world, SceneArtifactKind::Source
+  m_serializer->set_artifact_kind(SceneArtifactKind::Source);
+  auto authored_source_snapshots = m_serializer->collect_artifact_snapshots(
+      m_world
   );
   ecs::World baseline_world;
   serialization::apply_scene_snapshots(
@@ -470,7 +549,7 @@ void Scene::save_source() {
 
   capture_source_derived_state_from_overlay();
   m_serializer->set_artifact_kind(SceneArtifactKind::Source);
-  m_serializer->serialize();
+  m_serializer->serialize_world(m_world);
   write_scene_buffer(*m_serializer, scene_path(*this, SceneArtifactKind::Source));
   m_last_source_save_revision = m_world.revision();
   m_has_source_save_revision = true;
@@ -482,9 +561,7 @@ void Scene::save_preview() {
   }
 
   m_serializer->set_artifact_kind(SceneArtifactKind::Preview);
-  m_serializer->serialize_snapshots(
-      collect_artifact_snapshots(m_world, SceneArtifactKind::Preview)
-  );
+  m_serializer->serialize_world(m_world);
   write_scene_buffer(*m_serializer, scene_path(*this, SceneArtifactKind::Preview));
   remember_loaded_artifact(SceneArtifactKind::Preview);
 }
@@ -495,9 +572,7 @@ void Scene::save_runtime() {
   }
 
   m_serializer->set_artifact_kind(SceneArtifactKind::Runtime);
-  m_serializer->serialize_snapshots(
-      collect_artifact_snapshots(m_world, SceneArtifactKind::Runtime)
-  );
+  m_serializer->serialize_world(m_world);
   write_scene_buffer(*m_serializer, scene_path(*this, SceneArtifactKind::Runtime));
   remember_loaded_artifact(SceneArtifactKind::Runtime);
 }
@@ -553,9 +628,8 @@ void Scene::build_preview(bool persist_to_disk) {
   }
 
   capture_source_derived_state_from_overlay();
-  auto source_snapshots = collect_artifact_snapshots(
-      m_world, SceneArtifactKind::Source
-  );
+  m_serializer->set_artifact_kind(SceneArtifactKind::Source);
+  auto source_snapshots = m_serializer->collect_artifact_snapshots(m_world);
   ecs::World preview_world;
   serialization::apply_scene_snapshots(preview_world, source_snapshots);
 
@@ -568,9 +642,7 @@ void Scene::build_preview(bool persist_to_disk) {
       .built_at_utc = utc_timestamp_now(),
   };
   m_serializer->set_artifact_kind(SceneArtifactKind::Preview);
-  m_serializer->serialize_snapshots(
-      collect_artifact_snapshots(preview_world, SceneArtifactKind::Preview)
-  );
+  m_serializer->serialize_world(preview_world);
   if (persist_to_disk) {
     write_scene_buffer(*m_serializer, scene_path(*this, SceneArtifactKind::Preview));
   }
@@ -590,9 +662,7 @@ bool Scene::promote_preview_to_runtime(bool persist_to_disk) {
       .promoted_at_utc = utc_timestamp_now(),
   };
   m_serializer->set_artifact_kind(SceneArtifactKind::Runtime);
-  m_serializer->serialize_snapshots(
-      collect_artifact_snapshots(m_world, SceneArtifactKind::Runtime)
-  );
+  m_serializer->serialize_world(m_world);
   if (persist_to_disk) {
     write_scene_buffer(*m_serializer, scene_path(*this, SceneArtifactKind::Runtime));
   }

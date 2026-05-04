@@ -46,6 +46,7 @@ collect_entity_component_snapshots(ecs::EntityRef entity) {
   append_snapshot_if_present<audio::AudioEmitter>(entity, components);
   append_snapshot_if_present<terrain::TerrainTile>(entity, components);
   append_snapshot_if_present<terrain::TerrainClipmapController>(entity, components);
+  append_snapshot_if_present<rendering::LensFlare>(entity, components);
   append_snapshot_if_present<rendering::Renderable>(entity, components);
   append_snapshot_if_present<rendering::MainCamera>(entity, components);
   append_snapshot_if_present<rendering::ShadowCaster>(entity, components);

@@ -5,6 +5,10 @@
 
 #include <vector>
 
+namespace astralix::ecs {
+class World;
+}
+
 namespace astralix {
 class Scene;
 enum class SceneArtifactKind : int;
@@ -17,6 +21,9 @@ public:
 
   void serialize() override;
   void deserialize() override;
+  std::vector<serialization::EntitySnapshot>
+  collect_artifact_snapshots(const ecs::World &world) const;
+  void serialize_world(const ecs::World &world);
   void serialize_snapshots(
       const std::vector<serialization::EntitySnapshot> &entities
   );
@@ -24,7 +31,7 @@ public:
   SceneArtifactKind get_artifact_kind() const { return m_artifact_kind; }
 
 private:
-  Ref<Scene> m_scene = nullptr;
+  std::weak_ptr<Scene> m_scene;
   SceneArtifactKind m_artifact_kind;
 };
 

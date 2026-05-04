@@ -15,6 +15,7 @@
 #include "components/serialization/audio-listener.hpp"
 #include "components/serialization/terrain-tile.hpp"
 #include "components/serialization/terrain-clipmap-controller.hpp"
+#include "components/serialization/lens-flare.hpp"
 #include "scene-snapshot-types.hpp"
 #include <string_view>
 #include <utility>
@@ -55,6 +56,7 @@ enum class ComponentType {
   AudioEmitter,
   TerrainTile,
   TerrainClipmapController,
+  LensFlare,
   Unknown,
 };
 
@@ -93,6 +95,7 @@ inline ComponentType component_type_from_string(std::string_view name) {
       {"AudioEmitter", ComponentType::AudioEmitter},
       {"TerrainTile", ComponentType::TerrainTile},
       {"TerrainClipmapController", ComponentType::TerrainClipmapController},
+      {"LensFlare", ComponentType::LensFlare},
   };
 
   for (const auto &[key, value] : mapping) {
@@ -241,6 +244,10 @@ inline void apply_component_snapshot(ecs::EntityRef entity, const ComponentSnaps
 
     case ComponentType::TerrainClipmapController:
       apply_terrain_clipmap_controller_snapshot(entity, fields);
+      break;
+
+    case ComponentType::LensFlare:
+      apply_lens_flare_snapshot(entity, fields);
       break;
 
     case ComponentType::Unknown:
