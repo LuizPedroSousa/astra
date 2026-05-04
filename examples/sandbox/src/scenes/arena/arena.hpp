@@ -18,6 +18,7 @@ public:
 
 private:
   void setup() override;
+  void update_source() override;
   void update_runtime() override;
   void build_source_world() override;
   void after_source_ready() override;

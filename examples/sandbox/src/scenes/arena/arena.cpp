@@ -15,6 +15,7 @@
 #include "astralix/modules/renderer/components/tags.hpp"
 #include "astralix/modules/renderer/components/transform.hpp"
 #include "astralix/modules/renderer/entities/scene-build-context.hpp"
+#include "astralix/modules/renderer/managers/debug-draw-store.hpp"
 #include "astralix/modules/renderer/resources/mesh.hpp"
 #include "astralix/modules/terrain/components/terrain-tile.hpp"
 #include "astralix/modules/window/managers/window-manager.hpp"
@@ -59,6 +60,12 @@ constexpr float sun_intensity = 1.0f;
 constexpr float sun_shadow_ortho_extent = 28.0f;
 constexpr float sun_shadow_near_plane = 0.5f;
 constexpr float sun_shadow_far_plane = 80.0f;
+const glm::vec3 halfway_surface_local_position(0.0f, 0.0f, 0.0f);
+const glm::vec3 halfway_surface_normal(0.0f, 1.0f, 0.0f);
+constexpr float halfway_vector_length = 2.5f;
+constexpr float halfway_normal_length = 1.25f;
+constexpr float halfway_point_size = 12.0f;
+constexpr float halfway_line_thickness = 4.0f;
 
 rendering::Camera make_camera(glm::vec3 position, glm::vec3 target) {
   const glm::vec3 front = glm::normalize(target - position);
@@ -113,6 +120,114 @@ audio::AudioEmitter make_cube_audio_emitter() {
       .max_distance = cube_audio_max_distance,
       .rolloff = cube_audio_rolloff,
   };
+}
+
+std::optional<glm::vec3> active_camera_position(ecs::World &world) {
+  std::optional<glm::vec3> camera_position;
+
+  world.each<rendering::MainCamera, scene::Transform, rendering::Camera>(
+      [&](EntityID entity_id,
+          rendering::MainCamera &,
+          scene::Transform &transform,
+          rendering::Camera &) {
+        if (!camera_position.has_value() && world.active(entity_id)) {
+          camera_position = transform.position;
+        }
+      }
+  );
+
+  if (camera_position.has_value()) {
+    return camera_position;
+  }
+
+  world.each<scene::Transform, rendering::Camera>(
+      [&](EntityID entity_id,
+          scene::Transform &transform,
+          rendering::Camera &) {
+        if (!camera_position.has_value() && world.active(entity_id)) {
+          camera_position = transform.position;
+        }
+      }
+  );
+
+  return camera_position;
+}
+
+void draw_halfway(ecs::World &world) {
+  const auto camera_position = active_camera_position(world);
+  if (!camera_position.has_value()) {
+    return;
+  }
+
+  const glm::vec3 surface_position =
+      halfway_surface_local_position + arena_offset;
+  const glm::vec3 light_position = sun_local_position + arena_offset;
+  const glm::vec3 light_delta = light_position - surface_position;
+  const glm::vec3 view_delta = *camera_position - surface_position;
+  if (glm::dot(light_delta, light_delta) <= 0.0001f ||
+      glm::dot(view_delta, view_delta) <= 0.0001f) {
+    return;
+  }
+
+  const glm::vec3 light_dir = glm::normalize(light_delta);
+  const glm::vec3 view_dir = glm::normalize(view_delta);
+  const glm::vec3 halfway_sum = light_dir + view_dir;
+  if (glm::dot(halfway_sum, halfway_sum) <= 0.0001f) {
+    return;
+  }
+
+  const glm::vec3 halfway = glm::normalize(halfway_sum);
+
+  DebugDrawStyle vector_style;
+  vector_style.depth_mode = DebugDrawDepthMode::XRay;
+  vector_style.thickness = halfway_line_thickness;
+  vector_style.category = "math";
+
+  auto dd = debug_draw();
+  dd->point(
+      surface_position,
+      halfway_point_size,
+      glm::vec4(1.0f, 1.0f, 1.0f, 1.0f),
+      0.0f
+  );
+
+  dd->point(glm::vec3(1.0f), 1.0f, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f), 1.0f);
+  dd->arrow(
+      surface_position,
+      surface_position + halfway_surface_normal * halfway_normal_length,
+      DebugDrawStyle{
+          .color = glm::vec4(0.90f, 0.90f, 0.90f, 1.0f),
+          .duration_seconds = 0.0f,
+          .depth_mode = DebugDrawDepthMode::XRay,
+          .thickness = halfway_line_thickness * 0.8f,
+          .size_space = DebugDrawSizeSpace::Pixels,
+          .category = "math",
+      }
+  );
+
+  DebugDrawStyle light_style = vector_style;
+  light_style.color = glm::vec4(1.0f, 0.84f, 0.20f, 1.0f);
+  dd->arrow(
+      surface_position,
+      surface_position + light_dir * halfway_vector_length,
+      light_style
+  );
+
+  DebugDrawStyle view_style = vector_style;
+  view_style.color = glm::vec4(0.22f, 0.80f, 1.0f, 1.0f);
+  dd->arrow(
+      surface_position,
+      surface_position + view_dir * halfway_vector_length,
+      view_style
+  );
+
+  DebugDrawStyle halfway_style = vector_style;
+  halfway_style.color = glm::vec4(1.0f, 0.20f, 0.88f, 1.0f);
+  dd->arrow(
+      surface_position,
+      surface_position + halfway * halfway_vector_length,
+      halfway_style
+  );
 }
 
 template <typename SpawnFn>
@@ -295,6 +410,10 @@ Arena::Arena() : Scene("sandbox.arena") {}
 
 void Arena::setup() { register_console_commands(*this); }
 
+void Arena::update_source() {
+  draw_halfway(world());
+}
+
 void Arena::build_source_world() {
   m_spawn_cube_requests = 0u;
   m_should_reset_scene = false;
@@ -342,14 +461,14 @@ void Arena::evaluate_build(SceneBuildContext &ctx) {
       .shader = "shaders::skybox",
   });
 
-  auto terrain_entity = pass.entity("terrain", "terrain");
-  terrain_entity.component(make_transform(glm::vec3(0.0f, -1.0f, 0.0f)));
+  // auto terrain_entity = pass.entity("terrain", "terrain");
+  // terrain_entity.component(make_transform(glm::vec3(0.0f, -1.0f, 0.0f)));
 
-  terrain_entity.component(terrain::TerrainTile{
-      .recipe_id = "terrain::highland",
-      .height_scale = 64.0f,
-      .uv_scale = 1.0f,
-  });
+  // terrain_entity.component(terrain::TerrainTile{
+  //     .recipe_id = "terrain::highland",
+  //     .height_scale = 64.0f,
+  //     .uv_scale = 1.0f,
+  // });
 
   emit_arena_layout(
       [&](std::string_view stable_key,
@@ -413,6 +532,8 @@ void Arena::sync_spawned_cube_state() {
 }
 
 void Arena::update_runtime() {
+  draw_halfway(world());
+
   auto &console_manager = ConsoleManager::get();
 
   if (!console_manager.captures_input() &&

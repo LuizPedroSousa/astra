@@ -1,0 +1,343 @@
+{
+  "scene": {
+    "version": 1,
+    "kind": "source",
+    "id": "render-benchmark",
+    "type": "sandbox.render_benchmark"
+  },
+  "derived_overrides": [
+    {
+      "generator_id": "sandbox.render_benchmark",
+      "stable_key": "camera",
+      "active": true,
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -11.0642138,
+              "y": 6.95877075,
+              "z": 1.98312521
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Camera",
+          "fields": {
+            "up": {
+              "x": 0,
+              "y": 1,
+              "z": 0
+            },
+            "front": {
+              "x": 0.951202631,
+              "y": 0.228351861,
+              "z": -0.207530588
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "direction": {
+              "x": 0.951202631,
+              "y": 0.228351861,
+              "z": -0.207530588
+            },
+            "fov_degrees": 45,
+            "near_plane": 0.100000001,
+            "far_plane": 96,
+            "orthographic_scale": 10,
+            "orthographic": false
+          }
+        },
+        {
+          "type": "CameraController",
+          "fields": {
+            "mode": "free",
+            "yaw": -12.3077555,
+            "pitch": 13.2000589,
+            "speed": 8,
+            "sensitivity": 0.100000001,
+            "orbit_distance": 19.8593788,
+            "third_person_distance": 5,
+            "third_person_offset": {
+              "x": 0,
+              "y": 2,
+              "z": -5
+            }
+          }
+        }
+      ]
+    },
+    {
+      "generator_id": "sandbox.render_benchmark",
+      "stable_key": "curtains",
+      "active": true,
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        }
+      ]
+    },
+    {
+      "generator_id": "sandbox.render_benchmark",
+      "stable_key": "directional_light",
+      "active": true,
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": -10,
+              "y": 14,
+              "z": -6
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "directional",
+            "color": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "intensity": 10.9000006,
+            "ambient_strength": 2.25,
+            "diffuse_strength": 5.0999999,
+            "specular_strength": 3.5,
+            "casts_shadows": true
+          }
+        }
+      ]
+    },
+    {
+      "generator_id": "sandbox.render_benchmark",
+      "stable_key": "scene_model",
+      "active": true,
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        }
+      ]
+    }
+  ],
+  "render_overrides": {
+    "ssgi": {
+      "enabled": true,
+      "full_resolution": true,
+      "temporal": true,
+      "intensity": 1.64999998,
+      "radius": 4.5,
+      "thickness": 0.539999962,
+      "directions": 9,
+      "steps_per_direction": 5,
+      "max_distance": 3.29999995,
+      "history_weight": 0.469999999,
+      "normal_reject_dot": 0.620000005,
+      "position_reject_distance": 0.629999995
+    },
+    "ssr": {
+      "enabled": true,
+      "intensity": 0.800000012,
+      "max_distance": 69,
+      "thickness": 1.08999991,
+      "max_steps": 94,
+      "stride": 4.80000019,
+      "roughness_cutoff": 0.709999979
+    },
+    "volumetric": {
+      "enabled": true,
+      "max_steps": 109,
+      "density": 0.0249999985,
+      "scattering": 0.639999986,
+      "max_distance": 14,
+      "intensity": 1.80000007,
+      "fog_base_height": 7,
+      "height_falloff_rate": 0.849999964,
+      "noise_scale": 0.50999999,
+      "noise_weight": 0.419999987,
+      "wind_direction": {
+        "x": 1,
+        "y": 0,
+        "z": 0
+      },
+      "wind_speed": 2.45000005,
+      "temporal": true,
+      "temporal_blend_weight": 0.699999988
+    },
+    "lens_flare": {
+      "enabled": true,
+      "intensity": 0.300000012,
+      "threshold": 1.20000005,
+      "ghost_count": 2,
+      "ghost_dispersal": 0.349999994,
+      "ghost_weight": 0.5,
+      "halo_radius": 0.600000024,
+      "halo_weight": 0.25,
+      "halo_thickness": 0.100000001,
+      "chromatic_aberration": 0.0199999996
+    },
+    "eye_adaptation": {
+      "enabled": true,
+      "min_log_luminance": -10.7999992,
+      "max_log_luminance": 7.40000057,
+      "adaptation_speed_up": 1.85000002,
+      "adaptation_speed_down": 4.1500001,
+      "key_value": 0.150000006,
+      "low_percentile": 0.409999996,
+      "high_percentile": 0.719999969
+    },
+    "chromatic_aberration": {
+      "enabled": true,
+      "intensity": 0.00200000009
+    },
+    "vignette": {
+      "enabled": true,
+      "intensity": 0.579999983,
+      "smoothness": 0.579999983,
+      "roundness": 0.74000001
+    },
+    "film_grain": {
+      "enabled": true,
+      "intensity": 0.0749999955
+    },
+    "cas": {
+      "enabled": true,
+      "sharpness": 0.200000003,
+      "contrast": 0.5,
+      "sharpening_limit": 0.399999976
+    },
+    "taa": {
+      "enabled": true,
+      "blend_factor": 0.25999999
+    },
+    "tonemapping": {
+      "tonemap_operator": 2,
+      "gamma": 2.11999989,
+      "bloom_strength": 0.669999957
+    }
+  },
+  "entities": [
+    {
+      "active": true,
+      "id": "4655978872699171965",
+      "name": "Point Light",
+      "tags": [
+        "SceneEntity"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 9.75183868,
+              "y": 15.9792252,
+              "z": -0.233975291
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "point",
+            "color": {
+              "x": 1,
+              "y": 1,
+              "z": 0.5
+            },
+            "intensity": 1.80000007,
+            "ambient_strength": 0.900000036,
+            "diffuse_strength": 0.5,
+            "specular_strength": 1.89999998,
+            "casts_shadows": true
+          }
+        },
+        {
+          "type": "PointLightAttenuation",
+          "fields": {
+            "constant": 1,
+            "linear": 0.0450000018,
+            "quadratic": 0.00749999983
+          }
+        }
+      ]
+    }
+  ]
+}
