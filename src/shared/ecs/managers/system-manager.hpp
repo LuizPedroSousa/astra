@@ -9,6 +9,7 @@
 #include "systems/isystem.hpp"
 #include "unordered_map"
 #include "vector"
+#include <algorithm>
 #include <vector>
 
 namespace astralix {
@@ -93,6 +94,39 @@ public:
     }
 
     this->add_system_dependency(target, std::forward<Dependencies>(dependencies)...);
+  }
+
+  template <class T>
+  void remove_system() {
+    const SystemTypeID type_id = T::system_type_id();
+    auto it = m_system_table.find(type_id);
+    if (it == m_system_table.end()) return;
+
+    it->second->end();
+
+    std::erase_if(m_system_work_order,
+      [type_id](const ISystem_ptr& system) {
+        return system->get_system_type_id() == type_id;
+      });
+
+    if (type_id < m_system_dependency_table.size()) {
+      for (auto& row : m_system_dependency_table) {
+        if (type_id < row.size()) row[type_id] = false;
+      }
+      std::fill(m_system_dependency_table[type_id].begin(),
+                m_system_dependency_table[type_id].end(), false);
+    }
+
+    m_system_table.erase(it);
+    update_system_work_order();
+  }
+
+  template <class T>
+  void start_system() {
+    auto it = m_system_table.find(T::system_type_id());
+    if (it != m_system_table.end()) {
+      it->second->start();
+    }
   }
 
   void update_system_work_order();
