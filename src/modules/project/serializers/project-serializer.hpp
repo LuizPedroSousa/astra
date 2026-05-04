@@ -19,11 +19,10 @@ public:
 
   void serialize() override;
   void deserialize() override;
+  Ref<Path> parse_path(ContextProxy ctx);
 
 private:
   Ref<Project> m_project = nullptr;
-
-  Ref<Path> parse_path(ContextProxy ctx);
 };
 
 } // namespace astralix

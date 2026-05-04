@@ -19,9 +19,6 @@ FileStreamReader::FileStreamReader(const std::filesystem::path &path)
   );
 
   m_total_size = static_cast<size_t>(total_size);
-  ASTRA_ENSURE(
-      m_total_size == 0, "Cannot read empty file ", m_path.string()
-  );
 
   m_file.seekg(0, std::ios::beg);
 
@@ -35,6 +32,11 @@ void FileStreamReader::read() {
   ASTRA_ENSURE(
       !m_file.is_open(), "Cannot open file ", m_path.string()
   )
+
+  if (m_total_size == 0u) {
+    m_file.close();
+    return;
+  }
 
   m_file.read(m_buffer->data(), m_buffer->size());
 

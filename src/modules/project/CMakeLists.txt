@@ -1,6 +1,9 @@
 file(GLOB_RECURSE PROJECT_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 file(GLOB_RECURSE PROJECT_HEADER ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
 
+list(FILTER PROJECT_SRC EXCLUDE REGEX ".*\\.test\\.cpp$")
+list(FILTER PROJECT_HEADER EXCLUDE REGEX ".*\\.test\\.hpp$")
+
 add_library(project STATIC ${PROJECT_SRC} ${PROJECT_HEADER})
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../../shared)

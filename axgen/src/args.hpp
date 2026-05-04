@@ -7,7 +7,7 @@
 namespace axgen {
 
 struct Options {
-  enum class Command { None, SyncShaders };
+  enum class Command { None, SyncShaders, CookAssets };
 
   Command command = Command::None;
   std::string manifest_path;
