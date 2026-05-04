@@ -16,10 +16,13 @@ struct MaterialLayer {
   vec3 emissive_factor;
   int metallic_channel;
   int roughness_channel;
+  int alpha_mask_enabled;
+  float alpha_cutoff;
   float metallic_factor;
   float roughness_factor;
   float occlusion_strength;
   float normal_scale;
+  float height_scale;
   float bloom_intensity;
 };
 
@@ -36,6 +39,9 @@ interface Mesh {
 
   @location(3)
   vec3 tangent;
+
+  @location(4)
+  float tangent_sign;
 }
 
 @std430
@@ -52,6 +58,10 @@ interface Draw {
   @set(2)
   mat4 g_model;
   @set(2)
+  mat4 previous_model;
+  @set(2)
+  bool has_previous_model = false;
+  @set(2)
   bool bloom_enabled = true;
   @set(2)
   int bloom_layer = 0;
@@ -67,6 +77,10 @@ interface Camera {
   mat4 projection;
   @set(0)
   vec3 position;
+  @set(0)
+  mat4 previous_view;
+  @set(0)
+  mat4 previous_projection;
 }
 
 @uniform
@@ -93,19 +107,29 @@ interface VertexOutput {
   vec3 tangent_world;
   vec3 bitangent_world;
   vec3 normal;
+  vec4 current_clip;
+  vec4 previous_clip;
 }
 
 @vertex
 fn main(Draw draw, Mesh mesh, Camera camera) -> VertexOutput {
   mat4 model = draw.use_instancing ? instance.models[gl_InstanceID] : draw.g_model;
+  mat4 previous_model =
+      draw.has_previous_model ? draw.previous_model : model;
   mat3 normal_matrix = transpose(inverse(mat3(model)));
 
   vec3 T = normalize(normal_matrix * mesh.tangent);
   vec3 N = normalize(normal_matrix * mesh.normal);
   T = normalize(T - dot(T, N) * N);
-  vec3 B = normalize(cross(N, T));
+  vec3 B = mesh.tangent_sign * normalize(cross(N, T));
   mat3 world_to_tangent = transpose(mat3(T, B, N));
   vec3 fragment_world = vec3(model * vec4(mesh.position, 1.0));
+  vec4 current_clip =
+      camera.projection * camera.view * vec4(fragment_world, 1.0);
+  vec4 previous_fragment_world = previous_model * vec4(mesh.position, 1.0);
+  vec4 previous_clip =
+      camera.previous_projection * camera.previous_view *
+      previous_fragment_world;
 
   VertexOutput vertex_output;
   vertex_output.texture = mesh.texture_coordinates;
@@ -115,8 +139,10 @@ fn main(Draw draw, Mesh mesh, Camera camera) -> VertexOutput {
   vertex_output.tangent_world = T;
   vertex_output.bitangent_world = B;
   vertex_output.normal = normal_matrix * mesh.normal;
+  vertex_output.current_clip = current_clip;
+  vertex_output.previous_clip = previous_clip;
 
-  gl_Position = camera.projection * camera.view * model * vec4(mesh.position, 1.0);
+  gl_Position = current_clip;
   return vertex_output;
 }
 
@@ -128,21 +154,30 @@ interface FragmentOutput {
   vec4 g_normal;
 
   @location(2)
-  vec4 g_albedo;
+  vec4 g_geometric_normal;
 
   @location(3)
-  vec4 g_emissive;
+  vec4 g_albedo;
 
   @location(4)
+  vec4 g_emissive;
+
+  @location(5)
   int g_entity_id;
+
+  @location(6)
+  vec4 g_velocity;
 }
 
 @fragment
 fn main(VertexOutput vertex, Draw draw, SceneLight scene_light, Material material) -> FragmentOutput {
   vec3 T = normalize(vertex.tangent_world);
   vec3 N = normalize(vertex.normal);
-  T = normalize(T - dot(T, N) * N);
   vec3 B = normalize(vertex.bitangent_world);
+  if (!gl_FrontFacing) {
+    N = -N;
+    B = -B;
+  }
   mat3 tangent_to_world = mat3(T, B, N);
   vec3 view_direction_ts =
       normalize(vertex.tangent_view_position - vertex.tangent_fragment);
@@ -162,10 +197,13 @@ fn main(VertexOutput vertex, Draw draw, SceneLight scene_light, Material materia
       material.materials[0].emissive_factor,
       material.materials[0].metallic_channel,
       material.materials[0].roughness_channel,
+      material.materials[0].alpha_mask_enabled,
+      material.materials[0].alpha_cutoff,
       material.materials[0].metallic_factor,
       material.materials[0].roughness_factor,
       material.materials[0].occlusion_strength,
       material.materials[0].normal_scale,
+      material.materials[0].height_scale,
       material.materials[0].bloom_intensity);
 
   FragmentOutput frag_output;
@@ -178,5 +216,17 @@ fn main(VertexOutput vertex, Draw draw, SceneLight scene_light, Material materia
               ? surface.bloom_intensity
               : 0.0);
   frag_output.g_entity_id = draw.entity_id;
+
+  frag_output.g_geometric_normal = vec4(N, 1.0f);
+  if (vertex.current_clip.w <= 0.0001 || vertex.previous_clip.w <= 0.0001) {
+    frag_output.g_velocity = vec4(0.0);
+  } else {
+    vec2 current_ndc = vertex.current_clip.xy / vertex.current_clip.w;
+    vec2 previous_ndc = vertex.previous_clip.xy / vertex.previous_clip.w;
+    vec2 current_uv = current_ndc * 0.5 + 0.5;
+    vec2 previous_uv = previous_ndc * 0.5 + 0.5;
+    frag_output.g_velocity = vec4(current_uv - previous_uv, 0.0, 0.0);
+  }
+
   return frag_output;
 }

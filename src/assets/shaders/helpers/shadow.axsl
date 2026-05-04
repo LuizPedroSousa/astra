@@ -1,3 +1,135 @@
+const int CSM_CASCADE_COUNT = 4;
+const int PCSS_BLOCKER_SAMPLES = 16;
+const int PCSS_PCF_SAMPLES = 32;
+const float PCSS_LIGHT_WORLD_SIZE = 2.0;
+const float PCSS_MIN_PENUMBRA = 0.5;
+const float PCSS_MAX_PENUMBRA = 25.0;
+
+fn pcss_poisson_disk_32(int index) -> vec2 {
+  vec2 disk[32] = vec2[](
+      vec2(-0.94201624, -0.39906216),
+      vec2(0.94558609, -0.76890725),
+      vec2(-0.09418410, -0.92938870),
+      vec2(0.34495938, 0.29387760),
+      vec2(-0.91588581, 0.45771432),
+      vec2(-0.81544232, -0.87912464),
+      vec2(-0.38277543, 0.27676845),
+      vec2(0.97484398, 0.75648379),
+      vec2(0.44323325, -0.97511554),
+      vec2(0.53742981, -0.47373420),
+      vec2(-0.26496911, -0.41893023),
+      vec2(0.79197514, 0.19090188),
+      vec2(-0.24188840, 0.99706507),
+      vec2(-0.81409955, 0.91437590),
+      vec2(0.19984126, 0.78641367),
+      vec2(0.14383161, -0.14100790),
+      vec2(-0.44154528, 0.68183560),
+      vec2(0.68154811, -0.14730445),
+      vec2(-0.67077297, -0.27696460),
+      vec2(0.12828040, 0.48154450),
+      vec2(0.48114511, 0.87806800),
+      vec2(-0.55658090, -0.63802600),
+      vec2(0.86150900, 0.47340605),
+      vec2(-0.15695020, -0.15020780),
+      vec2(0.33138950, -0.72479750),
+      vec2(-0.82300240, 0.15262070),
+      vec2(0.71260690, -0.65093120),
+      vec2(-0.36328960, 0.92806400),
+      vec2(0.05785570, -0.49479310),
+      vec2(0.58984950, 0.58223370),
+      vec2(-0.97891250, -0.08782780),
+      vec2(0.25926360, 0.14910050)
+  );
+  return disk[index];
+}
+
+fn find_blocker_distance(
+    sampler2D shadow_map,
+    vec2 uv,
+    float receiver_depth,
+    float search_radius,
+    vec2 atlas_offset,
+    vec2 atlas_scale
+) -> vec2 {
+    float blocker_sum = 0.0;
+    int blocker_count = 0;
+
+    for (int i = 0; i < PCSS_BLOCKER_SAMPLES; ++i) {
+        vec2 offset = pcss_poisson_disk_32(i) * search_radius;
+        vec2 sample_uv = uv + offset;
+
+        if (sample_uv.x < atlas_offset.x || sample_uv.x > atlas_offset.x + atlas_scale.x ||
+            sample_uv.y < atlas_offset.y || sample_uv.y > atlas_offset.y + atlas_scale.y) {
+            continue;
+        }
+
+        float sampled_depth = texture(shadow_map, sample_uv).r;
+        if (receiver_depth > sampled_depth) {
+            blocker_sum += sampled_depth;
+            blocker_count += 1;
+        }
+    }
+
+    if (blocker_count == 0) {
+        return vec2(-1.0, 0.0);
+    }
+
+    return vec2(blocker_sum / float(blocker_count), float(blocker_count));
+}
+
+fn sample_shadow_pcss(
+    sampler2D shadow_map,
+    vec3 projection_coordinates,
+    float bias,
+    vec2 atlas_offset,
+    vec2 atlas_scale
+) -> float {
+    vec2 uv = projection_coordinates.xy * atlas_scale + atlas_offset;
+    float receiver_depth = projection_coordinates.z;
+    vec2 texel_size = 1.0 / textureSize(shadow_map, 0);
+
+    if (projection_coordinates.z > 1.0 || projection_coordinates.z < 0.0 ||
+        uv.x > atlas_offset.x + atlas_scale.x || uv.x < atlas_offset.x ||
+        uv.y > atlas_offset.y + atlas_scale.y || uv.y < atlas_offset.y) {
+        return 1.0;
+    }
+
+    float search_radius = PCSS_LIGHT_WORLD_SIZE * texel_size.x * 10.0;
+    vec2 blocker_result = find_blocker_distance(
+        shadow_map, uv, receiver_depth - bias, search_radius,
+        atlas_offset, atlas_scale
+    );
+
+    if (blocker_result.x < 0.0) {
+        return 1.0;
+    }
+
+    float average_blocker_depth = blocker_result.x;
+    float penumbra = (receiver_depth - average_blocker_depth) / max(average_blocker_depth, 0.0001);
+    penumbra *= PCSS_LIGHT_WORLD_SIZE;
+    penumbra = clamp(penumbra, PCSS_MIN_PENUMBRA, PCSS_MAX_PENUMBRA);
+
+    float filter_radius = penumbra * texel_size.x;
+
+    float shadow = 0.0;
+    for (int i = 0; i < PCSS_PCF_SAMPLES; ++i) {
+        vec2 offset = pcss_poisson_disk_32(i) * filter_radius;
+        vec2 sample_uv = uv + offset;
+
+        sample_uv = clamp(
+            sample_uv,
+            atlas_offset,
+            atlas_offset + atlas_scale
+        );
+
+        float sampled_depth = texture(shadow_map, sample_uv).r;
+        shadow += receiver_depth - bias > sampled_depth ? 1.0 : 0.0;
+    }
+
+    shadow /= float(PCSS_PCF_SAMPLES);
+    return 1.0 - shadow;
+}
+
 fn get_shadow(
     sampler2D shadow_map,
     vec3 light_direction,
@@ -7,45 +139,113 @@ fn get_shadow(
     vec3 projection_coordinates = fragment_light_space.xyz / fragment_light_space.w;
     projection_coordinates = projection_coordinates * 0.5 + 0.5;
 
-    float current_depth = projection_coordinates.z;
     float bias = max(0.002 * (1.0 - dot(normal, light_direction)), 0.0005);
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadow_map, 0);
 
-    vec2 poisson_disk[16] = vec2[](
-        vec2(-0.94201624, -0.39906216),
-        vec2(0.94558609, -0.76890725),
-        vec2(-0.09418410, -0.92938870),
-        vec2(0.34495938, 0.29387760),
-        vec2(-0.91588581, 0.45771432),
-        vec2(-0.81544232, -0.87912464),
-        vec2(-0.38277543, 0.27676845),
-        vec2(0.97484398, 0.75648379),
-        vec2(0.44323325, -0.97511554),
-        vec2(0.53742981, -0.47373420),
-        vec2(-0.26496911, -0.41893023),
-        vec2(0.79197514, 0.19090188),
-        vec2(-0.24188840, 0.99706507),
-        vec2(-0.81409955, 0.91437590),
-        vec2(0.19984126, 0.78641367),
-        vec2(0.14383161, -0.14100790)
+    return sample_shadow_pcss(
+        shadow_map,
+        projection_coordinates,
+        bias,
+        vec2(0.0),
+        vec2(1.0)
     );
+}
 
-    for (int i = 0; i < 16; ++i) {
-        float sampled_depth =
-            texture(shadow_map,
-                    projection_coordinates.xy + poisson_disk[i] * texelSize * 2.0)
-                .r;
-        shadow += current_depth - bias > sampled_depth ? 1.0 : 0.0;
-    }
-
-    shadow /= 16.0;
+fn get_volumetric_shadow(
+    sampler2D shadow_map,
+    vec3 light_direction,
+    vec4 fragment_light_space
+) -> float {
+    vec3 projection_coordinates = fragment_light_space.xyz / fragment_light_space.w;
+    projection_coordinates = projection_coordinates * 0.5 + 0.5;
 
     if (projection_coordinates.z > 1.0 || projection_coordinates.z < 0.0 ||
-        projection_coordinates.x > 1.0 || projection_coordinates.x < 0.0 ||
-        projection_coordinates.y > 1.0 || projection_coordinates.y < 0.0) {
-        shadow = 0.0;
+        projection_coordinates.x < 0.0 || projection_coordinates.x > 1.0 ||
+        projection_coordinates.y < 0.0 || projection_coordinates.y > 1.0) {
+        return 0.0;
     }
 
-    return 1.0 - shadow;
+    float bias = 0.0005;
+    float current_depth = projection_coordinates.z;
+    float sampled_depth = texture(shadow_map, projection_coordinates.xy).r;
+    return current_depth - bias > sampled_depth ? 0.0 : 1.0;
+}
+
+fn get_volumetric_cascade_shadow(
+    sampler2D shadow_map,
+    vec3 sample_position,
+    mat4 cascade_matrices[4],
+    float cascade_split_depths[4],
+    mat4 view_matrix
+) -> float {
+    vec4 view_pos = view_matrix * vec4(sample_position, 1.0);
+    float view_depth = -view_pos.z;
+
+    int cascade_index = 0;
+    for (int i = 0; i < CSM_CASCADE_COUNT - 1; ++i) {
+        if (view_depth > cascade_split_depths[i]) {
+            cascade_index = i + 1;
+        }
+    }
+
+    vec4 fragment_light_space = cascade_matrices[cascade_index] * vec4(sample_position, 1.0);
+    vec3 projection_coordinates = fragment_light_space.xyz / fragment_light_space.w;
+    projection_coordinates = projection_coordinates * 0.5 + 0.5;
+
+    vec2 atlas_offset = vec2(
+        float(cascade_index % 2) * 0.5,
+        float(1 - cascade_index / 2) * 0.5
+    );
+    vec2 atlas_scale = vec2(0.5);
+
+    vec2 uv = projection_coordinates.xy * atlas_scale + atlas_offset;
+
+    if (projection_coordinates.z > 1.0 || projection_coordinates.z < 0.0 ||
+        uv.x < atlas_offset.x || uv.x > atlas_offset.x + atlas_scale.x ||
+        uv.y < atlas_offset.y || uv.y > atlas_offset.y + atlas_scale.y) {
+        return 0.0;
+    }
+
+    float bias = 0.001;
+    float current_depth = projection_coordinates.z;
+    float sampled_depth = texture(shadow_map, uv).r;
+    return current_depth - bias > sampled_depth ? 0.0 : 1.0;
+}
+
+fn get_cascade_shadow(
+    sampler2D shadow_map,
+    vec3 light_direction,
+    vec3 normal,
+    vec3 fragment_world,
+    float fragment_view_depth,
+    mat4 cascade_matrices[4],
+    float cascade_split_depths[4],
+    mat4 view_matrix
+) -> float {
+    int cascade_index = 0;
+    for (int i = 0; i < CSM_CASCADE_COUNT - 1; ++i) {
+        if (fragment_view_depth > cascade_split_depths[i]) {
+            cascade_index = i + 1;
+        }
+    }
+
+    vec4 fragment_light_space = cascade_matrices[cascade_index] * vec4(fragment_world, 1.0);
+    vec3 projection_coordinates = fragment_light_space.xyz / fragment_light_space.w;
+    projection_coordinates = projection_coordinates * 0.5 + 0.5;
+
+    float bias_scale = 1.0 + float(cascade_index) * 0.5;
+    float bias = max(0.003 * bias_scale * (1.0 - dot(normal, light_direction)), 0.0005 * bias_scale);
+
+    vec2 atlas_offset = vec2(
+        float(cascade_index % 2) * 0.5,
+        float(1 - cascade_index / 2) * 0.5
+    );
+    vec2 atlas_scale = vec2(0.5);
+
+    return sample_shadow_pcss(
+        shadow_map,
+        projection_coordinates,
+        bias,
+        atlas_offset,
+        atlas_scale
+    );
 }

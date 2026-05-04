@@ -16,10 +16,13 @@ struct MaterialLayer {
   vec3 emissive_factor;
   int metallic_channel;
   int roughness_channel;
+  int alpha_mask_enabled;
+  float alpha_cutoff;
   float metallic_factor;
   float roughness_factor;
   float occlusion_strength;
   float normal_scale;
+  float height_scale;
   float bloom_intensity;
 };
 
@@ -36,6 +39,9 @@ interface Mesh {
 
   @location(3)
   vec3 tangent;
+
+  @location(4)
+  float tangent_sign;
 }
 
 @std430
@@ -86,6 +92,8 @@ interface SceneLight {
   @set(0)
   sampler2D shadow_map;
   @set(0)
+  float shadow_intensity = 1.0;
+  @set(0)
   int bloom_layer = 0;
 }
 
@@ -113,7 +121,7 @@ fn main(Draw draw, Mesh mesh, Camera camera) -> VertexOutput {
   vec3 T = normalize(normal_matrix * mesh.tangent);
   vec3 N = normalize(normal_matrix * mesh.normal);
   T = normalize(T - dot(T, N) * N);
-  vec3 B = normalize(cross(N, T));
+  vec3 B = mesh.tangent_sign * normalize(cross(N, T));
   mat3 world_to_tangent = transpose(mat3(T, B, N));
   vec3 fragment_world = vec3(model * vec4(mesh.position, 1.0));
 
@@ -145,6 +153,9 @@ interface FragmentOutput {
 fn main(VertexOutput vertex, Draw draw, Camera camera, SceneLight scene_light, Material material) -> FragmentOutput {
   vec3 T = normalize(vertex.tangent_world);
   vec3 N = normalize(vertex.normal);
+  if (!gl_FrontFacing) {
+    N = -N;
+  }
   T = normalize(T - dot(T, N) * N);
   vec3 B = normalize(vertex.bitangent_world);
   mat3 tangent_to_world = mat3(T, B, N);
@@ -166,16 +177,18 @@ fn main(VertexOutput vertex, Draw draw, Camera camera, SceneLight scene_light, M
       material.materials[0].emissive_factor,
       material.materials[0].metallic_channel,
       material.materials[0].roughness_channel,
+      material.materials[0].alpha_mask_enabled,
+      material.materials[0].alpha_cutoff,
       material.materials[0].metallic_factor,
       material.materials[0].roughness_factor,
       material.materials[0].occlusion_strength,
       material.materials[0].normal_scale,
+      material.materials[0].height_scale,
       material.materials[0].bloom_intensity);
 
-  vec3 V = normalize(camera.position - vertex.fragment_world);
+  vec3 view_direction = normalize(camera.position - vertex.fragment_world);
   vec3 ambient = evaluate_pbr_ambient(
       surface,
-      surface.normal_ws,
       scene_light.directional.exposure.ambient,
       surface.occlusion);
   vec3 color = ambient;
@@ -183,33 +196,36 @@ fn main(VertexOutput vertex, Draw draw, Camera camera, SceneLight scene_light, M
       surface,
       scene_light.directional,
       vertex.fragment_world,
-      surface.normal_ws,
-      V,
+      view_direction,
       scene_light.shadow_map,
-      scene_light.light_space_matrix);
+      scene_light.light_space_matrix,
+      scene_light.shadow_intensity);
   for (int i = 0; i < 4; ++i) {
     color += evaluate_pbr_point(
         surface,
         scene_light.point_lights[i],
         vertex.fragment_world,
-        surface.normal_ws,
-        V);
+        view_direction);
   }
   color += evaluate_pbr_spot(
       surface,
       scene_light.spot_light,
       vertex.fragment_world,
-      surface.normal_ws,
-      V);
+      view_direction);
   color += surface.emissive;
+
+  vec3 bright = vec3(0.0);
+  if (draw.bloom_enabled && draw.bloom_layer == scene_light.bloom_layer) {
+    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    bright = luminance > 1.0 ? color * (luminance - 1.0) / luminance : vec3(0.0);
+    if (surface.bloom_intensity > 0.0) {
+      bright += surface.emissive * surface.bloom_intensity;
+    }
+  }
 
   FragmentOutput frag_output;
   frag_output.color = vec4(color, 1.0);
-  frag_output.bright_color =
-      draw.bloom_enabled && draw.bloom_layer == scene_light.bloom_layer &&
-              surface.bloom_intensity > 0.0
-          ? vec4(surface.emissive * surface.bloom_intensity, 1.0)
-          : vec4(0.0, 0.0, 0.0, 1.0);
+  frag_output.bright_color = vec4(bright, 1.0);
   frag_output.entity_id = draw.entity_id;
   return frag_output;
 }

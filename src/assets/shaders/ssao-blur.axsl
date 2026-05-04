@@ -45,12 +45,12 @@ fn spatial_weight(vec2 offset) -> float {
 
 @fragment
 fn main(VertexOutput vertex, Blur blur) -> FragmentOutput {
-  vec4 center_normal_sample = texture(blur.g_normal, vertex.texture_coordinates);
-  if (center_normal_sample.a <= 0.0) {
+  vec3 center_normal_raw = texture(blur.g_normal, vertex.texture_coordinates).rgb;
+  if (dot(center_normal_raw, center_normal_raw) <= 0.0001) {
     return FragmentOutput(vec4(1.0));
   }
 
-  vec3 center_normal = normalize(center_normal_sample.rgb);
+  vec3 center_normal = normalize(center_normal_raw);
   vec3 center_position = texture(blur.g_position, vertex.texture_coordinates).rgb;
 
   float ao_accum = 0.0;
@@ -60,13 +60,13 @@ fn main(VertexOutput vertex, Blur blur) -> FragmentOutput {
     for (int y = -2; y <= 2; ++y) {
       vec2 offset = vec2(float(x), float(y));
       vec2 sample_uv = vertex.texture_coordinates + offset * blur.texel_size;
-      vec4 sample_normal_sample = texture(blur.g_normal, sample_uv);
+      vec3 sample_normal_raw = texture(blur.g_normal, sample_uv).rgb;
 
-      if (sample_normal_sample.a <= 0.0) {
+      if (dot(sample_normal_raw, sample_normal_raw) <= 0.0001) {
         continue;
       }
 
-      vec3 sample_normal = normalize(sample_normal_sample.rgb);
+      vec3 sample_normal = normalize(sample_normal_raw);
       vec3 sample_position = texture(blur.g_position, sample_uv).rgb;
       float sample_ao = texture(blur.ssao_input, sample_uv).r;
 

@@ -121,7 +121,7 @@ fn sample_ssao_bilateral(
       float bilinear_weight = bilinear_x * bilinear_y;
 
       float depth_weight =
-          exp(-abs(sample_position.z - center_position.z) * 32.0);
+          exp(-length(sample_position - center_position) * 12.0);
       float normal_weight =
           pow(max(dot(center_normal, sample_normal), 0.0), 16.0);
 

@@ -1,9 +1,9 @@
 @version 450;
 
-const float GRID_LINE_WIDTH = 0.5;
+const float GRID_LINE_WIDTH = 1.0;
 const float GRID_SMALL_SCALE = 2.5;
 const float GRID_LARGE_SCALE = 5.0;
-const float GRID_LARGE_INTENSITY = 0.5;
+const float GRID_LARGE_INTENSITY = 0.25;
 
 const float GRID_FADE_DISTANCE = 50.0;
 const float GRID_FADE_RATE = 0.002;
@@ -13,7 +13,7 @@ const float Y_AXIS_THICKNESS = 2.5;
 const int GRID_RENDER_MODE_SURFACE = 0;
 const int GRID_RENDER_MODE_Y_AXIS = 1;
 
-const float MAX_RAY_T = 1.0;
+const float MAX_RAY_T = 5.0;
 const float RAY_DIRECTION_EPSILON = 0.0001;
 const float ALPHA_DISCARD_THRESHOLD = 0.001;
 const vec4 GRID_LINE_COLOR = vec4(1.0, 1.0, 1.0, 0.25);

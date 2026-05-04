@@ -19,6 +19,7 @@ interface Mesh {
 @uniform
 interface Camera {
   vec3 position;
+  mat4 view_matrix;
 }
 
 @uniform
@@ -29,11 +30,21 @@ interface Light {
   sampler2D shadow_map;
   sampler2D g_position;
   sampler2D g_normal;
+  sampler2D g_geometric_normal;
   sampler2D g_albedo;
   sampler2D g_emissive;
   isampler2D g_entity_id;
   sampler2D g_ssao;
+  samplerCube irradiance_map;
+  samplerCube prefilter_map;
+  sampler2D brdf_lut;
   int bloom_layer = 0;
+  mat4 cascade_matrices[4];
+  float cascade_split_depths[4];
+  int cascades_enabled = 0;
+  float shadow_intensity = 1.0;
+  int ibl_enabled = 0;
+  float prefilter_max_lod = 4.0;
 }
 
 interface VertexOutput {
@@ -63,6 +74,7 @@ interface FragmentOutput {
 fn main(VertexOutput vertex, Camera camera, Light light) -> FragmentOutput {
   vec4 g_position = texture(light.g_position, vertex.texture);
   vec4 g_normal = texture(light.g_normal, vertex.texture);
+  vec4 g_geometric_normal = texture(light.g_geometric_normal, vertex.texture);
   vec4 g_albedo = texture(light.g_albedo, vertex.texture);
   vec4 g_emissive = texture(light.g_emissive, vertex.texture);
   int entity_id = texture(light.g_entity_id, vertex.texture).r;
@@ -75,13 +87,19 @@ fn main(VertexOutput vertex, Camera camera, Light light) -> FragmentOutput {
   }
 
   vec3 fragment_world = g_position.rgb;
-  vec3 N = normalize(g_normal.rgb);
-  vec3 V = normalize(camera.position - fragment_world);
+  vec3 surface_normal = normalize(g_normal.rgb);
+  vec3 view_direction = normalize(camera.position - fragment_world);
+
+  float n_dot_v = dot(surface_normal, view_direction);
+  if (n_dot_v < 0.0) {
+    surface_normal = normalize(surface_normal + view_direction * (-n_dot_v + 0.001));
+  }
 
   PBRSurface surface;
   surface.base_color = g_albedo.rgb;
   surface.emissive = g_emissive.rgb;
-  surface.normal_ws = N;
+  surface.normal_ws = surface_normal;
+  surface.geometric_normal = normalize(g_geometric_normal.rgb);
   surface.roughness = clamp(g_position.a, 0.045, 1.0);
   surface.metallic = clamp(g_normal.a, 0.0, 1.0);
   surface.occlusion = clamp(g_albedo.a, 0.0, 1.0);
@@ -93,39 +111,74 @@ fn main(VertexOutput vertex, Camera camera, Light light) -> FragmentOutput {
       light.g_ssao,
       vertex.texture,
       fragment_world,
-      N);
+      surface_normal);
   float ambient_visibility = ssao * surface.occlusion;
 
-  vec3 ambient = evaluate_pbr_ambient(
-      surface,
-      surface.normal_ws,
-      light.directional.exposure.ambient,
-      ambient_visibility);
+  vec3 ambient;
+  if (light.ibl_enabled != 0) {
+    ambient = evaluate_pbr_ibl(
+        surface,
+        view_direction,
+        light.irradiance_map,
+        light.prefilter_map,
+        light.brdf_lut,
+        light.prefilter_max_lod,
+        light.directional.exposure.ambient,
+        ambient_visibility);
+  } else {
+    ambient = evaluate_pbr_ambient(
+        surface,
+        light.directional.exposure.ambient,
+        ambient_visibility);
+  }
+
   vec3 color = ambient;
-  color += evaluate_pbr_directional(
-      surface,
-      light.directional,
-      fragment_world,
-      surface.normal_ws,
-      V,
-      light.shadow_map,
-      light.light_space_matrix);
+
+  if (light.cascades_enabled != 0) {
+    vec4 view_pos = camera.view_matrix * vec4(fragment_world, 1.0);
+    float fragment_view_depth = -view_pos.z;
+
+    color += evaluate_pbr_directional_csm(
+        surface,
+        light.directional,
+        fragment_world,
+        view_direction,
+        light.shadow_map,
+        fragment_view_depth,
+        light.cascade_matrices,
+        light.cascade_split_depths,
+        camera.view_matrix,
+        light.shadow_intensity);
+  } else {
+    color += evaluate_pbr_directional(
+        surface,
+        light.directional,
+        fragment_world,
+        view_direction,
+        light.shadow_map,
+        light.light_space_matrix,
+        light.shadow_intensity);
+  }
+
   for (int i = 0; i < 4; ++i) {
     color += evaluate_pbr_point(
         surface,
         light.point_lights[i],
         fragment_world,
-        surface.normal_ws,
-        V);
+        view_direction);
   }
+
   color += surface.emissive;
+
+  float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  vec3 bright = luminance > 1.0 ? color * (luminance - 1.0) / luminance : vec3(0.0);
+  if (surface.bloom_intensity > 0.0) {
+    bright += surface.emissive * surface.bloom_intensity;
+  }
 
   FragmentOutput frag_output;
   frag_output.color = vec4(color, 1.0);
-  frag_output.bright_color =
-      surface.bloom_intensity > 0.0
-          ? vec4(surface.emissive * surface.bloom_intensity, 1.0)
-          : vec4(0.0, 0.0, 0.0, 1.0);
+  frag_output.bright_color = vec4(bright, 1.0);
   frag_output.entity_id = entity_id;
   return frag_output;
 }
