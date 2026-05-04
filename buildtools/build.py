@@ -5,10 +5,58 @@ import subprocess
 from pathlib import Path
 
 
+def resolve_build_dir(command: list[str], cwd: Path | None = None) -> Path | None:
+    if len(command) < 3 or command[0] != "cmake" or command[1] != "--build":
+        return None
+
+    build_dir = Path(command[2])
+    if build_dir.is_absolute():
+        return build_dir
+
+    base_dir = cwd if cwd is not None else Path.cwd()
+    return (base_dir / build_dir).resolve()
+
+
+def repair_ninja_metadata(build_dir: Path) -> None:
+    if not (build_dir / "build.ninja").exists():
+        return
+
+    try:
+        probe = subprocess.run(
+            ["ninja", "-C", str(build_dir), "-t", "recompact"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        return
+
+    output = (probe.stdout or "") + (probe.stderr or "")
+    if "premature end of file; recovering" not in output:
+        return
+
+    repaired = False
+    for filename in (".ninja_deps", ".ninja_log"):
+        metadata_path = build_dir / filename
+        if metadata_path.exists():
+            metadata_path.unlink()
+            repaired = True
+
+    if repaired:
+        print(
+            "   Repaired corrupt Ninja metadata in "
+            f"{build_dir} (.ninja_deps/.ninja_log reset)"
+        )
+
+
 def run_step(description: str, command: list[str], cwd: Path | None = None) -> None:
     """Run a command and print nice status messages"""
     print(f"\n→ {description}")
     print("   " + str(command))
+
+    build_dir = resolve_build_dir(command, cwd)
+    if build_dir is not None:
+        repair_ninja_metadata(build_dir)
 
     try:
         subprocess.run(
@@ -50,6 +98,16 @@ def collect_example_streams_formats(root: Path) -> list[str]:
     return ordered_formats
 
 
+def read_cache_variable(cache_path: Path, variable: str) -> str | None:
+    if not cache_path.exists():
+        return None
+    prefix = f"{variable}:"
+    for line in cache_path.read_text().splitlines():
+        if line.startswith(prefix):
+            return line.split("=", 1)[1]
+    return None
+
+
 def build_examples(root: str, preset: str, install_prefix: str):
     examples_dir = root / "examples"
     example_dirs = [
@@ -67,6 +125,16 @@ def build_examples(root: str, preset: str, install_prefix: str):
     if vcpkg_prefix.exists():
         cmake_prefix_path += f";{vcpkg_prefix}"
 
+    main_build_dir = root / "builds" / preset
+    main_cache = main_build_dir / "CMakeCache.txt"
+    forwarded_flags = []
+    hot_reload = read_cache_variable(main_cache, "ASTRA_EDITOR_HOT_RELOAD")
+    if hot_reload == "ON":
+        forwarded_flags.append("-DASTRA_EDITOR_HOT_RELOAD=ON")
+    sandbox_hot_reload = read_cache_variable(main_cache, "ASTRA_SANDBOX_HOT_RELOAD")
+    if sandbox_hot_reload == "ON":
+        forwarded_flags.append("-DASTRA_SANDBOX_HOT_RELOAD=ON")
+
     for rel_example_src in example_dirs:
         example_src = root / rel_example_src
         example_build = example_src / "builds" / preset
@@ -79,6 +147,8 @@ def build_examples(root: str, preset: str, install_prefix: str):
             "--preset", preset,
             f"-DCMAKE_PREFIX_PATH={cmake_prefix_path}",
             "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+            f"-DASTRA_MAIN_BUILD_DIR={main_build_dir}",
+            *forwarded_flags,
         ]
 
         steps.append((f"Configuring example: {rel_example_src}", configure_example_cmd))
