@@ -260,6 +260,9 @@ void Window::scroll_callback(GLFWwindow *window, double xoffset,
     mods |= GLFW_MOD_SUPER;
   }
 
+  self->m_mouse->apply_wheel(
+      input::Mouse::Position{.x = xoffset, .y = yoffset}
+  );
   auto event = MouseWheelEvent(
       xoffset, yoffset, self->id(), input::KeyModifiers::from_glfw(mods));
   EventDispatcher::get()->dispatch(&event);
