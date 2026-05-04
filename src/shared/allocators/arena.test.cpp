@@ -1,13 +1,13 @@
 #include "arena.hpp"
 #include "exceptions/base-exception.hpp"
-#include "faker-cxx/faker.h"
-#include "log.hpp"
+#include "helpers/random.hpp"
 #include <gtest/gtest.h>
 
 using namespace astralix;
+using namespace astralix::testing;
 
 TEST(ElasticArenaTest, EnsureNoPoolIncreasehenBlockEqualsCapacity) {
-  const auto page_size = faker::number::integer(32, 1024);
+  const auto page_size = random_integer(32, 1024);
   astralix::ElasticArena elastic_arena(page_size);
 
   const auto block_size = page_size;
@@ -23,9 +23,9 @@ TEST(ElasticArenaTest, EnsureNoPoolIncreasehenBlockEqualsCapacity) {
 }
 
 TEST(ElasticArenaTest, EnsurePoolOverflowWhenIncreasedCapacityIsFull) {
-  const auto page_size = faker::number::integer(1, 32);
+  const auto page_size = random_integer(1, 32);
 
-  auto max_capacity_increase = faker::number::integer(1, 12);
+  auto max_capacity_increase = random_integer(1, 12);
 
   astralix::ElasticArena elastic_arena(page_size, max_capacity_increase);
 
@@ -52,9 +52,9 @@ TEST(ElasticArenaTest, EnsurePoolOverflowWhenIncreasedCapacityIsFull) {
 }
 
 TEST(ElasticArenaTest, PoolIncreaseWhenBlockGreatherThanCapacity) {
-  const auto page_size = faker::number::integer(32, 1024);
+  const auto page_size = random_integer(32, 1024);
 
-  auto max_capacity_increase = faker::number::integer(page_size);
+  auto max_capacity_increase = random_integer(1, page_size);
 
   astralix::ElasticArena elastic_arena(page_size, max_capacity_increase);
 
@@ -112,11 +112,11 @@ TEST(ElasticArenaTest, ResetClearsCapacityIncreaseCount) {
 }
 
 TEST(ElasticStackArenaTest, SinglePushPop) {
-  const auto page_size = faker::number::integer(32, 1024);
+  const auto page_size = random_integer(32, 1024);
   astralix::ElasticArena elastic_arena(page_size);
   astralix::ElasticStackArena stack_arena(elastic_arena);
 
-  const auto block_size = faker::number::integer(32, page_size);
+  const auto block_size = random_integer(32, page_size);
 
   // Initial memory should be 0
   EXPECT_EQ(stack_arena.allocated_memory(), 0);
@@ -133,7 +133,7 @@ TEST(ElasticStackArenaTest, SinglePushPop) {
 }
 
 TEST(ElasticStackArenaTest, MultiPushWithLinearPop) {
-  const auto page_size = faker::number::integer(32, 1024);
+  const auto page_size = random_integer(32, 1024);
 
   astralix::ElasticArena elastic_arena(page_size);
 
@@ -144,7 +144,7 @@ TEST(ElasticStackArenaTest, MultiPushWithLinearPop) {
   //
   EXPECT_EQ(stack_arena.allocated_memory(), elastic_arena.allocated_memory());
 
-  const auto block_size = faker::number::integer(32, 1024);
+  const auto block_size = random_integer(32, 1024);
 
   int allocations = 0;
 
@@ -167,10 +167,10 @@ TEST(ElasticStackArenaTest, MultiPushWithLinearPop) {
 }
 
 TEST(ElasticStackArenaTest, MultiplePushWithPartialPop) {
-  const auto page_size = faker::number::integer(32, 1024);
+  const auto page_size = random_integer(32, 1024);
 
-  const auto max_allocations = faker::number::integer(32, page_size);
-  const auto min_allocations = faker::number::integer(32, max_allocations);
+  const auto max_allocations = random_integer(32, page_size);
+  const auto min_allocations = random_integer(32, max_allocations);
 
   astralix::ElasticArena elastic_arena(page_size, max_allocations);
   astralix::ElasticStackArena stack_arena(elastic_arena);
@@ -218,8 +218,8 @@ TEST(ElasticStackArenaTest, ClearReleasesAllBlocks) {
 }
 
 TEST(Str, EnsureEquality) {
-  const auto sso_text_length = faker::number::integer(1, 22);
-  const auto sso_text = faker::string::alpha(sso_text_length);
+  const auto sso_text_length = random_integer(1, 22);
+  const auto sso_text = random_alpha(sso_text_length);
 
   auto arena = ElasticArena(KB(1));
 
@@ -235,7 +235,7 @@ TEST(Str, EnsureEquality) {
   EXPECT_EQ(sso_str.size(), 0);
   EXPECT_EQ(sso_str.allocated_memory(), 0);
 
-  const auto text = faker::lorem::sentences();
+  const auto text = random_sentences();
 
   Str str = Str::from_initializer({arena, text.c_str()});
 
@@ -244,8 +244,8 @@ TEST(Str, EnsureEquality) {
 }
 
 TEST(Str, SmallStringShouldHitSSO) {
-  const auto sso_text_length = faker::number::integer(1, 22);
-  const auto text = faker::string::alpha(sso_text_length);
+  const auto sso_text_length = random_integer(1, 22);
+  const auto text = random_alpha(sso_text_length);
 
   auto arena = ElasticArena(KB(1));
 
@@ -258,7 +258,7 @@ TEST(Str, SmallStringShouldHitSSO) {
 }
 
 TEST(Str, LargeStringShouldNotHitSSO) {
-  const auto text = faker::lorem::sentences();
+  const auto text = random_sentences();
 
   auto arena = ElasticArena(KB(1));
 
@@ -271,8 +271,8 @@ TEST(Str, LargeStringShouldNotHitSSO) {
 }
 
 TEST(Str, AppendWithSmallStringShouldHitSSO) {
-  const auto sso_text_length = faker::number::integer(1, 22);
-  const auto text = faker::string::alpha(sso_text_length);
+  const auto sso_text_length = random_integer(1, 22);
+  const auto text = random_alpha(sso_text_length);
 
   auto arena = ElasticArena(KB(1));
   Str str = Str::from_initializer({arena, text.c_str()});
@@ -282,7 +282,7 @@ TEST(Str, AppendWithSmallStringShouldHitSSO) {
   EXPECT_TRUE(str.is_sso());
   EXPECT_EQ(other.size(), 0);
 
-  const auto sub_length = faker::number::integer(1, sso_text_length);
+  const auto sub_length = random_integer(1, sso_text_length);
   other.append(str, sub_length);
 
   EXPECT_EQ(other.size(), sub_length);
@@ -303,7 +303,7 @@ TEST(Str, AppendWithSmallStringShouldHitSSO) {
 }
 
 TEST(Str, AppendWithLargeStringShouldNotHitSSO) {
-  const auto text = faker::lorem::sentences();
+  const auto text = random_sentences();
 
   auto arena = ElasticArena(KB(1));
 
@@ -314,7 +314,7 @@ TEST(Str, AppendWithLargeStringShouldNotHitSSO) {
   EXPECT_FALSE(str.is_sso());
   EXPECT_EQ(other.size(), 0);
 
-  const auto sub_length = faker::number::integer(23, (int)text.size());
+  const auto sub_length = random_integer(23, (int)text.size());
   other.append(str, sub_length);
 
   EXPECT_EQ(other.size(), sub_length);
@@ -337,7 +337,7 @@ TEST(Str, AppendWithLargeStringShouldNotHitSSO) {
 }
 
 TEST(Str, AppendCStr) {
-  const auto text = faker::lorem::sentences();
+  const auto text = random_sentences();
 
   auto arena = ElasticArena(KB(1));
 
@@ -347,7 +347,7 @@ TEST(Str, AppendCStr) {
   EXPECT_FALSE(str.is_sso());
   EXPECT_EQ(other.size(), 0);
 
-  const auto sub_length = faker::number::integer(23, (int)text.size());
+  const auto sub_length = random_integer(23, (int)text.size());
   other.append(str.c_str(), sub_length);
 
   EXPECT_EQ(other.size(), sub_length);
@@ -374,7 +374,7 @@ TEST(Str, AppendLargeStringToEmptyStr) {
 
   Str empty_str(arena);
 
-  const auto large_text = faker::lorem::sentences();
+  const auto large_text = random_sentences();
   empty_str.append(large_text.c_str(), large_text.size());
 
   EXPECT_FALSE(empty_str.is_sso());
@@ -390,7 +390,7 @@ TEST(Str, EmptyStringAppend) {
   EXPECT_EQ(str.size(), 0);
   EXPECT_STREQ(str.c_str(), "");
 
-  const auto text = faker::string::alpha(10);
+  const auto text = random_alpha(10);
   str.append(text.c_str(), text.size());
   EXPECT_TRUE(str.is_sso());
   EXPECT_EQ(str, text);
@@ -399,8 +399,8 @@ TEST(Str, EmptyStringAppend) {
 TEST(Str, AppendSmallToSmallWithinSSO) {
   auto arena = ElasticArena(KB(1));
 
-  const auto str_text = faker::string::alpha(10);
-  const auto other_text = faker::string::alpha(10); // 10 + 10 = 20 <= 22
+  const auto str_text = random_alpha(10);
+  const auto other_text = random_alpha(10); // 10 + 10 = 20 <= 22
 
   Str str(str_text.c_str(), arena);
   Str other(other_text.c_str(), arena);
@@ -415,8 +415,8 @@ TEST(Str, AppendSmallToSmallWithinSSO) {
 TEST(Str, AppendSmallToSmallExceedingSSO) {
   auto arena = ElasticArena(KB(1));
 
-  const auto str_text = faker::string::alpha(15);
-  const auto other_text = faker::string::alpha(10); // 15 + 10 = 25 > 22
+  const auto str_text = random_alpha(15);
+  const auto other_text = random_alpha(10); // 15 + 10 = 25 > 22
 
   Str str(str_text.c_str(), arena);
   Str other(other_text.c_str(), arena);
@@ -431,12 +431,12 @@ TEST(Str, AppendSmallToSmallExceedingSSO) {
 TEST(Str, NullTermination) {
   auto arena = ElasticArena(KB(1));
 
-  const auto small_text = faker::string::alpha(10);
+  const auto small_text = random_alpha(10);
   Str small_str(small_text.c_str(), arena);
   EXPECT_EQ(std::strlen(small_str.c_str()), small_text.size());
   EXPECT_EQ(small_str.c_str()[small_text.size()], '\0');
 
-  const auto large_text = faker::lorem::sentences();
+  const auto large_text = random_sentences();
   Str large_str(large_text.c_str(), arena);
   EXPECT_EQ(std::strlen(large_str.c_str()), large_text.size());
   EXPECT_EQ(large_str.c_str()[large_text.size()], '\0');
@@ -445,8 +445,8 @@ TEST(Str, NullTermination) {
 TEST(Str, AppendLargeToSmall) {
   auto arena = ElasticArena(KB(1));
 
-  const auto small_text = faker::string::alpha(10);
-  const auto large_text = faker::lorem::sentences();
+  const auto small_text = random_alpha(10);
+  const auto large_text = random_sentences();
 
   Str small_str(small_text.c_str(), arena);
   Str large_str(large_text.c_str(), arena);
@@ -460,8 +460,8 @@ TEST(Str, AppendLargeToSmall) {
 TEST(Str, AppendSmallToLarge) {
   auto arena = ElasticArena(KB(1));
 
-  const auto large_text = faker::lorem::sentences();
-  const auto small_text = faker::string::alpha(10);
+  const auto large_text = random_sentences();
+  const auto small_text = random_alpha(10);
 
   Str large_str(large_text.c_str(), arena);
   Str small_str(small_text.c_str(), arena);
@@ -475,8 +475,8 @@ TEST(Str, AppendSmallToLarge) {
 TEST(Str, AppendLargeToLarge) {
   auto arena = ElasticArena(KB(1));
 
-  const auto str_text = faker::lorem::sentences();
-  const auto other_text = faker::lorem::sentences();
+  const auto str_text = random_sentences();
+  const auto other_text = random_sentences();
 
   Str str(str_text.c_str(), arena);
   Str other(other_text.c_str(), arena);
@@ -491,8 +491,8 @@ TEST(Str, AppendLargeToLarge) {
 TEST(Str, OperatorPlusEqualStr) {
   auto arena = ElasticArena(KB(1));
 
-  const auto str_text = faker::string::alpha(10);
-  const auto other_text = faker::string::alpha(10); // 10 + 10 = 20 <= 22
+  const auto str_text = random_alpha(10);
+  const auto other_text = random_alpha(10); // 10 + 10 = 20 <= 22
 
   Str str(str_text.c_str(), arena);
   Str other(other_text.c_str(), arena);
@@ -507,8 +507,8 @@ TEST(Str, OperatorPlusEqualStr) {
 TEST(Str, OperatorPlusEqualCStr) {
   auto arena = ElasticArena(KB(1));
 
-  const auto str_text = faker::string::alpha(10);
-  const auto other_text = faker::string::alpha(10);
+  const auto str_text = random_alpha(10);
+  const auto other_text = random_alpha(10);
 
   Str str(str_text.c_str(), arena);
   str += other_text.c_str();
@@ -521,7 +521,7 @@ TEST(Str, OperatorPlusEqualCStr) {
 TEST(Str, AssignmentWithCStr) {
   auto arena = ElasticArena(KB(1));
 
-  const auto text = faker::lorem::sentences();
+  const auto text = random_sentences();
 
   Str str(arena);
   str = text.c_str();
@@ -536,7 +536,7 @@ TEST(Str, AssignmentWithCStr) {
 TEST(Str, ReleaseSSOString) {
   auto arena = ElasticArena(KB(1));
 
-  const auto text = faker::string::alpha(10);
+  const auto text = random_alpha(10);
 
   Str str(text.c_str(), arena);
 
@@ -550,7 +550,7 @@ TEST(Str, ReleaseSSOString) {
 TEST(Str, ReleaseNonSSOString) {
   auto arena = ElasticArena(KB(1));
 
-  const auto text = faker::lorem::sentences();
+  const auto text = random_sentences();
   Str str(text.c_str(), arena);
   EXPECT_FALSE(str.is_sso());
   str.release();
@@ -561,7 +561,7 @@ TEST(Str, ReleaseNonSSOString) {
 TEST(Str, SelfAppend) {
   auto arena = ElasticArena(KB(1));
 
-  const auto text = faker::string::alpha(10);
+  const auto text = random_alpha(10);
   Str str(text.c_str(), arena);
   str.append(str, str.size());
 

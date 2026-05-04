@@ -63,7 +63,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install vcpkg packages
-        run: ./vcpkg/vcpkg install --triplet x64-linux --x-install-root="${VCPKG_INSTALL_ROOT}"
+        run: ./vcpkg/vcpkg install --triplet x64-linux --x-feature=dev --x-install-root="${VCPKG_INSTALL_ROOT}"
 
       - name: Configure
         run: cmake --preset=debug -DASTRALIX_STREAMS_FORMATS=Json -DVCPKG_MANIFEST_INSTALL=OFF

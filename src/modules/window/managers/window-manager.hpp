@@ -62,6 +62,10 @@ namespace input {
   return window_manager()->active_window()->mouse()->delta();
 }
 
+[[nodiscard]] static inline const input::Mouse::Position MOUSE_WHEEL_DELTA() {
+  return window_manager()->active_window()->mouse()->wheel_delta();
+}
+
 [[nodiscard]] static inline const input::Mouse::Position CURSOR_POSITION() {
   return window_manager()->active_window()->mouse()->position();
 }

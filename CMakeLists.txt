@@ -194,6 +194,7 @@ add_subdirectory(src/shared/containers)
 if(NOT ASTRA_ENABLE_TESTS)
   add_subdirectory(src/shared/events)
   add_subdirectory(src/shared/ecs)
+  add_subdirectory(src/modules/jobs)
   add_subdirectory(src/modules/streams)
   add_subdirectory(src/modules/renderer/shader-lang)
   add_subdirectory(src/modules/project)
@@ -399,6 +400,7 @@ if(NOT ASTRA_ENABLE_TESTS)
           events
           ecs
           streams
+          jobs
           project
           window
           shader-lang

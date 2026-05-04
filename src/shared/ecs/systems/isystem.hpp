@@ -36,6 +36,7 @@ public:
   virtual inline const char *get_system_type_name() const = 0;
 
   virtual void start() = 0;
+  virtual void end() {}
   virtual void fixed_update(double fixed_dt) = 0;
   virtual void pre_update(double dt) = 0;
   virtual void update(double dt) = 0;

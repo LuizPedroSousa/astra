@@ -16,18 +16,13 @@ set(SHARED_DIR "${CMAKE_SOURCE_DIR}/../src/shared")
 set(AXSLC_DIR "${CMAKE_SOURCE_DIR}/../axslc")
 set(AXGEN_DIR "${CMAKE_SOURCE_DIR}/../axgen")
 set(AXGEN_SRC_DIR "${AXGEN_DIR}/src")
-set(FAKER_CXX_DIR "${CMAKE_SOURCE_DIR}/../external/faker-cxx")
-set(GOOGLETEST_DIR "${FAKER_CXX_DIR}/externals/googletest")
+set(GTest_DIR "${VCPKG_INSTALLED_ROOT}/share/gtest")
 
 include("${MODULES_DIR}/streams/serialization-formats.cmake")
 
 set(ASTRALIX_TEST_SERIALIZATION_FORMATS Json Yaml Toml Xml)
 
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-add_subdirectory("${FAKER_CXX_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/faker-cxx"
-                 EXCLUDE_FROM_ALL)
-add_subdirectory("${GOOGLETEST_DIR}" "${CMAKE_CURRENT_BINARY_DIR}/googletest"
-                 EXCLUDE_FROM_ALL)
+find_package(GTest CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(unofficial-shaderc CONFIG REQUIRED)
 
@@ -77,6 +72,7 @@ add_executable(astralix_tests
   ${SERIALIZATION_SRC})
 
 target_include_directories(astralix_tests PRIVATE
+  "${CMAKE_SOURCE_DIR}"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer"
   "${CMAKE_SOURCE_DIR}/../src/shared"
   "${CMAKE_SOURCE_DIR}/../src/assets/.astralix/generated"
@@ -97,9 +93,8 @@ target_include_directories(astralix_tests PRIVATE
   "${AXGEN_SRC_DIR}")
 
 target_link_libraries(astralix_tests PRIVATE
-  faker-cxx
-  gtest
-  gtest_main
+  GTest::gtest
+  GTest::gtest_main
   glad::glad)
 
 target_compile_definitions(astralix_tests PRIVATE

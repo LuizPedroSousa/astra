@@ -36,6 +36,13 @@ public:
     };
   };
 
+  Position wheel_delta() const {
+    return Position{
+        m_wheel_delta.x,
+        m_wheel_delta.y,
+    };
+  }
+
   Position position() const { return m_position; }
 
   void set_position(Position position) {
@@ -64,6 +71,11 @@ public:
     m_changed = true;
   }
 
+  void apply_wheel(Position position) {
+    m_wheel_delta.x += position.x;
+    m_wheel_delta.y += position.y;
+  }
+
   void set_button_state(MouseButton button, bool down);
 
   bool is_button_down(MouseButton button) const;
@@ -72,6 +84,7 @@ public:
 
   void reset_delta() {
     m_delta = {.x = 0, .y = 0};
+    m_wheel_delta = {.x = 0, .y = 0};
     m_changed = false;
 
     for (auto &state : m_button_states) {
@@ -87,6 +100,7 @@ public:
 
 private:
   Position m_delta;
+  Position m_wheel_delta{.x = 0.0, .y = 0.0};
   Position m_position;
   Position m_last;
   ButtonState m_button_states[static_cast<size_t>(MouseButton::Count)];

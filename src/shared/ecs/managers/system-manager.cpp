@@ -15,6 +15,9 @@ void SystemManager::start() {
   ASTRA_PROFILE_N("SystemManager::start");
   for (ISystem_ptr system : m_system_work_order) {
     if (system->m_enabled) {
+      ASTRA_PROFILE_N("System::start");
+      const char *name = system->get_system_type_name();
+      ASTRA_PROFILE_TEXT(name, strlen(name));
       system->start();
     }
   }
