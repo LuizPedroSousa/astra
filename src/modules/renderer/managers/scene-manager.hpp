@@ -55,6 +55,10 @@ public:
   }
 
   void register_scene_type(std::string type, SceneFactory factory);
+  void unregister_scene_type(std::string_view type);
+  void reset_scene_instances();
+  void set_scene_activation_enabled(bool enabled);
+  uint64_t scene_instance_generation() const;
 
   Scene *activate(std::string scene_id);
   Scene *activate_source(std::string scene_id);
@@ -85,6 +89,7 @@ private:
     SceneSessionKind kind = SceneSessionKind::Source;
   };
 
+  void clear_scene_state();
   void ensure_project_state();
   void validate_project_scenes(const ProjectConfig &config) const;
   Ref<Scene> instantiate_scene(
@@ -111,6 +116,8 @@ private:
   std::unordered_map<std::string, Ref<Scene>> m_runtime_scene_instances;
   std::optional<uint64_t> m_loaded_project_id;
   std::optional<ActiveSceneRef> m_active_scene;
+  bool m_scene_activation_enabled = true;
+  uint64_t m_scene_instance_generation = 1u;
 };
 
 } // namespace astralix

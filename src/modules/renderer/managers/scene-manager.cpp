@@ -282,14 +282,42 @@ void SceneManager::register_scene_type(std::string type, SceneFactory factory) {
   m_scene_factories.insert_or_assign(std::move(type), std::move(factory));
 }
 
+void SceneManager::unregister_scene_type(std::string_view type) {
+  m_scene_factories.erase(std::string(type));
+}
+
+void SceneManager::reset_scene_instances() {
+  m_source_scene_instances.clear();
+  m_preview_scene_instances.clear();
+  m_runtime_scene_instances.clear();
+  ++m_scene_instance_generation;
+}
+
+void SceneManager::set_scene_activation_enabled(bool enabled) {
+  m_scene_activation_enabled = enabled;
+}
+
+uint64_t SceneManager::scene_instance_generation() const {
+  return m_scene_instance_generation;
+}
+
+void SceneManager::clear_scene_state() {
+  m_active_scene.reset();
+  reset_scene_instances();
+}
+
 void SceneManager::ensure_project_state() {
   auto project = active_project();
   if (project == nullptr) {
+    if (!m_loaded_project_id.has_value() && !m_active_scene.has_value() &&
+        m_source_scene_instances.empty() &&
+        m_preview_scene_instances.empty() &&
+        m_runtime_scene_instances.empty()) {
+      return;
+    }
+
     m_loaded_project_id.reset();
-    m_active_scene.reset();
-    m_source_scene_instances.clear();
-    m_preview_scene_instances.clear();
-    m_runtime_scene_instances.clear();
+    clear_scene_state();
     return;
   }
 
@@ -301,10 +329,7 @@ void SceneManager::ensure_project_state() {
   validate_project_scenes(project->get_config());
 
   m_loaded_project_id = static_cast<uint64_t>(project->get_project_id());
-  m_active_scene.reset();
-  m_source_scene_instances.clear();
-  m_preview_scene_instances.clear();
-  m_runtime_scene_instances.clear();
+  clear_scene_state();
 }
 
 void SceneManager::validate_project_scenes(const ProjectConfig &config) const {
@@ -405,6 +430,10 @@ Scene *SceneManager::ensure_instance(
     SceneSessionKind kind,
     bool allow_missing_artifact
 ) {
+  if (!m_scene_activation_enabled) {
+    return nullptr;
+  }
+
   auto *entry = find_scene_entry(scene_id);
   ASTRA_ENSURE(entry == nullptr, "Unknown scene id: ", scene_id);
 
@@ -581,6 +610,10 @@ Scene *SceneManager::ensure_runtime_session(std::string_view scene_id) {
 Scene *SceneManager::activate(std::string scene_id, SceneSessionKind kind) {
   ensure_project_state();
 
+  if (!m_scene_activation_enabled) {
+    return nullptr;
+  }
+
   Scene *scene = nullptr;
   switch (kind) {
     case SceneSessionKind::Source:
@@ -625,6 +658,10 @@ Scene *SceneManager::get_active_scene() {
   ensure_project_state();
 
   if (!m_active_scene.has_value()) {
+    if (!m_scene_activation_enabled) {
+      return nullptr;
+    }
+
     auto project = active_project();
     if (project == nullptr || project->get_config().scenes.startup.empty()) {
       return nullptr;
@@ -648,7 +685,15 @@ Scene *SceneManager::get_active_scene() {
   }
 
   auto it = instances->find(active.id);
-  return it != instances->end() ? it->second.get() : nullptr;
+  if (it != instances->end()) {
+    return it->second.get();
+  }
+
+  if (!m_scene_activation_enabled) {
+    return nullptr;
+  }
+
+  return activate(active.id, active.kind);
 }
 
 std::optional<std::string> SceneManager::get_active_scene_id() {
@@ -941,6 +986,10 @@ void SceneManager::register_console_commands() {
         }
 
         Scene *scene = activate_source(*scene_id);
+        if (scene == nullptr) {
+          return error_result("source scene is not available");
+        }
+
         return success_result({std::string("activated source scene ") + scene->get_scene_id()});
       },
       {"sas"}
@@ -994,6 +1043,10 @@ void SceneManager::register_console_commands() {
         }
 
         Scene *scene = activate_source(*scene_id);
+        if (scene == nullptr) {
+          return error_result("source scene is not available");
+        }
+
         scene->save_source();
         return success_result(
             {std::string("saved source scene ") + scene->get_scene_id()}
