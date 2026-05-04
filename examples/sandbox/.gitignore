@@ -1,0 +1,12 @@
+*.png
+*.tiff
+*.jpg
+*.jpeg
+*.mtlx
+*.bin
+*.fbx
+*.gltf
+*.glb
+*.obj
+*.exr
+*.hdr

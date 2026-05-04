@@ -3,6 +3,7 @@
 #include "astralix/modules/renderer/entities/scene.hpp"
 #include <glm/glm.hpp>
 #include <guid.hpp>
+#include <string>
 
 using namespace astralix;
 
@@ -10,15 +11,19 @@ class RenderBenchmark : public Scene {
 public:
   RenderBenchmark();
 
-  void request_spawn_cube(uint32_t count = 1u) {
-    m_spawn_cube_requests += count;
-  }
   void request_reset_scene() { m_should_reset_scene = true; }
 
+  const std::string &active_model_id() const { return m_active_model_id; }
+  void set_active_model_id(const std::string &model_id) { m_active_model_id = model_id; }
+
 private:
+  void setup() override;
+  void after_preview_ready() override;
+  void after_runtime_ready() override;
   void update_runtime() override;
   void build_source_world() override;
-  uint32_t m_spawn_cube_requests = 0u;
+  void evaluate_build(SceneBuildContext &ctx) override;
+
   bool m_should_reset_scene = false;
-  uint32_t m_spawned_cube_count = 0u;
+  std::string m_active_model_id = "models::sponza_atrium";
 };

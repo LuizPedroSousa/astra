@@ -8,7 +8,7 @@
       "format": "json"
     },
     "scenes": {
-      "startup": "arena",
+      "startup": "render-benchmark",
       "startup_target": "source",
       "entries": [
         {
@@ -52,11 +52,6 @@
       "id": "audio_clips::tense",
       "type": "AudioClip",
       "path": "audios/tense.wav"
-    },
-    {
-      "id": "terrain::highland",
-      "type": "TerrainRecipe",
-      "path": "terrain/highland.axterrain"
     },
     {
       "id": "icons::adjust",
@@ -116,186 +111,47 @@
     {
       "id": "cubemaps::skybox",
       "type": "Texture3D",
-      "faces": [
-        "textures/skybox/right.jpg",
-        "textures/skybox/left.jpg",
-        "textures/skybox/top.jpg",
-        "textures/skybox/bottom.jpg",
-        "textures/skybox/front.jpg",
-        "textures/skybox/back.jpg"
-      ]
+      "equirectangular": "textures/skybox/qwantani_dusk_2_puresky_4k.exr"
+    },
+    {
+      "id": "models::sponza_atrium",
+      "asset": "models/sponza-atrium/sponza.axmodel"
+    },
+    {
+      "id": "models::sponza_curtains",
+      "asset": "models/sponza-intel-curtains/curtains.axmodel"
+    },
+    {
+      "id": "models::bistro_exterior",
+      "asset": "models/bistro/bistro.axmodel"
     },
     {
       "id": "textures::brick::base_color",
-      "type": "Texture2D",
-      "path": "textures/brick/base_color.jpg",
-      "flip": false,
-      "parameters": [
-        {
-          "key": "wrap_s",
-          "value": "linear"
-        },
-        {
-          "key": "wrap_t",
-          "value": "linear"
-        },
-        {
-          "key": "mag_filter",
-          "value": "linear_mip_map"
-        },
-        {
-          "key": "min_filter",
-          "value": "linear"
-        }
-      ]
+      "asset": "textures/brick/base_color.axtexture"
     },
     {
       "id": "textures::brick::normal",
-      "type": "Texture2D",
-      "path": "textures/brick/normal.png",
-      "flip": false,
-      "parameters": [
-        {
-          "key": "wrap_s",
-          "value": "linear"
-        },
-        {
-          "key": "wrap_t",
-          "value": "linear"
-        },
-        {
-          "key": "mag_filter",
-          "value": "linear_mip_map"
-        },
-        {
-          "key": "min_filter",
-          "value": "linear"
-        }
-      ]
+      "asset": "textures/brick/normal.axtexture"
     },
     {
       "id": "textures::brick::metallic",
-      "type": "Texture2D",
-      "path": "textures/brick/metalic.jpg",
-      "flip": false,
-      "parameters": [
-        {
-          "key": "wrap_s",
-          "value": "linear"
-        },
-        {
-          "key": "wrap_t",
-          "value": "linear"
-        },
-        {
-          "key": "mag_filter",
-          "value": "linear_mip_map"
-        },
-        {
-          "key": "min_filter",
-          "value": "linear"
-        }
-      ]
+      "asset": "textures/brick/metallic.axtexture"
     },
     {
       "id": "textures::brick::roughness",
-      "type": "Texture2D",
-      "path": "textures/brick/roughness.jpg",
-      "flip": false,
-      "parameters": [
-        {
-          "key": "wrap_s",
-          "value": "linear"
-        },
-        {
-          "key": "wrap_t",
-          "value": "linear"
-        },
-        {
-          "key": "mag_filter",
-          "value": "linear_mip_map"
-        },
-        {
-          "key": "min_filter",
-          "value": "linear"
-        }
-      ]
+      "asset": "textures/brick/roughness.axtexture"
     },
     {
       "id": "textures::brick::occlusion",
-      "type": "Texture2D",
-      "path": "textures/brick/ambient_occlusion.jpg",
-      "flip": false,
-      "parameters": [
-        {
-          "key": "wrap_s",
-          "value": "linear"
-        },
-        {
-          "key": "wrap_t",
-          "value": "linear"
-        },
-        {
-          "key": "mag_filter",
-          "value": "linear_mip_map"
-        },
-        {
-          "key": "min_filter",
-          "value": "linear"
-        }
-      ]
+      "asset": "textures/brick/occlusion.axtexture"
     },
     {
       "id": "textures::brick::displacement",
-      "type": "Texture2D",
-      "path": "textures/brick/displacement.png",
-      "flip": false,
-      "parameters": [
-        {
-          "key": "wrap_s",
-          "value": "linear"
-        },
-        {
-          "key": "wrap_t",
-          "value": "linear"
-        },
-        {
-          "key": "mag_filter",
-          "value": "linear_mip_map"
-        },
-        {
-          "key": "min_filter",
-          "value": "linear"
-        }
-      ]
+      "asset": "textures/brick/displacement.axtexture"
     },
     {
       "id": "materials::brick",
-      "type": "Material",
-      "textures": {
-        "base_color": "textures::brick::base_color",
-        "normal": "textures::brick::normal",
-        "metallic": "textures::brick::metallic",
-        "roughness": "textures::brick::roughness",
-        "occlusion": "textures::brick::occlusion",
-        "displacement": "textures::brick::displacement"
-      },
-      "base_color_factor": {
-        "x": 1.0,
-        "y": 1.0,
-        "z": 1.0,
-        "w": 1.0
-      },
-      "emissive_factor": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 0.0
-      },
-      "metallic_factor": 1.0,
-      "roughness_factor": 1.0,
-      "occlusion_strength": 1.0,
-      "normal_scale": 1.0,
-      "bloom_intensity": 0.0
+      "asset": "materials/brick.axmaterial"
     },
     {
       "id": "shaders::post_processing",
@@ -316,6 +172,16 @@
       "fragment": "@engine/shaders/bloom.axsl"
     },
     {
+      "id": "shaders::eye_adaptation_histogram",
+      "type": "Shader",
+      "compute": "@engine/shaders/eye-adaptation-histogram.axsl"
+    },
+    {
+      "id": "shaders::eye_adaptation_average",
+      "type": "Shader",
+      "compute": "@engine/shaders/eye-adaptation-average.axsl"
+    },
+    {
       "id": "shaders::lighting",
       "type": "Shader",
       "vertex": "@engine/shaders/light.axsl",
@@ -332,6 +198,54 @@
       "type": "Shader",
       "vertex": "@engine/shaders/ssao-blur.axsl",
       "fragment": "@engine/shaders/ssao-blur.axsl"
+    },
+    {
+      "id": "shaders::ssgi",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssgi.axsl",
+      "fragment": "@engine/shaders/ssgi.axsl"
+    },
+    {
+      "id": "shaders::ssgi_blur",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssgi-blur.axsl",
+      "fragment": "@engine/shaders/ssgi-blur.axsl"
+    },
+    {
+      "id": "shaders::ssgi_temporal",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssgi-temporal.axsl",
+      "fragment": "@engine/shaders/ssgi-temporal.axsl"
+    },
+    {
+      "id": "shaders::ssgi_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssgi-composite.axsl",
+      "fragment": "@engine/shaders/ssgi-composite.axsl"
+    },
+    {
+      "id": "shaders::ssgi_history_store",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssgi-history-store.axsl",
+      "fragment": "@engine/shaders/ssgi-history-store.axsl"
+    },
+    {
+      "id": "shaders::ssr",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssr.axsl",
+      "fragment": "@engine/shaders/ssr.axsl"
+    },
+    {
+      "id": "shaders::ssr_blur",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssr-blur.axsl",
+      "fragment": "@engine/shaders/ssr-blur.axsl"
+    },
+    {
+      "id": "shaders::ssr_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ssr-composite.axsl",
+      "fragment": "@engine/shaders/ssr-composite.axsl"
     },
     {
       "id": "shaders::lighting_forward",
@@ -364,6 +278,12 @@
       "fragment": "@engine/shaders/ui/polyline.axsl"
     },
     {
+      "id": "shaders::ui_vector",
+      "type": "Shader",
+      "vertex": "@engine/shaders/ui/vector.axsl",
+      "fragment": "@engine/shaders/ui/vector.axsl"
+    },
+    {
       "id": "shaders::terrain",
       "type": "Shader",
       "vertex": "@engine/shaders/terrain.axsl",
@@ -374,6 +294,12 @@
       "type": "Shader",
       "vertex": "@engine/shaders/g_buffer.axsl",
       "fragment": "@engine/shaders/g_buffer.axsl"
+    },
+    {
+      "id": "shaders::g_buffer_blend",
+      "type": "Shader",
+      "vertex": "@engine/shaders/g_buffer_blend.axsl",
+      "fragment": "@engine/shaders/g_buffer_blend.axsl"
     },
     {
       "id": "shaders::skybox",
@@ -416,8 +342,988 @@
       "type": "Shader",
       "vertex": "@engine/shaders/glyph.axsl",
       "fragment": "@engine/shaders/glyph.axsl"
+    },
+    {
+      "id": "shaders::volumetric_fog",
+      "type": "Shader",
+      "vertex": "@engine/shaders/volumetric-fog.axsl",
+      "fragment": "@engine/shaders/volumetric-fog.axsl"
+    },
+    {
+      "id": "shaders::volumetric_blur",
+      "type": "Shader",
+      "vertex": "@engine/shaders/volumetric-blur.axsl",
+      "fragment": "@engine/shaders/volumetric-blur.axsl"
+    },
+    {
+      "id": "shaders::volumetric_temporal",
+      "type": "Shader",
+      "vertex": "@engine/shaders/volumetric-temporal.axsl",
+      "fragment": "@engine/shaders/volumetric-temporal.axsl"
+    },
+    {
+      "id": "shaders::volumetric_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/volumetric-composite.axsl",
+      "fragment": "@engine/shaders/volumetric-composite.axsl"
+    },
+    {
+      "id": "shaders::volumetric_history_store",
+      "type": "Shader",
+      "vertex": "@engine/shaders/volumetric-history-store.axsl",
+      "fragment": "@engine/shaders/volumetric-history-store.axsl"
+    },
+    {
+      "id": "shaders::lens_flare",
+      "type": "Shader",
+      "vertex": "@engine/shaders/lens-flare.axsl",
+      "fragment": "@engine/shaders/lens-flare.axsl"
+    },
+    {
+      "id": "shaders::lens_flare_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/lens-flare-composite.axsl",
+      "fragment": "@engine/shaders/lens-flare-composite.axsl"
+    },
+    {
+      "id": "shaders::motion_blur",
+      "type": "Shader",
+      "vertex": "@engine/shaders/motion-blur.axsl",
+      "fragment": "@engine/shaders/motion-blur.axsl"
+    },
+    {
+      "id": "shaders::motion_blur_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/motion-blur-composite.axsl",
+      "fragment": "@engine/shaders/motion-blur-composite.axsl"
+    },
+    {
+      "id": "shaders::chromatic_aberration",
+      "type": "Shader",
+      "vertex": "@engine/shaders/chromatic-aberration.axsl",
+      "fragment": "@engine/shaders/chromatic-aberration.axsl"
+    },
+    {
+      "id": "shaders::chromatic_aberration_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/chromatic-aberration-composite.axsl",
+      "fragment": "@engine/shaders/chromatic-aberration-composite.axsl"
+    },
+    {
+      "id": "shaders::vignette",
+      "type": "Shader",
+      "vertex": "@engine/shaders/vignette.axsl",
+      "fragment": "@engine/shaders/vignette.axsl"
+    },
+    {
+      "id": "shaders::vignette_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/vignette-composite.axsl",
+      "fragment": "@engine/shaders/vignette-composite.axsl"
+    },
+    {
+      "id": "shaders::film_grain",
+      "type": "Shader",
+      "vertex": "@engine/shaders/film-grain.axsl",
+      "fragment": "@engine/shaders/film-grain.axsl"
+    },
+    {
+      "id": "shaders::film_grain_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/film-grain-composite.axsl",
+      "fragment": "@engine/shaders/film-grain-composite.axsl"
+    },
+    {
+      "id": "shaders::depth_of_field",
+      "type": "Shader",
+      "vertex": "@engine/shaders/depth-of-field.axsl",
+      "fragment": "@engine/shaders/depth-of-field.axsl"
+    },
+    {
+      "id": "shaders::depth_of_field_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/depth-of-field-composite.axsl",
+      "fragment": "@engine/shaders/depth-of-field-composite.axsl"
+    },
+    {
+      "id": "shaders::god_rays",
+      "type": "Shader",
+      "vertex": "@engine/shaders/god-rays.axsl",
+      "fragment": "@engine/shaders/god-rays.axsl"
+    },
+    {
+      "id": "shaders::god_rays_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/god-rays-composite.axsl",
+      "fragment": "@engine/shaders/god-rays-composite.axsl"
+    },
+    {
+      "id": "shaders::taa_resolve",
+      "type": "Shader",
+      "vertex": "@engine/shaders/taa-resolve.axsl",
+      "fragment": "@engine/shaders/taa-resolve.axsl"
+    },
+    {
+      "id": "shaders::taa_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/taa-composite.axsl",
+      "fragment": "@engine/shaders/taa-composite.axsl"
+    },
+    {
+      "id": "shaders::taa_history_store",
+      "type": "Shader",
+      "vertex": "@engine/shaders/taa-history-store.axsl",
+      "fragment": "@engine/shaders/taa-history-store.axsl"
+    },
+    {
+      "id": "shaders::cas",
+      "type": "Shader",
+      "vertex": "@engine/shaders/cas.axsl",
+      "fragment": "@engine/shaders/cas.axsl"
+    },
+    {
+      "id": "shaders::cas_composite",
+      "type": "Shader",
+      "vertex": "@engine/shaders/cas-composite.axsl",
+      "fragment": "@engine/shaders/cas-composite.axsl"
     }
   ],
+  "render_graph": {
+    "resources": {
+      "shadow_map": {
+        "format": "depth32f",
+        "size": "window",
+        "usage": ["depth_stencil_attachment", "sampled"]
+      },
+      "scene_color": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "scene_depth": {
+        "format": "depth32f",
+        "size": "window",
+        "usage": ["depth_stencil_attachment"]
+      },
+      "bloom_extract": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "entity_pick": {
+        "format": "r32i",
+        "size": "window",
+        "usage": ["color_attachment", "transfer_src"]
+      },
+      "bloom": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "present": {
+        "format": "rgba8",
+        "size": "window",
+        "usage": ["color_attachment", "sampled", "transfer_src"]
+      },
+      "g_position": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "g_normal": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "g_geometric_normal": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "g_albedo": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "g_emissive": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "g_entity_id": {
+        "format": "r32i",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "g_velocity": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "ssao": {
+        "format": "rgba8",
+        "size": { "source": "window", "op": "divide", "value": 2 },
+        "usage": ["color_attachment", "sampled"]
+      },
+      "ssao_blur": {
+        "format": "rgba8",
+        "size": { "source": "window", "op": "divide", "value": 2 },
+        "usage": ["color_attachment", "sampled"]
+      },
+      "ssgi": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "ssgi_blur": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "ssgi_temporal": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "ssgi_history": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"],
+        "lifetime": "persistent"
+      },
+      "ssr": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "ssr_blur": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "volumetric_fog": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "volumetric_blur_h": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "volumetric_blur": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "volumetric_temporal": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "volumetric_history": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"],
+        "lifetime": "persistent"
+      },
+      "lens_flare": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "motion_blur": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "chromatic_aberration": {
+        "format": "rgba8",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "vignette": {
+        "format": "rgba8",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "film_grain": {
+        "format": "rgba8",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "depth_of_field": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "god_rays": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "taa_output": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      },
+      "taa_history": {
+        "format": "rgba16f",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"],
+        "lifetime": "persistent"
+      },
+      "cas": {
+        "format": "rgba8",
+        "size": "window",
+        "usage": ["color_attachment", "sampled"]
+      }
+    },
+    "passes": [
+      {
+        "id": "shadow",
+        "type": "builtin::shadow",
+        "dependencies": {
+          "shaders": { "shadow_shader": "shaders::shadow_map" }
+        },
+        "use": [
+          { "resource": "shadow_map", "aspect": "depth", "usage": "depth_attachment_write" }
+        ]
+      },
+      {
+        "id": "geometry",
+        "type": "builtin::geometry",
+        "dependencies": {
+          "shaders": { "geometry_shader": "shaders::g_buffer" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "g_geometric_normal", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "g_albedo", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "g_emissive", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "g_velocity", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "scene_depth", "aspect": "depth", "usage": "depth_attachment_write" }
+        ]
+      },
+      {
+        "id": "gbuffer_blend",
+        "type": "builtin::gbuffer_blend",
+        "dependencies": {
+          "shaders": { "gbuffer_blend_shader": "shaders::g_buffer_blend" }
+        },
+        "use": [
+          { "resource": "g_albedo", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "scene_depth", "aspect": "depth", "usage": "depth_attachment_read" }
+        ]
+      },
+      {
+        "id": "ssao",
+        "type": "builtin::ssao",
+        "dependencies": {
+          "shaders": { "ssao_shader": "shaders::ssao" },
+          "textures": { "noise_texture": "noise_texture" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssao", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssao_blur",
+        "type": "builtin::ssao_blur",
+        "dependencies": {
+          "shaders": { "ssao_blur_shader": "shaders::ssao_blur" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssao", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssao_blur", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "lighting",
+        "type": "builtin::lighting",
+        "dependencies": {
+          "shaders": { "lighting_shader": "shaders::lighting" }
+        },
+        "use": [
+          { "resource": "shadow_map", "aspect": "depth", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_geometric_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_albedo", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_emissive", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssao_blur", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "bloom_extract", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "entity_pick", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "volumetric_fog",
+        "type": "builtin::volumetric_fog",
+        "dependencies": {
+          "shaders": { "volumetric_fog_shader": "shaders::volumetric_fog" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "shadow_map", "aspect": "depth", "usage": "sampled_read" },
+          { "resource": "volumetric_fog", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "volumetric_blur_h",
+        "type": "builtin::volumetric_blur_h",
+        "dependencies": {
+          "shaders": { "volumetric_blur_shader": "shaders::volumetric_blur" }
+        },
+        "use": [
+          { "resource": "volumetric_fog", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "volumetric_blur_h", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "volumetric_blur_v",
+        "type": "builtin::volumetric_blur_v",
+        "dependencies": {
+          "shaders": { "volumetric_blur_shader": "shaders::volumetric_blur" }
+        },
+        "use": [
+          { "resource": "volumetric_blur_h", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "volumetric_blur", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "volumetric_temporal",
+        "type": "builtin::volumetric_temporal",
+        "dependencies": {
+          "shaders": { "volumetric_temporal_shader": "shaders::volumetric_temporal" }
+        },
+        "use": [
+          { "resource": "volumetric_blur", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "volumetric_history", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "volumetric_temporal", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "volumetric_history_store",
+        "type": "builtin::volumetric_history_store",
+        "dependencies": {
+          "shaders": { "volumetric_history_store_shader": "shaders::volumetric_history_store" }
+        },
+        "use": [
+          { "resource": "volumetric_temporal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "volumetric_history", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "volumetric_composite",
+        "type": "builtin::volumetric_composite",
+        "dependencies": {
+          "shaders": { "volumetric_composite_shader": "shaders::volumetric_composite" }
+        },
+        "use": [
+          { "resource": "volumetric_temporal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssr",
+        "type": "builtin::ssr",
+        "dependencies": {
+          "shaders": { "ssr_shader": "shaders::ssr" },
+          "textures": { "noise_texture": "noise_texture" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssr", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssr_blur",
+        "type": "builtin::ssr_blur",
+        "dependencies": {
+          "shaders": { "ssr_blur_shader": "shaders::ssr_blur" }
+        },
+        "use": [
+          { "resource": "ssr", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssr_blur", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssr_composite",
+        "type": "builtin::ssr_composite",
+        "dependencies": {
+          "shaders": { "ssr_composite_shader": "shaders::ssr_composite" }
+        },
+        "use": [
+          { "resource": "ssr_blur", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssgi",
+        "type": "builtin::ssgi",
+        "dependencies": {
+          "shaders": { "ssgi_shader": "shaders::ssgi" },
+          "textures": { "noise_texture": "noise_texture" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_geometric_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_albedo", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssgi_history", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssgi", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssgi_blur",
+        "type": "builtin::ssgi_blur",
+        "dependencies": {
+          "shaders": { "ssgi_blur_shader": "shaders::ssgi_blur" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssgi", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssgi_blur", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssgi_temporal",
+        "type": "builtin::ssgi_temporal",
+        "dependencies": {
+          "shaders": { "ssgi_temporal_shader": "shaders::ssgi_temporal" }
+        },
+        "use": [
+          { "resource": "ssgi_blur", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssgi_history", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_geometric_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_velocity", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssgi_temporal", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssgi_composite",
+        "type": "builtin::ssgi_composite",
+        "dependencies": {
+          "shaders": { "ssgi_composite_shader": "shaders::ssgi_composite" }
+        },
+        "use": [
+          { "resource": "ssgi_temporal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_entity_id", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ssgi_history_store",
+        "type": "builtin::ssgi_history_store",
+        "dependencies": {
+          "shaders": { "ssgi_history_store_shader": "shaders::ssgi_history_store" }
+        },
+        "use": [
+          { "resource": "ssgi_temporal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "ssgi_history", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "debug_gbuffer",
+        "type": "builtin::debug_gbuffer",
+        "dependencies": {
+          "shaders": { "debug_g_buffer_shader": "shaders::debug_g_buffer" }
+        },
+        "use": [
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_normal", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_albedo", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_emissive", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "terrain",
+        "type": "builtin::terrain",
+        "dependencies": {
+          "shaders": { "terrain_shader": "shaders::terrain" }
+        },
+        "use": [
+          { "resource": "shadow_map", "aspect": "depth", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "scene_depth", "aspect": "depth", "usage": "depth_attachment_write" }
+        ]
+      },
+      {
+        "id": "skybox",
+        "type": "builtin::skybox",
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "scene_depth", "aspect": "depth", "usage": "depth_attachment_read" }
+        ]
+      },
+      {
+        "id": "grid",
+        "type": "builtin::grid",
+        "dependencies": {
+          "shaders": { "grid_shader": "shaders::grid" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "scene_depth", "aspect": "depth", "usage": "depth_attachment_read" }
+        ]
+      },
+      {
+        "id": "debug_overlay",
+        "type": "builtin::debug_overlay",
+        "dependencies": {
+          "shaders": { "debug_depth_shader": "shaders::debug_depth" }
+        },
+        "use": [
+          { "resource": "shadow_map", "aspect": "depth", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "entity_pick_readback",
+        "type": "builtin::entity_pick_readback",
+        "use": [
+          { "resource": "entity_pick", "aspect": "color0", "usage": "transfer_src" }
+        ]
+      },
+      {
+        "id": "bloom",
+        "type": "builtin::bloom",
+        "dependencies": {
+          "shaders": { "bloom_shader": "shaders::bloom" }
+        },
+        "use": [
+          { "resource": "bloom_extract", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "bloom", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "lens_flare",
+        "type": "builtin::lens_flare",
+        "dependencies": {
+          "shaders": { "lens_flare_shader": "shaders::lens_flare" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "lens_flare", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "lens_flare_composite",
+        "type": "builtin::lens_flare_composite",
+        "dependencies": {
+          "shaders": { "lens_flare_composite_shader": "shaders::lens_flare_composite" }
+        },
+        "use": [
+          { "resource": "lens_flare", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "god_rays",
+        "type": "builtin::god_rays",
+        "dependencies": {
+          "shaders": { "god_rays_shader": "shaders::god_rays" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "god_rays", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "god_rays_composite",
+        "type": "builtin::god_rays_composite",
+        "dependencies": {
+          "shaders": { "god_rays_composite_shader": "shaders::god_rays_composite" }
+        },
+        "use": [
+          { "resource": "god_rays", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "motion_blur",
+        "type": "builtin::motion_blur",
+        "dependencies": {
+          "shaders": { "motion_blur_shader": "shaders::motion_blur" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_velocity", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "motion_blur", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "motion_blur_composite",
+        "type": "builtin::motion_blur_composite",
+        "dependencies": {
+          "shaders": { "motion_blur_composite_shader": "shaders::motion_blur_composite" }
+        },
+        "use": [
+          { "resource": "motion_blur", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "taa_resolve",
+        "type": "builtin::taa_resolve",
+        "dependencies": {
+          "shaders": { "taa_resolve_shader": "shaders::taa_resolve" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "taa_history", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_velocity", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "taa_output", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "taa_composite",
+        "type": "builtin::taa_composite",
+        "dependencies": {
+          "shaders": { "taa_composite_shader": "shaders::taa_composite" }
+        },
+        "use": [
+          { "resource": "taa_output", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "taa_history_store",
+        "type": "builtin::taa_history_store",
+        "dependencies": {
+          "shaders": { "taa_history_store_shader": "shaders::taa_history_store" }
+        },
+        "use": [
+          { "resource": "taa_output", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "taa_history", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "depth_of_field",
+        "type": "builtin::depth_of_field",
+        "dependencies": {
+          "shaders": { "depth_of_field_shader": "shaders::depth_of_field" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "g_position", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "depth_of_field", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "depth_of_field_composite",
+        "type": "builtin::depth_of_field_composite",
+        "dependencies": {
+          "shaders": { "depth_of_field_composite_shader": "shaders::depth_of_field_composite" }
+        },
+        "use": [
+          { "resource": "depth_of_field", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "eye_adaptation_histogram",
+        "type": "builtin::eye_adaptation_histogram",
+        "dependencies": {
+          "shaders": {
+            "eye_adaptation_histogram_shader": "shaders::eye_adaptation_histogram"
+          }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" }
+        ]
+      },
+      {
+        "id": "eye_adaptation_average",
+        "type": "builtin::eye_adaptation_average",
+        "dependencies": {
+          "shaders": {
+            "eye_adaptation_average_shader": "shaders::eye_adaptation_average"
+          }
+        },
+        "use": []
+      },
+      {
+        "id": "editor_gizmo",
+        "type": "builtin::editor_gizmo",
+        "dependencies": {
+          "shaders": { "editor_gizmo_shader": "shaders::editor_gizmo" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "debug_draw",
+        "type": "builtin::debug_draw",
+        "dependencies": {
+          "shaders": { "debug_draw_shader": "shaders::editor_gizmo" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" },
+          { "resource": "scene_depth", "aspect": "depth", "usage": "depth_attachment_read" }
+        ]
+      },
+      {
+        "id": "navigation_gizmo",
+        "type": "builtin::navigation_gizmo",
+        "dependencies": {
+          "shaders": { "navigation_gizmo_shader": "shaders::editor_gizmo" }
+        },
+        "use": [
+          { "resource": "scene_color", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "postprocess",
+        "type": "builtin::post_process",
+        "dependencies": {
+          "shaders": { "hdr_shader": "shaders::hdr" }
+        },
+        "use": [
+          { "resource": "bloom", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "scene_color", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "present", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "cas",
+        "type": "builtin::cas",
+        "dependencies": {
+          "shaders": { "cas_shader": "shaders::cas" }
+        },
+        "use": [
+          { "resource": "present", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "cas", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "cas_composite",
+        "type": "builtin::cas_composite",
+        "dependencies": {
+          "shaders": { "cas_composite_shader": "shaders::cas_composite" }
+        },
+        "use": [
+          { "resource": "cas", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "present", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "chromatic_aberration",
+        "type": "builtin::chromatic_aberration",
+        "dependencies": {
+          "shaders": { "chromatic_aberration_shader": "shaders::chromatic_aberration" }
+        },
+        "use": [
+          { "resource": "present", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "chromatic_aberration", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "chromatic_aberration_composite",
+        "type": "builtin::chromatic_aberration_composite",
+        "dependencies": {
+          "shaders": { "chromatic_aberration_composite_shader": "shaders::chromatic_aberration_composite" }
+        },
+        "use": [
+          { "resource": "chromatic_aberration", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "present", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "vignette",
+        "type": "builtin::vignette",
+        "dependencies": {
+          "shaders": { "vignette_shader": "shaders::vignette" }
+        },
+        "use": [
+          { "resource": "present", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "vignette", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "vignette_composite",
+        "type": "builtin::vignette_composite",
+        "dependencies": {
+          "shaders": { "vignette_composite_shader": "shaders::vignette_composite" }
+        },
+        "use": [
+          { "resource": "vignette", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "present", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "film_grain",
+        "type": "builtin::film_grain",
+        "dependencies": {
+          "shaders": { "film_grain_shader": "shaders::film_grain" }
+        },
+        "use": [
+          { "resource": "present", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "film_grain", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "film_grain_composite",
+        "type": "builtin::film_grain_composite",
+        "dependencies": {
+          "shaders": { "film_grain_composite_shader": "shaders::film_grain_composite" }
+        },
+        "use": [
+          { "resource": "film_grain", "aspect": "color0", "usage": "sampled_read" },
+          { "resource": "present", "aspect": "color0", "usage": "color_attachment_write" }
+        ]
+      },
+      {
+        "id": "ui",
+        "type": "builtin::ui",
+        "dependencies": {
+          "shaders": {
+            "ui_solid": "shaders::ui_solid",
+            "ui_image": "shaders::ui_image",
+            "ui_text": "shaders::ui_text",
+            "ui_polyline": "shaders::ui_polyline",
+            "ui_vector": "shaders::ui_vector"
+          }
+        },
+        "use": [
+          { "resource": "present", "aspect": "color0", "usage": "color_attachment_write" }
+        ],
+        "present": { "resource": "present", "aspect": "color0" }
+      }
+    ]
+  },
   "systems": [
     {
       "name": "physics",
@@ -457,6 +1363,126 @@
       "content": {
         "backend": "opengl",
         "strategy": "deferred",
+        "headless": false,
+        "msaa": {
+          "samples": 4,
+          "is_enabled": true
+        },
+        "ssao": {
+          "full_resolution": false
+        },
+        "ssgi": {
+          "enabled": true,
+          "full_resolution": true,
+          "intensity": 0.5,
+          "radius": 3.0,
+          "thickness": 0.8,
+          "directions": 8,
+          "steps_per_direction": 8,
+          "max_distance": 0.25,
+          "temporal": true,
+          "history_weight": 0.85,
+          "normal_reject_dot": 0.8,
+          "position_reject_distance": 0.35
+        },
+        "ssr": {
+          "enabled": true,
+          "intensity": 0.5,
+          "max_distance": 5,
+          "thickness": 0.1,
+          "max_steps": 64,
+          "stride": 1.0,
+          "roughness_cutoff": 0.7
+        },
+        "volumetric": {
+          "enabled": false,
+          "max_steps": 16,
+          "density": 0.05,
+          "scattering": 0.9,
+          "max_distance": 10,
+          "intensity": 0.8,
+          "fog_base_height": 0.0,
+          "height_falloff_rate": 0.25,
+          "noise_scale": 0.2,
+          "noise_weight": 0.25,
+          "wind_direction": [0.0, 0.0, 0.0],
+          "wind_speed": 0.25,
+          "temporal": true,
+          "temporal_blend_weight": 0.85
+        },
+        "lens_flare": {
+          "enabled": false,
+          "intensity": 0.02,
+          "threshold": 0.9,
+          "ghost_count": 1,
+          "ghost_dispersal": 0.1,
+          "ghost_weight": 0.5,
+          "halo_radius": 0.6,
+          "halo_weight": 0.25,
+          "halo_thickness": 0.1,
+          "chromatic_aberration": 0.02
+        },
+        "eye_adaptation": {
+          "enabled": true,
+          "min_log_luminance": -8.0,
+          "max_log_luminance": 4.0,
+          "adaptation_speed_up": 3.0,
+          "adaptation_speed_down": 1.0,
+          "key_value": 0.18,
+          "low_percentile": 0.05,
+          "high_percentile": 0.95
+        },
+        "motion_blur": {
+          "enabled": true,
+          "intensity": 1.0,
+          "max_samples": 16,
+          "depth_threshold": 5.0
+        },
+        "chromatic_aberration": {
+          "enabled": false,
+          "intensity": 0.005
+        },
+        "vignette": {
+          "enabled": true,
+          "intensity": 0.5,
+          "smoothness": 0.5,
+          "roundness": 1.0
+        },
+        "film_grain": {
+          "enabled": false,
+          "intensity": 0.1
+        },
+        "depth_of_field": {
+          "enabled": false,
+          "focus_distance": 10.0,
+          "focus_range": 5.0,
+          "max_blur_radius": 5.0,
+          "sample_count": 16
+        },
+        "god_rays": {
+          "enabled": false,
+          "intensity": 1.0,
+          "decay": 0.96,
+          "density": 0.5,
+          "weight": 0.4,
+          "threshold": 0.8,
+          "samples": 64
+        },
+        "cas": {
+          "enabled": false,
+          "sharpness": 0.5,
+          "contrast": 0.0,
+          "sharpening_limit": 0.25
+        },
+        "taa": {
+          "enabled": false,
+          "blend_factor": 0.1
+        },
+        "tonemapping": {
+          "tonemap_operator": 1,
+          "gamma": 2.2,
+          "bloom_strength": 0.04
+        },
         "window": "main"
       }
     }

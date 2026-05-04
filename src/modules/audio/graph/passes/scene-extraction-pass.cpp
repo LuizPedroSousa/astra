@@ -9,13 +9,31 @@ namespace astralix::audio {
 
 void SceneExtractionPass::process(AudioFrame &frame, AudioBackend &backend) {
   (void)backend;
-  (void)SceneManager::get()->flush_pending_active_scene_state();
+  auto scene_manager = SceneManager::get();
+  if (scene_manager == nullptr) {
+    frame.scene_state = {.active = false};
+    m_tracked_scene = nullptr;
+    m_tracked_revision = 0;
+    m_tracked_generation = 0;
+    return;
+  }
 
-  auto *active_scene = SceneManager::get()->get_active_scene();
+  (void)scene_manager->flush_pending_active_scene_state();
+
+  const uint64_t scene_generation =
+      scene_manager->scene_instance_generation();
+  const bool generation_changed = m_tracked_generation != scene_generation;
+  if (generation_changed) {
+    m_tracked_scene = nullptr;
+    m_tracked_revision = 0;
+  }
+
+  auto *active_scene = scene_manager->get_active_scene();
   if (active_scene == nullptr) {
     frame.scene_state = {.active = false};
     m_tracked_scene = nullptr;
     m_tracked_revision = 0;
+    m_tracked_generation = scene_generation;
     return;
   }
 
@@ -27,14 +45,17 @@ void SceneExtractionPass::process(AudioFrame &frame, AudioBackend &backend) {
     frame.scene_state = {.active = false};
     m_tracked_scene = nullptr;
     m_tracked_revision = 0;
+    m_tracked_generation = scene_generation;
     return;
   }
 
-  bool scene_changed = (m_tracked_scene != active_scene) ||
+  bool scene_changed = generation_changed ||
+                       (m_tracked_scene != active_scene) ||
                        (m_tracked_revision != active_scene->get_session_revision());
 
   m_tracked_scene = active_scene;
   m_tracked_revision = active_scene->get_session_revision();
+  m_tracked_generation = scene_generation;
 
   frame.scene_state = {
       .active = true,

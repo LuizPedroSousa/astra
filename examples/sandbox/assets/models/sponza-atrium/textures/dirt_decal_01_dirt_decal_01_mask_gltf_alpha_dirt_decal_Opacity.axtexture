@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "kind": "texture2d",
+  "source": "../source/glTF/textures/dirt_decal_01_dirt_decal_01_mask_gltf_alpha_dirt_decal_Opacity.png",
+  "flip": false,
+  "parameters": {
+    "wrap_s": "repeat",
+    "wrap_t": "repeat",
+    "min_filter": "linear_mip_map",
+    "mag_filter": "linear"
+  }
+}

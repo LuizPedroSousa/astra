@@ -26,7 +26,17 @@ public:
 
   virtual const SubgraphOutputData *get_output(const std::string &port_name) const = 0;
 
+  void request_process() { m_demand_requested = true; }
+  bool consume_process_request() {
+    bool requested = m_demand_requested;
+    m_demand_requested = false;
+    return requested;
+  }
+
   bool enabled = true;
+
+private:
+  bool m_demand_requested = false;
 };
 
 } // namespace astralix::terrain

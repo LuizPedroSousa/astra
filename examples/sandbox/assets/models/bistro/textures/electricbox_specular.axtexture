@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "kind": "texture2d",
+  "source": "../source/textures/electricbox_specular.png",
+  "flip": false,
+  "parameters": {
+    "wrap_s": "repeat",
+    "wrap_t": "repeat",
+    "min_filter": "linear_mip_map",
+    "mag_filter": "linear"
+  }
+}

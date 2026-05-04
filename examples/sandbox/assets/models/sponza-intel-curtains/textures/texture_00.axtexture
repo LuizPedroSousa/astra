@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "source": "../source/glTF/textures/metal_door_01_Normal.png",
+  "flip": true,
+  "parameters": {
+    "wrap_s": "repeat",
+    "wrap_t": "repeat",
+    "min_filter": "linear_mip_map",
+    "mag_filter": "linear"
+  }
+}

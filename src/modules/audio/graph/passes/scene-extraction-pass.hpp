@@ -21,6 +21,7 @@ private:
 
   Scene *m_tracked_scene = nullptr;
   uint64_t m_tracked_revision = 0;
+  uint64_t m_tracked_generation = 0;
 };
 
 } // namespace astralix::audio

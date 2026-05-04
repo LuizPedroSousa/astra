@@ -192,13 +192,32 @@ void PhysicsSystem::fixed_update(double fixed_dt) {
     return;
   }
 
-  (void)SceneManager::get()->flush_pending_active_scene_state();
+  auto scene_manager = SceneManager::get();
+  if (scene_manager == nullptr) {
+    clear_registered_actors(m_actors);
+    m_registered_scene = nullptr;
+    m_registered_scene_revision = 0u;
+    m_registered_scene_generation = 0u;
+    return;
+  }
 
-  auto active_scene = SceneManager::get()->get_active_scene();
+  (void)scene_manager->flush_pending_active_scene_state();
+
+  const uint64_t scene_generation =
+      scene_manager->scene_instance_generation();
+  if (m_registered_scene_generation != scene_generation) {
+    clear_registered_actors(m_actors);
+    m_registered_scene = nullptr;
+    m_registered_scene_revision = 0u;
+    m_registered_scene_generation = scene_generation;
+  }
+
+  auto active_scene = scene_manager->get_active_scene();
   if (active_scene == nullptr) {
     clear_registered_actors(m_actors);
     m_registered_scene = nullptr;
     m_registered_scene_revision = 0u;
+    m_registered_scene_generation = scene_generation;
     return;
   }
 
@@ -207,6 +226,7 @@ void PhysicsSystem::fixed_update(double fixed_dt) {
     clear_registered_actors(m_actors);
     m_registered_scene = nullptr;
     m_registered_scene_revision = 0u;
+    m_registered_scene_generation = scene_generation;
     return;
   }
 
@@ -349,5 +369,6 @@ PhysicsSystem::~PhysicsSystem() {
   }
 
   m_registered_scene = nullptr;
+  m_registered_scene_generation = 0u;
 }
 } // namespace astralix

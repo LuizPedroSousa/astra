@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "textures": {
+    "base_color": "../textures/ceiling_plaster_02_BaseColor.axtexture",
+    "metallic_roughness": "../textures/ceiling_plaster_02_Roughnessceiling_plaster_01_Metalness.axtexture",
+    "normal": "../textures/ceiling_plaster_01_Normal.axtexture"
+  },
+  "base_color_factor": {
+    "x": 1,
+    "y": 1,
+    "z": 1,
+    "w": 1
+  },
+  "emissive_factor": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "metallic_factor": 1.0,
+  "roughness_factor": 1.0,
+  "occlusion_strength": 1.0,
+  "normal_scale": 1.0,
+  "height_scale": 0.0,
+  "bloom_intensity": 0.0
+}

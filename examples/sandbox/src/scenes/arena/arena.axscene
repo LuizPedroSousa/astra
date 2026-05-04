@@ -218,9 +218,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -34.7867241,
-              "y": 56.9382019,
-              "z": 0.415627331
+              "x": -5.25839758,
+              "y": 4.79419947,
+              "z": 4.0785327
             },
             "scale": {
               "x": 1,
@@ -245,9 +245,9 @@
               "z": 0
             },
             "front": {
-              "x": 0.553325713,
-              "y": -0.832937539,
-              "z": -0.00676055951
+              "x": 0.703321815,
+              "y": 0.0139628481,
+              "z": -0.710734487
             },
             "rotation": {
               "x": 0,
@@ -255,9 +255,9 @@
               "z": 0
             },
             "direction": {
-              "x": 0.553325713,
-              "y": -0.832937539,
-              "z": -0.00676055951
+              "x": 0.703321815,
+              "y": 0.0139628481,
+              "z": -0.710734487
             },
             "fov_degrees": 45,
             "near_plane": 0.100000001,
@@ -270,8 +270,8 @@
           "type": "CameraController",
           "fields": {
             "mode": "free",
-            "yaw": -0.700007677,
-            "pitch": -56.4016876,
+            "yaw": -45.3003502,
+            "pitch": 0.800038278,
             "speed": 8,
             "sensitivity": 0.100000001,
             "orbit_distance": 5,
@@ -411,7 +411,7 @@
           "fields": {
             "position": {
               "x": 3.75,
-              "y": 7.5,
+              "y": 4.13160324,
               "z": 2.5
             },
             "scale": {
@@ -499,7 +499,7 @@
             "position": {
               "x": 0,
               "y": 3.75,
-              "z": -19.4477577
+              "z": -20.5
             },
             "scale": {
               "x": 40,
@@ -528,7 +528,7 @@
             "position": {
               "x": 0,
               "y": 3.75,
-              "z": 19.4829407
+              "z": 20.5
             },
             "scale": {
               "x": 40,
@@ -555,7 +555,7 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -20.5953903,
+              "x": -20.5,
               "y": 3.75,
               "z": 0
             },
@@ -724,7 +724,7 @@
   "entities": [
     {
       "active": true,
-      "id": "8244983123996329122",
+      "id": "2035310738596409802",
       "name": "Point Light",
       "tags": [
         "SceneEntity"
@@ -734,9 +734,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -15.6614056,
-              "y": 0,
-              "z": -18.3682289
+              "x": -12.000289,
+              "y": 8.39942551,
+              "z": 8.92448044
             },
             "scale": {
               "x": 1,
@@ -757,7 +757,60 @@
           "fields": {
             "type": "point",
             "color": {
-              "x": 0.5,
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "intensity": 10,
+            "casts_shadows": true
+          }
+        },
+        {
+          "type": "PointLightAttenuation",
+          "fields": {
+            "constant": 1,
+            "linear": 0.0450000018,
+            "quadratic": 0.00749999983
+          }
+        }
+      ]
+    },
+    {
+      "active": true,
+      "id": "4678505873041253276",
+      "name": "Point Light",
+      "tags": [
+        "SceneEntity"
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "fields": {
+            "position": {
+              "x": 14.7015915,
+              "y": 0,
+              "z": -17.5829182
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "dirty": false
+          }
+        },
+        {
+          "type": "Light",
+          "fields": {
+            "type": "point",
+            "color": {
+              "x": 1,
               "y": 1,
               "z": 1
             },
@@ -777,7 +830,7 @@
     },
     {
       "active": true,
-      "id": "12386973763059365484",
+      "id": "17209072498944579740",
       "name": "Point Light",
       "tags": [
         "SceneEntity"
@@ -787,9 +840,9 @@
           "type": "Transform",
           "fields": {
             "position": {
-              "x": -15.3645649,
+              "x": 14.249258,
               "y": 0,
-              "z": 19.7356682
+              "z": 16.785944
             },
             "scale": {
               "x": 1,
@@ -812,112 +865,6 @@
             "color": {
               "x": 1,
               "y": 1,
-              "z": 0.5
-            },
-            "intensity": 1,
-            "casts_shadows": true
-          }
-        },
-        {
-          "type": "PointLightAttenuation",
-          "fields": {
-            "constant": 1,
-            "linear": 0.0450000018,
-            "quadratic": 0.00749999983
-          }
-        }
-      ]
-    },
-    {
-      "active": true,
-      "id": "5010605258808540181",
-      "name": "Point Light",
-      "tags": [
-        "SceneEntity"
-      ],
-      "components": [
-        {
-          "type": "Transform",
-          "fields": {
-            "position": {
-              "x": 17.0778923,
-              "y": 0,
-              "z": -18.4698925
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            },
-            "rotation": {
-              "w": 1,
-              "x": 0,
-              "y": 0,
-              "z": 0
-            },
-            "dirty": false
-          }
-        },
-        {
-          "type": "Light",
-          "fields": {
-            "type": "point",
-            "color": {
-              "x": 1,
-              "y": 1,
-              "z": 0
-            },
-            "intensity": 1,
-            "casts_shadows": true
-          }
-        },
-        {
-          "type": "PointLightAttenuation",
-          "fields": {
-            "constant": 1,
-            "linear": 0.0450000018,
-            "quadratic": 0.00749999983
-          }
-        }
-      ]
-    },
-    {
-      "active": true,
-      "id": "2686034457030071246",
-      "name": "Point Light",
-      "tags": [
-        "SceneEntity"
-      ],
-      "components": [
-        {
-          "type": "Transform",
-          "fields": {
-            "position": {
-              "x": 16.9701195,
-              "y": 0,
-              "z": 17.7545242
-            },
-            "scale": {
-              "x": 1,
-              "y": 1,
-              "z": 1
-            },
-            "rotation": {
-              "w": 1,
-              "x": 0,
-              "y": 0,
-              "z": 0
-            },
-            "dirty": false
-          }
-        },
-        {
-          "type": "Light",
-          "fields": {
-            "type": "point",
-            "color": {
-              "x": 1,
-              "y": 0.5,
               "z": 1
             },
             "intensity": 1,

@@ -40,6 +40,7 @@ private:
   Pvd m_pvd;
   Scene *m_registered_scene = nullptr;
   uint64_t m_registered_scene_revision = 0u;
+  uint64_t m_registered_scene_generation = 0u;
   std::unordered_map<EntityID, physx::PxRigidActor *> m_actors;
 };
 

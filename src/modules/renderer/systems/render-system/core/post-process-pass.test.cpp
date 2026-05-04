@@ -250,7 +250,7 @@ TEST(PostProcessPassTest, RecordsFullscreenCompositeToPresent) {
   );
   EXPECT_EQ(binding_group.storage_buffers[0].buffer_renderer_id, 99u);
 
-  ASSERT_EQ(binding_group.values.size(), 2u);
+  ASSERT_EQ(binding_group.values.size(), 3u);
   EXPECT_EQ(
       binding_group.values[0].binding_id,
       shader_binding_id("__globals.bloom_strength")
@@ -261,18 +261,30 @@ TEST(PostProcessPassTest, RecordsFullscreenCompositeToPresent) {
       shader_binding_id("__globals.gamma")
   );
   EXPECT_EQ(binding_group.values[1].kind, ShaderValueKind::Float);
+  EXPECT_EQ(
+      binding_group.values[2].binding_id,
+      shader_binding_id("__globals.tonemap_operator")
+  );
+  EXPECT_EQ(binding_group.values[2].kind, ShaderValueKind::Int);
 
   float bloom_strength = 0.0f;
   float gamma = 0.0f;
+  int tonemap_operator = 0;
   std::memcpy(
       &bloom_strength,
       binding_group.values[0].bytes.data(),
       sizeof(bloom_strength)
   );
   std::memcpy(&gamma, binding_group.values[1].bytes.data(), sizeof(gamma));
+  std::memcpy(
+      &tonemap_operator,
+      binding_group.values[2].bytes.data(),
+      sizeof(tonemap_operator)
+  );
 
   EXPECT_FLOAT_EQ(bloom_strength, 0.12f);
   EXPECT_FLOAT_EQ(gamma, 2.2f);
+  EXPECT_EQ(tonemap_operator, 1);
 
   ASSERT_EQ(exposure->bytes.size(), sizeof(EyeAdaptationExposureData));
   EyeAdaptationExposureData uploaded_exposure{};

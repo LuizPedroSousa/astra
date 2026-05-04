@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "source": "source/glTF/NewSponza_Main_glTF_003.gltf",
+  "import": {
+    "triangulate": true,
+    "flip_uvs": true,
+    "generate_normals": false,
+    "calculate_tangents": true,
+    "pre_transform_vertices": true
+  },
+  "materials": [
+    "materials/material_00.axmaterial",
+    "materials/material_01.axmaterial",
+    "materials/material_02.axmaterial",
+    "materials/material_03.axmaterial",
+    "materials/material_04.axmaterial",
+    "materials/material_05.axmaterial",
+    "materials/material_06.axmaterial",
+    "materials/material_07.axmaterial",
+    "materials/material_08.axmaterial",
+    "materials/material_09.axmaterial",
+    "materials/material_10.axmaterial",
+    "materials/material_11.axmaterial",
+    "materials/material_12.axmaterial",
+    "materials/material_13.axmaterial",
+    "materials/material_14.axmaterial",
+    "materials/material_15.axmaterial",
+    "materials/material_16.axmaterial",
+    "materials/material_17.axmaterial",
+    "materials/material_18.axmaterial",
+    "materials/material_19.axmaterial",
+    "materials/material_20.axmaterial",
+    "materials/material_21.axmaterial",
+    "materials/material_22.axmaterial",
+    "materials/material_23.axmaterial",
+    "materials/material_24.axmaterial",
+    "materials/material_25.axmaterial",
+    "materials/material_26.axmaterial",
+    "materials/material_27.axmaterial",
+    "materials/material_28.axmaterial"
+  ]
+}
