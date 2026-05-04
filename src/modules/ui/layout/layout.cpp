@@ -2,6 +2,7 @@
 #include "layout/common.hpp"
 #include "layout/internal.hpp"
 #include "layout/widgets/data-viz/line-chart.hpp"
+#include "layout/widgets/graph/graph-view.hpp"
 #include "trace.hpp"
 
 #include <algorithm>
@@ -129,6 +130,8 @@ glm::vec2 compute_node_content_size(
       return measure_segmented_control_size(*node, context);
     case NodeType::ChipGroup:
       return measure_chip_group_size(*node, context);
+    case NodeType::GraphView:
+      return measure_graph_view_size(*node, context);
     case NodeType::View:
     case NodeType::Pressable:
     case NodeType::ScrollView:
@@ -989,6 +992,9 @@ void layout_node(
     case NodeType::ChipGroup:
       update_chip_group_layout(*node, context);
       break;
+    case NodeType::GraphView:
+      update_graph_view_layout(*node, context);
+      break;
     default:
       break;
   }
@@ -1096,6 +1102,10 @@ void append_draw_commands(
     append_line_chart_commands(document, node_id, *node, resolved);
   }
 
+  if (node->type == NodeType::GraphView) {
+    append_graph_view_commands(document, node_id, *node, context, resolved);
+  }
+
   for (UINodeId child_id : node->children) {
     const auto *child = document.node(child_id);
     if (child != nullptr && child->type == NodeType::Popover) {
@@ -1144,6 +1154,11 @@ hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
   if (!node->layout.bounds.contains(point)) {
     return std::nullopt;
   }
+
+  const glm::vec2 local_position(
+      point.x - node->layout.content_bounds.x,
+      point.y - node->layout.content_bounds.y
+  );
 
   if (auto resize_hit = hit_test_resize_handles(*node, point);
       resize_hit.has_value()) {
@@ -1201,6 +1216,18 @@ hit_test_node(const UIDocument &document, UINodeId node_id, glm::vec2 point) {
   if (auto scroll_hit = hit_test_scroll_view(*node, node_id, point);
       scroll_hit.has_value()) {
     return scroll_hit;
+  }
+
+  if (node->on_custom_hit_test) {
+    if (auto custom_hit = node->on_custom_hit_test(local_position);
+        custom_hit.has_value()) {
+      custom_hit->local_position = local_position;
+      return UIHitResult{
+          .node_id = node_id,
+          .part = UIHitPart::Body,
+          .custom = std::move(custom_hit),
+      };
+    }
   }
 
   for (auto it = node->children.rbegin(); it != node->children.rend(); ++it) {

@@ -42,6 +42,8 @@ namespace astralix::ui::im {
     UINodeId host_node_id() const { return m_host_node_id; }
 
     VirtualListState virtual_list_state(WidgetId widget_id) const;
+    std::optional<UIViewTransform2D> view_transform(WidgetId widget_id) const;
+    std::optional<UIGraphSelection> graph_selection(WidgetId widget_id) const;
     float measured_node_height(WidgetId widget_id) const;
     std::optional<UIRect> layout_bounds(WidgetId widget_id) const;
     bool combobox_open(WidgetId widget_id) const;

@@ -119,6 +119,16 @@ void UIDocument::destroy_subtree(UINodeId node_id) {
     if (m_requested_focus_node == current_id) {
       m_requested_focus_node = k_invalid_node_id;
     }
+    m_pointer_capture_requests.erase(
+        std::remove_if(
+            m_pointer_capture_requests.begin(),
+            m_pointer_capture_requests.end(),
+            [current_id](const UIPointerCaptureRequest &request) {
+              return request.node_id == current_id;
+            }
+        ),
+        m_pointer_capture_requests.end()
+    );
 
     m_open_popover_stack.erase(
         std::remove(

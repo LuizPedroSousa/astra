@@ -37,6 +37,18 @@ bool line_chart_series_equal(
   return true;
 }
 
+bool vec2_equal(const glm::vec2 &lhs, const glm::vec2 &rhs) {
+  return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+bool view_transform_equal(
+    const UIViewTransform2D &lhs,
+    const UIViewTransform2D &rhs
+) {
+  return vec2_equal(lhs.pan, rhs.pan) && lhs.zoom == rhs.zoom &&
+         lhs.min_zoom == rhs.min_zoom && lhs.max_zoom == rhs.max_zoom;
+}
+
 } // namespace
 
 void UIDocument::set_style(UINodeId node_id, const UIStyle &style) {
@@ -183,6 +195,97 @@ void UIDocument::set_scroll_offset(UINodeId node_id, glm::vec2 offset) {
 
   target->layout.scroll.offset = offset;
   m_layout_dirty = true;
+  m_paint_dirty = true;
+}
+
+void UIDocument::set_view_transform(
+    UINodeId node_id,
+    UIViewTransform2D transform
+) {
+  UINode *target = node(node_id);
+  if (target == nullptr) {
+    return;
+  }
+
+  transform.zoom = std::clamp(
+      transform.zoom,
+      std::min(transform.min_zoom, transform.max_zoom),
+      std::max(transform.min_zoom, transform.max_zoom)
+  );
+
+  if (target->view_transform.has_value() &&
+      view_transform_equal(*target->view_transform, transform)) {
+    return;
+  }
+
+  target->view_transform = transform;
+  m_paint_dirty = true;
+}
+
+std::optional<UIViewTransform2D>
+UIDocument::view_transform(UINodeId node_id) const {
+  const UINode *target = node(node_id);
+  if (target == nullptr || !target->view_transform_interaction.enabled) {
+    return std::nullopt;
+  }
+
+  return target->view_transform.value_or(UIViewTransform2D{});
+}
+
+void UIDocument::set_view_transform_enabled(UINodeId node_id, bool enabled) {
+  UINode *target = node(node_id);
+  if (target == nullptr ||
+      target->view_transform_interaction.enabled == enabled) {
+    return;
+  }
+
+  target->view_transform_interaction.enabled = enabled;
+  if (enabled && !target->view_transform.has_value()) {
+    target->view_transform = UIViewTransform2D{};
+  }
+
+  m_paint_dirty = true;
+}
+
+void UIDocument::set_view_transform_middle_mouse_pan(
+    UINodeId node_id,
+    bool enabled
+) {
+  UINode *target = node(node_id);
+  if (target == nullptr ||
+      target->view_transform_interaction.middle_mouse_pan == enabled) {
+    return;
+  }
+
+  target->view_transform_interaction.middle_mouse_pan = enabled;
+  if (enabled) {
+    target->view_transform_interaction.enabled = true;
+    if (!target->view_transform.has_value()) {
+      target->view_transform = UIViewTransform2D{};
+    }
+  }
+
+  m_paint_dirty = true;
+}
+
+void UIDocument::set_view_transform_wheel_zoom(
+    UINodeId node_id,
+    bool enabled
+) {
+  UINode *target = node(node_id);
+  if (target == nullptr ||
+      target->view_transform_interaction.wheel_zoom == enabled) {
+    return;
+  }
+
+  target->view_transform_interaction.wheel_zoom = enabled;
+  if (enabled) {
+    target->view_transform_interaction.enabled = true;
+    if (!target->view_transform.has_value()) {
+      target->view_transform = UIViewTransform2D{};
+    }
+  }
+
   m_paint_dirty = true;
 }
 

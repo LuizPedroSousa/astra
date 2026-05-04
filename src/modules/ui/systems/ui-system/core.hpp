@@ -25,6 +25,7 @@ struct PointerHit {
   Target target;
   ui::UIHitPart part = ui::UIHitPart::Body;
   std::optional<size_t> item_index;
+  std::optional<ui::UICustomHitData> custom;
 };
 
 struct ScrollDispatch {
@@ -39,11 +40,22 @@ const RootEntry *find_root_entry(const std::vector<RootEntry> &roots, const Targ
 bool target_available(const std::vector<RootEntry> &roots, const std::optional<Target> &target, bool require_input_enabled);
 std::optional<Target> target_from_node(const RootEntry &entry, ui::UINodeId node_id);
 std::optional<PointerHit> target_from_hit(const RootEntry &entry, const ui::UIHitResult &hit);
+std::optional<PointerHit> find_pointer_event_target(
+    const RootEntry &entry,
+    ui::UINodeId node_id,
+    ui::UIHitPart part = ui::UIHitPart::Body,
+    std::optional<size_t> item_index = std::nullopt,
+    std::optional<ui::UICustomHitData> custom = std::nullopt
+);
 std::optional<Target> map_to_ancestor_target(
     const RootEntry &entry, ui::UINodeId node_id,
     const std::function<std::optional<ui::UINodeId>(const ui::UIDocument &, ui::UINodeId)> &mapper
 );
 std::optional<Target> find_hoverable_target(const RootEntry &entry, ui::UINodeId node_id);
+std::optional<Target> find_view_transform_target(
+    const RootEntry &entry,
+    ui::UINodeId node_id
+);
 std::optional<Target> find_drag_handle_target(const RootEntry &entry, ui::UINodeId node_id);
 std::optional<Target> find_draggable_panel_target(const RootEntry &entry, ui::UINodeId node_id);
 std::optional<ui::UILayoutContext>

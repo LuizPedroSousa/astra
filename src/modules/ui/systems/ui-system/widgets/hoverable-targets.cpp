@@ -30,6 +30,11 @@ bool is_hoverable_widget_type(ui::NodeType type) {
          is_multi_option_hoverable_type(type);
 }
 
+bool has_custom_interaction_callback(const ui::UIDocument::UINode &node) {
+  return static_cast<bool>(node.on_pointer_event) ||
+         static_cast<bool>(node.on_custom_hit_test);
+}
+
 } // namespace
 
 std::optional<Target> find_hoverable_target(
@@ -46,7 +51,8 @@ std::optional<Target> find_hoverable_target(
             return std::optional<ui::UINodeId>{};
           }
 
-          if (is_hoverable_widget_type(node->type) &&
+          if ((is_hoverable_widget_type(node->type) ||
+               has_custom_interaction_callback(*node)) &&
               ui::node_chain_allows_interaction(document, current)) {
             return std::optional<ui::UINodeId>{current};
           }

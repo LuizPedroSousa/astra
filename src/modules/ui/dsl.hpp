@@ -11,6 +11,7 @@
 #include "dsl/widgets/content/image.hpp"
 #include "dsl/widgets/content/render-image-view.hpp"
 #include "dsl/widgets/content/text.hpp"
+#include "dsl/widgets/graph/graph-view.hpp"
 #include "dsl/widgets/inputs/checkbox.hpp"
 #include "dsl/widgets/inputs/combobox.hpp"
 #include "dsl/widgets/inputs/select.hpp"

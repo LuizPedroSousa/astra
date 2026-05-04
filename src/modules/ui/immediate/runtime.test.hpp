@@ -6,6 +6,62 @@
 namespace astralix::ui::im {
 namespace {
 
+constexpr UIGraphId k_runtime_graph_node_a = 4101u;
+constexpr UIGraphId k_runtime_graph_node_b = 4102u;
+constexpr UIGraphId k_runtime_graph_port_a_out = 4201u;
+constexpr UIGraphId k_runtime_graph_port_b_in = 4202u;
+constexpr UIGraphId k_runtime_graph_edge = 4301u;
+
+GraphViewSpec make_runtime_graph_spec(glm::vec2 first_position = glm::vec2(48.0f, 64.0f)) {
+  return GraphViewSpec{
+      .model =
+          UIGraphViewModel{
+              .nodes =
+                  {
+                      UIGraphNode{
+                          .id = k_runtime_graph_node_a,
+                          .title = "Source",
+                          .position = first_position,
+                          .output_ports = {k_runtime_graph_port_a_out},
+                      },
+                      UIGraphNode{
+                          .id = k_runtime_graph_node_b,
+                          .title = "Sink",
+                          .position = glm::vec2(260.0f, 180.0f),
+                          .input_ports = {k_runtime_graph_port_b_in},
+                      },
+                  },
+              .ports =
+                  {
+                      UIGraphPort{
+                          .id = k_runtime_graph_port_a_out,
+                          .node_id = k_runtime_graph_node_a,
+                          .direction = UIGraphPortDirection::Output,
+                          .label = "Out",
+                          .color = glm::vec4(0.36f, 0.73f, 0.94f, 1.0f),
+                      },
+                      UIGraphPort{
+                          .id = k_runtime_graph_port_b_in,
+                          .node_id = k_runtime_graph_node_b,
+                          .direction = UIGraphPortDirection::Input,
+                          .label = "In",
+                          .color = glm::vec4(0.62f, 0.84f, 0.47f, 1.0f),
+                      },
+                  },
+              .edges =
+                  {
+                      UIGraphEdge{
+                          .id = k_runtime_graph_edge,
+                          .from_port_id = k_runtime_graph_port_a_out,
+                          .to_port_id = k_runtime_graph_port_b_in,
+                          .color = glm::vec4(0.62f, 0.82f, 1.0f, 1.0f),
+                          .thickness = 2.0f,
+                      },
+                  },
+          },
+  };
+}
+
 TEST(UIFoundationsTest, ImmediateRuntimePreservesKeyedNodeIdentityAcrossReorder) {
   auto document = UIDocument::create();
   const UINodeId root = document->create_view();
@@ -522,6 +578,74 @@ TEST(UIFoundationsTest, ImmediateRuntimeAppliesLineChartState) {
   EXPECT_FLOAT_EQ(node->line_chart.grid_color.r, 0.5f);
 }
 
+TEST(UIFoundationsTest, ImmediateRuntimeAppliesGraphViewStateAndCallbacks) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId widget = k_invalid_widget_id;
+  bool selection_changed = false;
+  bool node_moved = false;
+  bool connection_finished = false;
+  runtime.render([&](Frame &ui) {
+    widget = ui.graph_view("graph", make_runtime_graph_spec())
+                 .on_selection_change([&](const UIGraphSelection &selection) {
+                   selection_changed = selection.node_ids.size() == 1u &&
+                                       selection.node_ids[0] ==
+                                           k_runtime_graph_node_b;
+                 })
+                 .on_node_move([&](UIGraphId node_id, glm::vec2 position) {
+                   node_moved = node_id == k_runtime_graph_node_a &&
+                                position == glm::vec2(128.0f, 144.0f);
+                 })
+                 .on_connection_drag_end(
+                     [&](UIGraphId from_port_id, std::optional<UIGraphId> to_port_id) {
+                       connection_finished =
+                           from_port_id == k_runtime_graph_port_a_out &&
+                           to_port_id == k_runtime_graph_port_b_in;
+                     }
+                 )
+                 .widget_id();
+  });
+
+  const auto selection = runtime.graph_selection(widget);
+  ASSERT_TRUE(selection.has_value());
+  EXPECT_TRUE(selection->node_ids.empty());
+  EXPECT_TRUE(selection->edge_ids.empty());
+
+  const auto *node = document->node(runtime.node_id_for(widget));
+  ASSERT_NE(node, nullptr);
+  EXPECT_EQ(node->type, NodeType::GraphView);
+  ASSERT_EQ(node->graph_view.model.nodes.size(), 2u);
+  ASSERT_EQ(node->graph_view.model.ports.size(), 2u);
+  ASSERT_EQ(node->graph_view.model.edges.size(), 1u);
+  ASSERT_TRUE(static_cast<bool>(node->graph_view.on_selection_change));
+  ASSERT_TRUE(static_cast<bool>(node->graph_view.on_node_move));
+  ASSERT_TRUE(static_cast<bool>(node->graph_view.on_connection_drag_end));
+
+  node->graph_view.on_selection_change(
+      UIGraphSelection{
+          .node_ids = {k_runtime_graph_node_b},
+      }
+  );
+  node->graph_view.on_node_move(
+      k_runtime_graph_node_a,
+      glm::vec2(128.0f, 144.0f)
+  );
+  node->graph_view.on_connection_drag_end(
+      k_runtime_graph_port_a_out,
+      k_runtime_graph_port_b_in
+  );
+
+  EXPECT_TRUE(selection_changed);
+  EXPECT_TRUE(node_moved);
+  EXPECT_TRUE(connection_finished);
+}
+
 TEST(UIFoundationsTest, ImmediateRuntimeForwardsClickCallback) {
   auto document = UIDocument::create();
   const UINodeId root = document->create_view();
@@ -543,6 +667,98 @@ TEST(UIFoundationsTest, ImmediateRuntimeForwardsClickCallback) {
 
   node->on_click();
   EXPECT_TRUE(clicked);
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeForwardsPointerEventCallback) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  bool received_press = false;
+  WidgetId widget = k_invalid_widget_id;
+  runtime.render([&](Frame &ui) {
+    widget = ui.view("surface")
+                 .on_pointer_event([&](const UIPointerEvent &event) {
+                   received_press =
+                       event.phase == UIPointerEventPhase::Press &&
+                       event.button == input::MouseButton::Middle;
+                 })
+                 .widget_id();
+  });
+
+  const auto *node = document->node(runtime.node_id_for(widget));
+  ASSERT_NE(node, nullptr);
+  ASSERT_TRUE(node->on_pointer_event);
+
+  node->on_pointer_event(UIPointerEvent{
+      .phase = UIPointerEventPhase::Press,
+      .button = input::MouseButton::Middle,
+  });
+  EXPECT_TRUE(received_press);
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeForwardsCustomHitTestCallback) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  std::optional<glm::vec2> received_local_position;
+  WidgetId widget = k_invalid_widget_id;
+  runtime.render([&](Frame &ui) {
+    widget = ui.view("surface")
+                 .on_custom_hit_test(
+                     [&](glm::vec2 local_position)
+                         -> std::optional<UICustomHitData> {
+                       received_local_position = local_position;
+                       return UICustomHitData{
+                           .semantic = 3u,
+                           .primary_id = 17u,
+                           .secondary_id = 23u,
+                       };
+                     }
+                 )
+                 .widget_id();
+  });
+
+  const auto *node = document->node(runtime.node_id_for(widget));
+  ASSERT_NE(node, nullptr);
+  ASSERT_TRUE(node->on_custom_hit_test);
+
+  auto hit = node->on_custom_hit_test(glm::vec2(8.0f, 12.0f));
+  ASSERT_TRUE(hit.has_value());
+  ASSERT_TRUE(received_local_position.has_value());
+  EXPECT_EQ(*received_local_position, glm::vec2(8.0f, 12.0f));
+  EXPECT_EQ(hit->semantic, 3u);
+  EXPECT_EQ(hit->primary_id, 17u);
+  EXPECT_EQ(hit->secondary_id, 23u);
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeLeavesPointerAndCustomHitCallbacksUnsetByDefault) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId widget = k_invalid_widget_id;
+  runtime.render([&](Frame &ui) {
+    widget = ui.view("surface").widget_id();
+  });
+
+  const auto *node = document->node(runtime.node_id_for(widget));
+  ASSERT_NE(node, nullptr);
+  EXPECT_FALSE(static_cast<bool>(node->on_pointer_event));
+  EXPECT_FALSE(static_cast<bool>(node->on_custom_hit_test));
 }
 
 TEST(UIFoundationsTest, ImmediateRuntimeForwardsOnChangeCallback) {
@@ -703,6 +919,211 @@ TEST(UIFoundationsTest, ImmediateRuntimeAppliesFocusRequest) {
   });
 
   EXPECT_EQ(document->focused_node(), runtime.node_id_for(input_widget));
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeAppliesPointerCaptureRequests) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId canvas_widget = k_invalid_widget_id;
+  runtime.render([&](Frame &ui) {
+    canvas_widget = ui.view("canvas").widget_id();
+    ui.request_pointer_capture(canvas_widget, input::MouseButton::Middle);
+    ui.release_pointer_capture(canvas_widget, input::MouseButton::Middle);
+  });
+
+  const auto requests = document->consume_pointer_capture_requests();
+  ASSERT_EQ(requests.size(), 2u);
+  EXPECT_EQ(requests[0].node_id, runtime.node_id_for(canvas_widget));
+  EXPECT_EQ(requests[0].button, input::MouseButton::Middle);
+  EXPECT_EQ(requests[0].action, UIPointerCaptureAction::Capture);
+  EXPECT_EQ(requests[1].action, UIPointerCaptureAction::Release);
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeAppliesViewTransformRequests) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId canvas_widget = k_invalid_widget_id;
+  runtime.render([&](Frame &ui) {
+    auto canvas = ui.view("canvas")
+                      .view_transform_enabled()
+                      .view_transform_pan_enabled()
+                      .view_transform_zoom_enabled();
+    canvas_widget = canvas.widget_id();
+    ui.set_view_transform(
+        canvas_widget,
+        UIViewTransform2D{
+            .pan = glm::vec2(14.0f, -7.0f),
+            .zoom = 1.75f,
+            .min_zoom = 0.25f,
+            .max_zoom = 4.0f,
+        }
+    );
+  });
+
+  const auto transform = runtime.view_transform(canvas_widget);
+  ASSERT_TRUE(transform.has_value());
+  EXPECT_EQ(transform->pan, glm::vec2(14.0f, -7.0f));
+  EXPECT_FLOAT_EQ(transform->zoom, 1.75f);
+
+  const auto *node = document->node(runtime.node_id_for(canvas_widget));
+  ASSERT_NE(node, nullptr);
+  EXPECT_TRUE(node->view_transform_interaction.enabled);
+  EXPECT_TRUE(node->view_transform_interaction.middle_mouse_pan);
+  EXPECT_TRUE(node->view_transform_interaction.wheel_zoom);
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeAppliesGraphViewTransformRequests) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId widget = k_invalid_widget_id;
+  runtime.render([&](Frame &ui) {
+    widget = ui.graph_view("graph", make_runtime_graph_spec()).widget_id();
+    ui.set_view_transform(
+        widget,
+        UIViewTransform2D{
+            .pan = glm::vec2(-18.0f, 9.0f),
+            .zoom = 2.25f,
+            .min_zoom = 0.25f,
+            .max_zoom = 4.0f,
+        }
+    );
+  });
+
+  const auto transform = runtime.view_transform(widget);
+  ASSERT_TRUE(transform.has_value());
+  EXPECT_EQ(transform->pan, glm::vec2(-18.0f, 9.0f));
+  EXPECT_FLOAT_EQ(transform->zoom, 2.25f);
+
+  const auto *node = document->node(runtime.node_id_for(widget));
+  ASSERT_NE(node, nullptr);
+  EXPECT_EQ(node->type, NodeType::GraphView);
+  EXPECT_TRUE(node->view_transform_interaction.enabled);
+  EXPECT_TRUE(node->view_transform_interaction.middle_mouse_pan);
+  EXPECT_TRUE(node->view_transform_interaction.wheel_zoom);
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeGraphViewPreservesIdentityAndTransientStateAcrossRerender) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId widget = k_invalid_widget_id;
+  runtime.render([&](Frame &ui) {
+    widget = ui.graph_view("graph", make_runtime_graph_spec()).widget_id();
+  });
+
+  const UINodeId node_id = runtime.node_id_for(widget);
+  ASSERT_NE(node_id, k_invalid_node_id);
+
+  document->set_view_transform(
+      node_id,
+      UIViewTransform2D{
+          .pan = glm::vec2(22.0f, -11.0f),
+          .zoom = 1.6f,
+          .min_zoom = 0.25f,
+          .max_zoom = 4.0f,
+      }
+  );
+
+  auto *node = document->node(node_id);
+  ASSERT_NE(node, nullptr);
+  node->graph_view.hovered_target = UIGraphSemanticTarget{
+      .semantic = UIGraphHitSemantic::NodeHeader,
+      .primary_id = k_runtime_graph_node_a,
+  };
+  node->graph_view.drag.mode = UIGraphDragMode::Marquee;
+  node->graph_view.marquee_visible = true;
+  node->graph_view.marquee_start_world = glm::vec2(4.0f, 8.0f);
+  node->graph_view.marquee_current_world = glm::vec2(24.0f, 32.0f);
+
+  runtime.render([&](Frame &ui) {
+    widget =
+        ui.graph_view("graph", make_runtime_graph_spec(glm::vec2(96.0f, 112.0f)))
+            .widget_id();
+  });
+
+  EXPECT_EQ(runtime.node_id_for(widget), node_id);
+
+  const auto transform = runtime.view_transform(widget);
+  ASSERT_TRUE(transform.has_value());
+  EXPECT_EQ(transform->pan, glm::vec2(22.0f, -11.0f));
+  EXPECT_FLOAT_EQ(transform->zoom, 1.6f);
+
+  const auto selection = runtime.graph_selection(widget);
+  ASSERT_TRUE(selection.has_value());
+  EXPECT_TRUE(selection->node_ids.empty());
+
+  node = document->node(node_id);
+  ASSERT_NE(node, nullptr);
+  ASSERT_EQ(node->graph_view.model.nodes.size(), 2u);
+  EXPECT_EQ(node->graph_view.model.nodes[0].position, glm::vec2(96.0f, 112.0f));
+  ASSERT_TRUE(node->graph_view.hovered_target.has_value());
+  EXPECT_EQ(node->graph_view.hovered_target->semantic, UIGraphHitSemantic::NodeHeader);
+  EXPECT_EQ(node->graph_view.hovered_target->primary_id, k_runtime_graph_node_a);
+  EXPECT_EQ(node->graph_view.drag.mode, UIGraphDragMode::Marquee);
+  EXPECT_TRUE(node->graph_view.marquee_visible);
+  EXPECT_EQ(node->graph_view.marquee_start_world, glm::vec2(4.0f, 8.0f));
+  EXPECT_EQ(node->graph_view.marquee_current_world, glm::vec2(24.0f, 32.0f));
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeForwardsViewTransformChangeCallback) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId canvas_widget = k_invalid_widget_id;
+  bool received_change = false;
+  runtime.render([&](Frame &ui) {
+    auto canvas = ui.view("canvas")
+                      .view_transform_enabled()
+                      .on_view_transform_change(
+                          [&](const UIViewTransformChangeEvent &event) {
+                            received_change =
+                                event.current.zoom == 2.0f &&
+                                event.anchor_world == glm::vec2(3.0f, 5.0f);
+                          }
+                      );
+    canvas_widget = canvas.widget_id();
+  });
+
+  const auto *node = document->node(runtime.node_id_for(canvas_widget));
+  ASSERT_NE(node, nullptr);
+  ASSERT_TRUE(node->on_view_transform_change);
+  node->on_view_transform_change(UIViewTransformChangeEvent{
+      .current =
+          UIViewTransform2D{
+              .zoom = 2.0f,
+          },
+      .anchor_world = glm::vec2(3.0f, 5.0f),
+  });
+
+  EXPECT_TRUE(received_change);
 }
 
 TEST(UIFoundationsTest, ImmediateRuntimeAppliesCaretRequest) {
@@ -996,6 +1417,85 @@ TEST(UIFoundationsTest, ImmediateRuntimeNestedContainerHierarchy) {
   ASSERT_NE(inner, nullptr);
   ASSERT_EQ(inner->children.size(), 1u);
   EXPECT_EQ(inner->children[0], runtime.node_id_for(leaf_widget));
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeAnonymousContainersPreserveDescendantIdentity) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId outer_widget = k_invalid_widget_id;
+  WidgetId inner_widget = k_invalid_widget_id;
+  WidgetId field_widget = k_invalid_widget_id;
+
+  runtime.render([&](Frame &ui) {
+    auto outer = ui.column();
+    outer_widget = outer.widget_id();
+    auto inner = outer.row();
+    inner_widget = inner.widget_id();
+    field_widget = inner.text_input("field", "first").widget_id();
+  });
+
+  const UINodeId outer_node = runtime.node_id_for(outer_widget);
+  const UINodeId inner_node = runtime.node_id_for(inner_widget);
+  const UINodeId field_node = runtime.node_id_for(field_widget);
+  ASSERT_NE(outer_node, k_invalid_node_id);
+  ASSERT_NE(inner_node, k_invalid_node_id);
+  ASSERT_NE(field_node, k_invalid_node_id);
+
+  runtime.render([&](Frame &ui) {
+    auto outer = ui.column();
+    outer_widget = outer.widget_id();
+    auto inner = outer.row();
+    inner_widget = inner.widget_id();
+    field_widget = inner.text_input("field", "second").widget_id();
+  });
+
+  EXPECT_EQ(runtime.node_id_for(outer_widget), outer_node);
+  EXPECT_EQ(runtime.node_id_for(inner_widget), inner_node);
+  EXPECT_EQ(runtime.node_id_for(field_widget), field_node);
+  EXPECT_EQ(document->node(field_node)->text, "second");
+}
+
+TEST(UIFoundationsTest, ImmediateRuntimeAnonymousContainersIgnoreNamedSiblingInsertions) {
+  auto document = UIDocument::create();
+  const UINodeId root = document->create_view();
+  const UINodeId host = document->create_view();
+  document->append_child(root, host);
+  document->set_root(root);
+
+  Runtime runtime(document, host);
+
+  WidgetId shell_widget = k_invalid_widget_id;
+  WidgetId field_widget = k_invalid_widget_id;
+
+  runtime.render([&](Frame &ui) {
+    ui.view("header");
+    auto shell = ui.column();
+    shell_widget = shell.widget_id();
+    field_widget = shell.text_input("field", "first").widget_id();
+  });
+
+  const UINodeId shell_node = runtime.node_id_for(shell_widget);
+  const UINodeId field_node = runtime.node_id_for(field_widget);
+  ASSERT_NE(shell_node, k_invalid_node_id);
+  ASSERT_NE(field_node, k_invalid_node_id);
+
+  runtime.render([&](Frame &ui) {
+    ui.view("header");
+    ui.view("toolbar");
+    auto shell = ui.column();
+    shell_widget = shell.widget_id();
+    field_widget = shell.text_input("field", "second").widget_id();
+  });
+
+  EXPECT_EQ(runtime.node_id_for(shell_widget), shell_node);
+  EXPECT_EQ(runtime.node_id_for(field_widget), field_node);
+  EXPECT_EQ(document->node(field_node)->text, "second");
 }
 
 TEST(UIFoundationsTest, ImmediateRuntimeSelectOpenState) {

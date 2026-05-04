@@ -1,5 +1,6 @@
 #include "systems/ui-system/ui-system.hpp"
 
+#include "canvas/view-transform.hpp"
 #include "event-dispatcher.hpp"
 #include "trace.hpp"
 #include "events/mouse-listener.hpp"
@@ -13,6 +14,7 @@
 #include "systems/ui-system/widgets/inputs/text-input.hpp"
 #include "systems/ui-system/widgets/popup/popover.hpp"
 #include <algorithm>
+#include <cmath>
 
 namespace astralix {
 namespace detail = ui_system_core;
@@ -62,7 +64,297 @@ input::KeyModifiers current_key_modifiers() {
   };
 }
 
+size_t pointer_button_index(input::MouseButton button) {
+  return static_cast<size_t>(button);
+}
+
+ui::UIPointerButtons current_pointer_buttons() {
+  return ui::UIPointerButtons{
+      .left = input::IS_MOUSE_BUTTON_DOWN(input::MouseButton::Left),
+      .middle = input::IS_MOUSE_BUTTON_DOWN(input::MouseButton::Middle),
+      .right = input::IS_MOUSE_BUTTON_DOWN(input::MouseButton::Right),
+  };
+}
+
+bool same_custom_hit(
+    const std::optional<ui::UICustomHitData> &lhs,
+    const std::optional<ui::UICustomHitData> &rhs
+) {
+  if (!lhs.has_value() || !rhs.has_value()) {
+    return !lhs.has_value() && !rhs.has_value();
+  }
+
+  return lhs->semantic == rhs->semantic &&
+         lhs->primary_id == rhs->primary_id &&
+         lhs->secondary_id == rhs->secondary_id &&
+         lhs->local_position.x == rhs->local_position.x &&
+         lhs->local_position.y == rhs->local_position.y;
+}
+
+bool same_pointer_hit(
+    const std::optional<detail::PointerHit> &lhs,
+    const std::optional<detail::PointerHit> &rhs
+) {
+  if (!lhs.has_value() || !rhs.has_value()) {
+    return !lhs.has_value() && !rhs.has_value();
+  }
+
+  return detail::same_target(
+             std::optional<detail::Target>{lhs->target},
+             std::optional<detail::Target>{rhs->target}
+         ) &&
+         lhs->part == rhs->part && lhs->item_index == rhs->item_index &&
+         same_custom_hit(lhs->custom, rhs->custom);
+}
+
+glm::vec2 local_pointer_position(
+    const detail::Target &target,
+    const glm::vec2 &pointer
+) {
+  if (target.document == nullptr) {
+    return glm::vec2(0.0f);
+  }
+
+  const auto *node = target.document->node(target.node_id);
+  if (node == nullptr) {
+    return glm::vec2(0.0f);
+  }
+
+  return glm::vec2(
+      pointer.x - node->layout.content_bounds.x,
+      pointer.y - node->layout.content_bounds.y
+  );
+}
+
+std::optional<detail::PointerHit> pointer_hit_at_position(
+    const std::vector<detail::RootEntry> &roots,
+    const glm::vec2 &pointer
+) {
+  for (auto it = roots.rbegin(); it != roots.rend(); ++it) {
+    if (!it->root->input_enabled || it->document == nullptr) {
+      continue;
+    }
+
+    auto hit = ui::hit_test_document(*it->document, pointer);
+    if (!hit.has_value()) {
+      continue;
+    }
+
+    if (auto deepest_hit = detail::target_from_hit(*it, *hit);
+        deepest_hit.has_value()) {
+      return deepest_hit;
+    }
+  }
+
+  return std::nullopt;
+}
+
+bool vec2_equal(const glm::vec2 &lhs, const glm::vec2 &rhs) {
+  return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+bool view_transform_equal(
+    const ui::UIViewTransform2D &lhs,
+    const ui::UIViewTransform2D &rhs
+) {
+  return vec2_equal(lhs.pan, rhs.pan) && lhs.zoom == rhs.zoom &&
+         lhs.min_zoom == rhs.min_zoom && lhs.max_zoom == rhs.max_zoom;
+}
+
+void queue_mouse_wheel_callback(
+    const detail::Target &target,
+    ui::UIMouseWheelInputEvent event
+) {
+  if (target.document == nullptr) {
+    return;
+  }
+
+  const auto *node = target.document->node(target.node_id);
+  if (node == nullptr || !node->on_mouse_wheel) {
+    return;
+  }
+
+  auto callback = node->on_mouse_wheel;
+  event.local_position = local_pointer_position(target, event.screen_position);
+  target.document->queue_callback([callback, event]() { callback(event); });
+}
+
+void queue_view_transform_change_callback(
+    const detail::Target &target,
+    const ui::UIViewTransformChangeEvent &event
+) {
+  if (target.document == nullptr) {
+    return;
+  }
+
+  const auto *node = target.document->node(target.node_id);
+  if (node == nullptr || !node->on_view_transform_change) {
+    return;
+  }
+
+  auto callback = node->on_view_transform_change;
+  target.document->queue_callback([callback, event]() { callback(event); });
+}
+
+bool apply_view_transform_pan(
+    const detail::Target &target,
+    const glm::vec2 &screen_delta,
+    const glm::vec2 &anchor_screen
+) {
+  if (target.document == nullptr || screen_delta == glm::vec2(0.0f)) {
+    return false;
+  }
+
+  const auto *node = target.document->node(target.node_id);
+  if (node == nullptr || !node->view_transform_interaction.enabled ||
+      !node->view_transform_interaction.middle_mouse_pan) {
+    return false;
+  }
+
+  const ui::UIViewTransform2D previous =
+      node->view_transform.value_or(ui::UIViewTransform2D{});
+  ui::UIViewTransform2D next = previous;
+  next.pan += ui::canvas_delta_for_screen_delta(previous, screen_delta);
+  if (view_transform_equal(previous, next)) {
+    return false;
+  }
+
+  target.document->set_view_transform(target.node_id, next);
+  queue_view_transform_change_callback(
+      target,
+      ui::UIViewTransformChangeEvent{
+          .previous = previous,
+          .current = next,
+          .anchor_screen = anchor_screen,
+          .anchor_world = ui::screen_to_canvas(
+              previous,
+              anchor_screen,
+              glm::vec2(
+                  node->layout.content_bounds.x,
+                  node->layout.content_bounds.y
+              )
+          ),
+      }
+  );
+  return true;
+}
+
+bool apply_view_transform_zoom(
+    const detail::Target &target,
+    const ui::UIMouseWheelInputEvent &event
+) {
+  if (target.document == nullptr) {
+    return false;
+  }
+
+  const auto *node = target.document->node(target.node_id);
+  if (node == nullptr || !node->view_transform_interaction.enabled ||
+      !node->view_transform_interaction.wheel_zoom) {
+    return false;
+  }
+
+  const float wheel_amount =
+      event.offset.y != 0.0f ? event.offset.y : event.offset.x;
+  if (wheel_amount == 0.0f) {
+    return false;
+  }
+
+  const ui::UIViewTransform2D previous =
+      node->view_transform.value_or(ui::UIViewTransform2D{});
+  const glm::vec2 viewport_origin(
+      node->layout.content_bounds.x,
+      node->layout.content_bounds.y
+  );
+  const float desired_zoom = previous.zoom * std::pow(1.1f, wheel_amount);
+  const ui::UIViewTransform2D next = ui::zoom_around_screen_anchor(
+      previous,
+      desired_zoom,
+      event.screen_position,
+      viewport_origin
+  );
+  if (view_transform_equal(previous, next)) {
+    return false;
+  }
+
+  target.document->set_view_transform(target.node_id, next);
+  queue_mouse_wheel_callback(target, event);
+  queue_view_transform_change_callback(
+      target,
+      ui::UIViewTransformChangeEvent{
+          .previous = previous,
+          .current = next,
+          .anchor_screen = event.screen_position,
+          .anchor_world = ui::screen_to_canvas(
+              previous,
+              event.screen_position,
+              viewport_origin
+          ),
+      }
+  );
+  return true;
+}
+
+std::optional<detail::PointerHit> pointer_hit_for_target(
+    const std::vector<detail::RootEntry> &roots,
+    const std::optional<detail::PointerHit> &deepest_hit,
+    const detail::Target &target
+) {
+  const detail::RootEntry *root_entry = detail::find_root_entry(roots, target);
+  if (root_entry == nullptr) {
+    return std::nullopt;
+  }
+
+  if (deepest_hit.has_value() &&
+      detail::same_target(
+          std::optional<detail::Target>{deepest_hit->target},
+          std::optional<detail::Target>{target}
+      )) {
+    return deepest_hit;
+  }
+
+  if (deepest_hit.has_value() &&
+      detail::target_uses_root(*root_entry, deepest_hit->target)) {
+    auto mapped_hit = detail::find_pointer_event_target(
+        *root_entry,
+        deepest_hit->target.node_id,
+        deepest_hit->part,
+        deepest_hit->item_index,
+        deepest_hit->custom
+    );
+    if (mapped_hit.has_value() &&
+        detail::same_target(
+            std::optional<detail::Target>{mapped_hit->target},
+            std::optional<detail::Target>{target}
+        )) {
+      return mapped_hit;
+    }
+  }
+
+  return detail::PointerHit{
+      .target = target,
+      .part = ui::UIHitPart::Body,
+      .item_index = std::nullopt,
+      .custom = std::nullopt,
+  };
+}
+
 } // namespace
+
+bool UISystem::keyboard_focus_captures_editor_shortcuts() const {
+  if (!m_focused_target.has_value() || m_focused_target->document == nullptr) {
+    return false;
+  }
+
+  const auto *node =
+      m_focused_target->document->node(m_focused_target->node_id);
+  if (node == nullptr) {
+    return false;
+  }
+
+  return node->type == ui::NodeType::TextInput ||
+         node->type == ui::NodeType::Combobox ||
+         node->type == ui::NodeType::Select;
+}
 
 void UISystem::start() {
   auto *dispatcher = EventDispatcher::get();
@@ -92,9 +384,14 @@ void UISystem::start() {
 
   dispatcher->attach<MouseListener, MouseWheelEvent>(
       [this](MouseWheelEvent *event) {
+        const auto cursor = input::CURSOR_POSITION();
         m_mouse_wheel_inputs.push_back(QueuedMouseWheelInput{
             .event = ui::UIMouseWheelInputEvent{
                 .offset = glm::vec2(static_cast<float>(event->xoffset), static_cast<float>(event->yoffset)),
+                .screen_position = glm::vec2(
+                    static_cast<float>(cursor.x),
+                    static_cast<float>(cursor.y)
+                ),
                 .modifiers = event->modifiers,
             },
         });
@@ -108,19 +405,37 @@ void UISystem::pre_update(double) {}
 
 void UISystem::update(double dt) {
   ASTRA_PROFILE_N("UISystem::update");
-  (void)SceneManager::get()->flush_pending_active_scene_state();
-
-  auto *scene = SceneManager::get()->get_active_scene();
-  auto window = window_manager()->active_window();
-
-  if (scene == nullptr || window == nullptr) {
+  auto scene_manager = SceneManager::get();
+  if (scene_manager == nullptr) {
     clear_pointer_state();
-    m_last_scene = scene;
+    m_last_scene = nullptr;
+    m_last_scene_generation = 0u;
     clear_queued_inputs();
     return;
   }
 
-  const bool scene_changed = m_last_scene != scene;
+  (void)scene_manager->flush_pending_active_scene_state();
+
+  const uint64_t scene_generation =
+      scene_manager->scene_instance_generation();
+  const bool generation_changed = m_last_scene_generation != scene_generation;
+  if (generation_changed) {
+    clear_pointer_state();
+    m_last_scene = nullptr;
+  }
+  m_last_scene_generation = scene_generation;
+
+  auto *scene = scene_manager->get_active_scene();
+  auto window = window_manager()->active_window();
+
+  if (scene == nullptr || window == nullptr) {
+    clear_pointer_state();
+    m_last_scene = nullptr;
+    clear_queued_inputs();
+    return;
+  }
+
+  const bool scene_changed = generation_changed || m_last_scene != scene;
   m_last_scene = scene;
 
   auto &world = scene->world();
@@ -140,12 +455,20 @@ void UISystem::update(double dt) {
     ASTRA_PROFILE_N("UISystem::validate_targets");
     validate_targets(roots, scene_changed, pointer_enabled);
   }
+  {
+    ASTRA_PROFILE_N("UISystem::process_pointer_capture_requests");
+    process_pointer_capture_requests(roots);
+  }
 
   glm::vec2 pointer(0.0f);
   std::optional<detail::PointerHit> deepest_hit;
   {
     ASTRA_PROFILE_N("UISystem::hit_test");
     deepest_hit = hit_test(roots, pointer_enabled, pointer);
+  }
+  {
+    ASTRA_PROFILE_N("UISystem::dispatch_pointer_motion");
+    dispatch_pointer_motion(roots, pointer_enabled, deepest_hit, pointer);
   }
 
   {
@@ -304,6 +627,35 @@ void UISystem::validate_targets(const std::vector<detail::RootEntry> &roots, boo
       !detail::target_available(roots, m_splitter_resize_drag->target, true)) {
     clear_splitter_resize_drag();
   }
+  for (const input::MouseButton button :
+       {input::MouseButton::Left,
+        input::MouseButton::Middle,
+        input::MouseButton::Right}) {
+    auto &button_state = m_pointer_button_states[pointer_button_index(button)];
+    if (!detail::target_available(roots, button_state.pressed_target, true)) {
+      button_state.pressed_target.reset();
+      button_state.drag_active = false;
+    }
+    if (!detail::target_available(roots, button_state.capture_target, true)) {
+      button_state.capture_target.reset();
+    }
+    if (!button_state.pressed_target.has_value() &&
+        !button_state.capture_target.has_value()) {
+      button_state.last_routed_target.reset();
+      button_state.pressed_part = ui::UIHitPart::Body;
+      button_state.pressed_item_index.reset();
+      button_state.pressed_custom.reset();
+      button_state.view_transform_pan = false;
+    }
+  }
+  if (m_last_pointer_move_hit.has_value() &&
+      !detail::target_available(
+          roots,
+          std::optional<Target>{m_last_pointer_move_hit->target},
+          true
+      )) {
+    m_last_pointer_move_hit.reset();
+  }
 
   if (scene_changed || !pointer_enabled) {
     clear_pointer_state();
@@ -322,24 +674,197 @@ UISystem::hit_test(const std::vector<detail::RootEntry> &roots, bool pointer_ena
   const auto cursor = input::CURSOR_POSITION();
   pointer =
       glm::vec2(static_cast<float>(cursor.x), static_cast<float>(cursor.y));
+  return pointer_hit_at_position(roots, pointer);
+}
 
-  for (auto it = roots.rbegin(); it != roots.rend(); ++it) {
-    if (!it->root->input_enabled || it->document == nullptr) {
+void UISystem::process_pointer_capture_requests(
+    const std::vector<detail::RootEntry> &roots
+) {
+  for (const detail::RootEntry &entry : roots) {
+    if (entry.document == nullptr) {
       continue;
     }
 
-    auto hit = ui::hit_test_document(*it->document, pointer);
-    if (!hit.has_value()) {
+    for (const ui::UIPointerCaptureRequest &request :
+         entry.document->consume_pointer_capture_requests()) {
+      auto target = detail::target_from_node(entry, request.node_id);
+      if (!target.has_value()) {
+        continue;
+      }
+
+      auto &button_state = m_pointer_button_states[pointer_button_index(
+          request.button
+      )];
+      if (request.action == ui::UIPointerCaptureAction::Capture) {
+        if (detail::target_available(
+                roots,
+                std::optional<Target>{*target},
+                true
+            )) {
+          button_state.capture_target = *target;
+        }
+      } else if (detail::same_target(
+                     button_state.capture_target,
+                     std::optional<Target>{*target}
+                 )) {
+        button_state.capture_target.reset();
+      }
+    }
+  }
+}
+
+void UISystem::dispatch_pointer_motion(
+    const std::vector<detail::RootEntry> &roots,
+    bool pointer_enabled,
+    const std::optional<detail::PointerHit> &deepest_hit,
+    const glm::vec2 &pointer
+) {
+  if (!pointer_enabled) {
+    m_last_pointer_move_hit.reset();
+    m_has_last_pointer_position = false;
+    return;
+  }
+
+  const bool pointer_moved =
+      !m_has_last_pointer_position || pointer != m_last_pointer_position;
+
+  for (const input::MouseButton button :
+       {input::MouseButton::Left,
+        input::MouseButton::Middle,
+        input::MouseButton::Right}) {
+    auto &button_state = m_pointer_button_states[pointer_button_index(button)];
+    const bool button_down = input::IS_MOUSE_BUTTON_DOWN(button);
+    if (!button_down ||
+        (!button_state.capture_target.has_value() &&
+         !button_state.pressed_target.has_value())) {
       continue;
     }
 
-    if (auto deepest_hit = detail::target_from_hit(*it, *hit);
-        deepest_hit.has_value()) {
-      return deepest_hit;
+    std::optional<Target> routed_target =
+        button_state.capture_target.has_value()
+            ? button_state.capture_target
+            : button_state.pressed_target;
+    if (!detail::target_available(roots, routed_target, true)) {
+      button_state.capture_target.reset();
+      if (!detail::target_available(roots, button_state.pressed_target, true)) {
+        clear_pointer_button_state(button);
+        continue;
+      }
+      routed_target = button_state.pressed_target;
+    }
+
+    if (!routed_target.has_value()) {
+      continue;
+    }
+
+    auto routed_hit = pointer_hit_for_target(roots, deepest_hit, *routed_target);
+    if (!routed_hit.has_value()) {
+      routed_hit = detail::PointerHit{
+          .target = *routed_target,
+          .part = button_state.pressed_part,
+          .item_index = button_state.pressed_item_index,
+          .custom = button_state.pressed_custom,
+      };
+    }
+
+    const glm::vec2 delta = pointer - button_state.last_pointer;
+    const glm::vec2 total_delta = pointer - button_state.press_pointer;
+    const bool target_changed = !detail::same_target(
+        button_state.last_routed_target,
+        std::optional<Target>{routed_hit->target}
+    );
+
+    if (button_state.view_transform_pan && pointer_moved) {
+      apply_view_transform_pan(routed_hit->target, delta, pointer);
+    }
+
+    if (!pointer_moved && !target_changed) {
+      continue;
+    }
+
+    constexpr float k_drag_threshold = 2.0f;
+    const bool exceeds_threshold =
+        button_state.view_transform_pan ? glm::length(total_delta) > 0.0f
+                                        : glm::length(total_delta) >=
+                                              k_drag_threshold;
+
+    if (!button_state.drag_active && exceeds_threshold) {
+      dispatch_pointer_event(
+          *routed_hit,
+          ui::UIPointerEventPhase::DragStart,
+          pointer,
+          delta,
+          total_delta,
+          button,
+          current_key_modifiers()
+      );
+      button_state.drag_active = true;
+    } else if (button_state.drag_active) {
+      dispatch_pointer_event(
+          *routed_hit,
+          ui::UIPointerEventPhase::DragUpdate,
+          pointer,
+          delta,
+          total_delta,
+          button,
+          current_key_modifiers()
+      );
+    } else {
+      dispatch_pointer_event(
+          *routed_hit,
+          ui::UIPointerEventPhase::Move,
+          pointer,
+          delta,
+          total_delta,
+          button,
+          current_key_modifiers()
+      );
+    }
+
+    button_state.last_pointer = pointer;
+    button_state.last_routed_target = routed_hit->target;
+  }
+
+  const bool any_button_down =
+      input::IS_MOUSE_BUTTON_DOWN(input::MouseButton::Left) ||
+      input::IS_MOUSE_BUTTON_DOWN(input::MouseButton::Middle) ||
+      input::IS_MOUSE_BUTTON_DOWN(input::MouseButton::Right);
+  std::optional<detail::PointerHit> move_hit;
+  if (deepest_hit.has_value()) {
+    const detail::RootEntry *root_entry =
+        detail::find_root_entry(roots, deepest_hit->target);
+    if (root_entry != nullptr) {
+      move_hit = detail::find_pointer_event_target(
+          *root_entry,
+          deepest_hit->target.node_id,
+          deepest_hit->part,
+          deepest_hit->item_index,
+          deepest_hit->custom
+      );
     }
   }
 
-  return std::nullopt;
+  if (!any_button_down &&
+      (pointer_moved || !same_pointer_hit(m_last_pointer_move_hit, move_hit))) {
+    if (move_hit.has_value()) {
+      const glm::vec2 delta = m_has_last_pointer_position
+                                  ? pointer - m_last_pointer_position
+                                  : glm::vec2(0.0f);
+      dispatch_pointer_event(
+          *move_hit,
+          ui::UIPointerEventPhase::Move,
+          pointer,
+          delta,
+          glm::vec2(0.0f),
+          std::nullopt,
+          current_key_modifiers()
+      );
+    }
+  }
+  m_last_pointer_move_hit = move_hit;
+
+  m_last_pointer_position = pointer;
+  m_has_last_pointer_position = true;
 }
 
 void UISystem::update_active_drags(const std::vector<detail::RootEntry> &roots, bool pointer_enabled, const glm::vec2 &pointer, const glm::vec2 &viewport_size) {
@@ -449,15 +974,44 @@ void UISystem::handle_pointer_press(
     return;
   }
 
+  const detail::RootEntry *root_entry =
+      deepest_hit.has_value()
+          ? detail::find_root_entry(roots, deepest_hit->target)
+          : nullptr;
+  const auto pointer_target =
+      deepest_hit.has_value() && root_entry != nullptr
+          ? detail::find_pointer_event_target(
+                *root_entry,
+                deepest_hit->target.node_id,
+                deepest_hit->part,
+                deepest_hit->item_index,
+                deepest_hit->custom
+            )
+          : std::nullopt;
+
   if (input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Right)) {
     clear_secondary_click_state();
-    if (!deepest_hit.has_value()) {
-      return;
+    clear_pointer_button_state(input::MouseButton::Right);
+    if (pointer_target.has_value()) {
+      auto &button_state =
+          m_pointer_button_states[pointer_button_index(input::MouseButton::Right)];
+      button_state.pressed_target = pointer_target->target;
+      button_state.pressed_part = pointer_target->part;
+      button_state.pressed_item_index = pointer_target->item_index;
+      button_state.pressed_custom = pointer_target->custom;
+      button_state.press_pointer = pointer;
+      button_state.last_pointer = pointer;
+      dispatch_pointer_event(
+          *pointer_target,
+          ui::UIPointerEventPhase::Press,
+          pointer,
+          glm::vec2(0.0f),
+          glm::vec2(0.0f),
+          input::MouseButton::Right,
+          current_key_modifiers()
+      );
     }
-
-    const detail::RootEntry *root_entry =
-        detail::find_root_entry(roots, deepest_hit->target);
-    if (root_entry == nullptr) {
+    if (!deepest_hit.has_value() || root_entry == nullptr) {
       return;
     }
 
@@ -475,7 +1029,58 @@ void UISystem::handle_pointer_press(
         .pointer = pointer,
         .modifiers = current_key_modifiers(),
     };
-    return;
+  }
+
+  if (input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Middle)) {
+    clear_pointer_button_state(input::MouseButton::Middle);
+    std::optional<detail::PointerHit> middle_target = pointer_target;
+    if (deepest_hit.has_value() && root_entry != nullptr) {
+      auto transform_target = detail::find_view_transform_target(
+          *root_entry, deepest_hit->target.node_id
+      );
+      if (transform_target.has_value() && transform_target->document != nullptr) {
+        const auto *transform_node =
+            transform_target->document->node(transform_target->node_id);
+        if (transform_node != nullptr &&
+            transform_node->view_transform_interaction.middle_mouse_pan) {
+          middle_target = detail::PointerHit{
+              .target = *transform_target,
+              .part = ui::UIHitPart::Body,
+              .item_index = std::nullopt,
+              .custom = std::nullopt,
+          };
+        }
+      }
+    }
+
+    if (middle_target.has_value()) {
+      auto &button_state =
+          m_pointer_button_states[pointer_button_index(input::MouseButton::Middle)];
+      button_state.pressed_target = middle_target->target;
+      button_state.pressed_part = middle_target->part;
+      button_state.pressed_item_index = middle_target->item_index;
+      button_state.pressed_custom = middle_target->custom;
+      button_state.press_pointer = pointer;
+      button_state.last_pointer = pointer;
+      if (middle_target->target.document != nullptr) {
+        if (const auto *middle_node =
+                middle_target->target.document->node(middle_target->target.node_id);
+            middle_node != nullptr &&
+            middle_node->view_transform_interaction.middle_mouse_pan) {
+          button_state.capture_target = middle_target->target;
+          button_state.view_transform_pan = true;
+        }
+      }
+      dispatch_pointer_event(
+          *middle_target,
+          ui::UIPointerEventPhase::Press,
+          pointer,
+          glm::vec2(0.0f),
+          glm::vec2(0.0f),
+          input::MouseButton::Middle,
+          current_key_modifiers()
+      );
+    }
   }
 
   if (!input::IS_MOUSE_BUTTON_PRESSED(input::MouseButton::Left)) {
@@ -484,16 +1089,34 @@ void UISystem::handle_pointer_press(
 
   clear_active_target(false);
   clear_drag_state();
+  clear_pointer_button_state(input::MouseButton::Left);
 
   if (!deepest_hit.has_value()) {
     clear_focused_target(true);
     return;
   }
-
-  const detail::RootEntry *root_entry =
-      detail::find_root_entry(roots, deepest_hit->target);
   if (root_entry == nullptr) {
     return;
+  }
+
+  if (pointer_target.has_value()) {
+    auto &button_state =
+        m_pointer_button_states[pointer_button_index(input::MouseButton::Left)];
+    button_state.pressed_target = pointer_target->target;
+    button_state.pressed_part = pointer_target->part;
+    button_state.pressed_item_index = pointer_target->item_index;
+    button_state.pressed_custom = pointer_target->custom;
+    button_state.press_pointer = pointer;
+    button_state.last_pointer = pointer;
+    dispatch_pointer_event(
+        *pointer_target,
+        ui::UIPointerEventPhase::Press,
+        pointer,
+        glm::vec2(0.0f),
+        glm::vec2(0.0f),
+        input::MouseButton::Left,
+        current_key_modifiers()
+    );
   }
 
   const auto interactive_target =
@@ -682,6 +1305,64 @@ void UISystem::handle_pointer_release(
   if (!pointer_enabled) {
     return;
   }
+
+  const auto dispatch_button_release =
+      [&](input::MouseButton button) {
+        if (!input::IS_MOUSE_BUTTON_RELEASED(button)) {
+          return;
+        }
+
+        auto &button_state =
+            m_pointer_button_states[pointer_button_index(button)];
+        std::optional<Target> routed_target =
+            button_state.capture_target.has_value()
+                ? button_state.capture_target
+                : button_state.pressed_target;
+        if (detail::target_available(roots, routed_target, true) &&
+            routed_target.has_value()) {
+          auto routed_hit =
+              pointer_hit_for_target(roots, deepest_hit, *routed_target);
+          if (!routed_hit.has_value()) {
+            routed_hit = detail::PointerHit{
+                .target = *routed_target,
+                .part = button_state.pressed_part,
+                .item_index = button_state.pressed_item_index,
+                .custom = button_state.pressed_custom,
+            };
+          }
+
+          if (routed_hit.has_value()) {
+            const glm::vec2 delta = pointer - button_state.last_pointer;
+            const glm::vec2 total_delta = pointer - button_state.press_pointer;
+            if (button_state.drag_active) {
+              dispatch_pointer_event(
+                  *routed_hit,
+                  ui::UIPointerEventPhase::DragEnd,
+                  pointer,
+                  delta,
+                  total_delta,
+                  button,
+                  current_key_modifiers()
+              );
+            }
+            dispatch_pointer_event(
+                *routed_hit,
+                ui::UIPointerEventPhase::Release,
+                pointer,
+                delta,
+                total_delta,
+                button,
+                current_key_modifiers()
+            );
+          }
+        }
+
+        clear_pointer_button_state(button);
+      };
+
+  dispatch_button_release(input::MouseButton::Right);
+  dispatch_button_release(input::MouseButton::Middle);
+  dispatch_button_release(input::MouseButton::Left);
 
   if (input::IS_MOUSE_BUTTON_RELEASED(input::MouseButton::Right)) {
     auto pressed = m_secondary_click_press;
@@ -1216,12 +1897,30 @@ void UISystem::dispatch_scroll_input(
       continue;
     }
 
-    if (!deepest_hit.has_value()) {
+    auto wheel_hit = pointer_hit_at_position(
+        roots, queued_wheel.event.screen_position
+    );
+    if (!wheel_hit.has_value()) {
+      wheel_hit = deepest_hit;
+    }
+    if (!wheel_hit.has_value()) {
       continue;
     }
 
+    const detail::RootEntry *root_entry =
+        detail::find_root_entry(roots, wheel_hit->target);
+    if (root_entry != nullptr) {
+      auto transform_target = detail::find_view_transform_target(
+          *root_entry, wheel_hit->target.node_id
+      );
+      if (transform_target.has_value() &&
+          apply_view_transform_zoom(*transform_target, queued_wheel.event)) {
+        continue;
+      }
+    }
+
     auto scroll_dispatch = detail::find_scroll_dispatch(
-        roots, deepest_hit->target, queued_wheel.event
+        roots, wheel_hit->target, queued_wheel.event
     );
     if (!scroll_dispatch.has_value() ||
         scroll_dispatch->target.document == nullptr) {
@@ -1246,13 +1945,7 @@ void UISystem::dispatch_scroll_input(
       );
     }
 
-    if (node->on_mouse_wheel) {
-      auto callback = node->on_mouse_wheel;
-      auto event = queued_wheel.event;
-      scroll_dispatch->target.document->queue_callback(
-          [callback, event]() { callback(event); }
-      );
-    }
+    queue_mouse_wheel_callback(scroll_dispatch->target, queued_wheel.event);
   }
 }
 
@@ -1280,6 +1973,7 @@ void UISystem::flush_and_relayout(const std::vector<detail::RootEntry> &roots, c
       ASTRA_PROFILE_N("UIDocument::flush_callbacks");
       entry.document->flush_callbacks();
     }
+    process_pointer_capture_requests(roots);
     if (document_needs_layout(*entry.document, context)) {
       ASTRA_PROFILE_N("UISystem::relayout");
       ui::layout_document(*entry.document, context);
@@ -1458,6 +2152,20 @@ void UISystem::clear_secondary_click_state() {
   m_secondary_click_press.reset();
 }
 
+void UISystem::clear_pointer_button_state(input::MouseButton button) {
+  auto &button_state = m_pointer_button_states[pointer_button_index(button)];
+  button_state.pressed_target.reset();
+  button_state.capture_target.reset();
+  button_state.last_routed_target.reset();
+  button_state.pressed_part = ui::UIHitPart::Body;
+  button_state.pressed_item_index.reset();
+  button_state.pressed_custom.reset();
+  button_state.press_pointer = glm::vec2(0.0f);
+  button_state.last_pointer = glm::vec2(0.0f);
+  button_state.drag_active = false;
+  button_state.view_transform_pan = false;
+}
+
 void UISystem::clear_text_selection_drag() { m_text_selection_drag.reset(); }
 
 void UISystem::clear_scrollbar_drag() { m_scrollbar_drag.reset(); }
@@ -1485,6 +2193,12 @@ void UISystem::clear_pointer_state() {
   clear_focused_target(false);
   clear_secondary_click_state();
   clear_drag_state();
+  clear_pointer_button_state(input::MouseButton::Left);
+  clear_pointer_button_state(input::MouseButton::Middle);
+  clear_pointer_button_state(input::MouseButton::Right);
+  m_last_pointer_move_hit.reset();
+  m_last_pointer_position = glm::vec2(0.0f);
+  m_has_last_pointer_position = false;
 }
 
 void UISystem::set_focused_target(const std::optional<Target> &target) {
@@ -1506,6 +2220,43 @@ void UISystem::set_focused_target(const std::optional<Target> &target) {
   }
 
   m_focused_target = target;
+}
+
+void UISystem::dispatch_pointer_event(
+    const detail::PointerHit &hit,
+    ui::UIPointerEventPhase phase,
+    const glm::vec2 &pointer,
+    const glm::vec2 &delta,
+    const glm::vec2 &total_delta,
+    std::optional<input::MouseButton> button,
+    input::KeyModifiers modifiers
+) {
+  if (hit.target.document == nullptr) {
+    return;
+  }
+
+  const auto *node = hit.target.document->node(hit.target.node_id);
+  if (node == nullptr || !node->on_pointer_event) {
+    return;
+  }
+
+  const auto callback = node->on_pointer_event;
+  const ui::UIPointerEvent event{
+      .phase = phase,
+      .screen_position = pointer,
+      .local_position = local_pointer_position(hit.target, pointer),
+      .delta = delta,
+      .total_delta = total_delta,
+      .button = button,
+      .buttons = current_pointer_buttons(),
+      .modifiers = modifiers,
+      .part = hit.part,
+      .item_index = hit.item_index,
+      .custom = hit.custom,
+  };
+  hit.target.document->queue_callback(
+      [callback, event]() { callback(event); }
+  );
 }
 
 } // namespace astralix

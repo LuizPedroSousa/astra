@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <limits>
 #include <type_traits>
+#include <unordered_map>
 
 namespace astralix::ui::im {
 
@@ -21,6 +22,16 @@ struct VirtualListState {
 
 struct FocusRequest {
   WidgetId widget_id = k_invalid_widget_id;
+};
+
+struct PointerCaptureRequest {
+  WidgetId widget_id = k_invalid_widget_id;
+  input::MouseButton button = input::MouseButton::Left;
+};
+
+struct PointerCaptureReleaseRequest {
+  WidgetId widget_id = k_invalid_widget_id;
+  input::MouseButton button = input::MouseButton::Left;
 };
 
 struct TextSelectionRequest {
@@ -39,12 +50,18 @@ struct ScrollRequest {
   glm::vec2 offset = glm::vec2(0.0f);
 };
 
+struct ViewTransformRequest {
+  WidgetId widget_id = k_invalid_widget_id;
+  UIViewTransform2D transform;
+};
+
 class Frame;
 
 class Children {
 public:
   Children() = default;
 
+  WidgetId resolve_widget_id() const;
   WidgetId resolve_widget_id(std::string_view local_name) const {
     ASTRA_ENSURE(
         m_frame == nullptr || m_scope_id == k_invalid_widget_id,
@@ -73,13 +90,18 @@ public:
         resolve_widget_id(local_name),
     };
   }
+  Children scope() const;
 
   class NodeHandle;
 
+  NodeHandle view();
   NodeHandle view(std::string_view local_name);
+  NodeHandle column();
   NodeHandle column(std::string_view local_name);
+  NodeHandle row();
   NodeHandle row(std::string_view local_name);
   NodeHandle scroll_view(std::string_view local_name);
+  NodeHandle spacer();
   NodeHandle spacer(std::string_view local_name);
   NodeHandle text(std::string_view local_name, std::string value);
   NodeHandle image(std::string_view local_name, ResourceDescriptorID texture_id);
@@ -127,6 +149,7 @@ public:
   );
   NodeHandle popover(std::string_view local_name);
   NodeHandle line_chart(std::string_view local_name);
+  NodeHandle graph_view(std::string_view local_name, GraphViewSpec spec);
 
   NodeHandle button(
       std::string_view local_name,
@@ -252,6 +275,39 @@ public:
   NodeHandle &select_all_on_focus(bool value) {
     if (m_header_node != nullptr) {
       set_bool_value(*m_header_node, NodeScalarField::SelectAllOnFocus, value);
+    }
+    return *this;
+  }
+
+  NodeHandle &view_transform_enabled(bool value = true) {
+    if (m_header_node != nullptr) {
+      set_bool_value(
+          *m_header_node,
+          NodeScalarField::ViewTransformEnabled,
+          value
+      );
+    }
+    return *this;
+  }
+
+  NodeHandle &view_transform_pan_enabled(bool value = true) {
+    if (m_header_node != nullptr) {
+      set_bool_value(
+          *m_header_node,
+          NodeScalarField::ViewTransformMiddleMousePan,
+          value
+      );
+    }
+    return *this;
+  }
+
+  NodeHandle &view_transform_zoom_enabled(bool value = true) {
+    if (m_header_node != nullptr) {
+      set_bool_value(
+          *m_header_node,
+          NodeScalarField::ViewTransformWheelZoom,
+          value
+      );
     }
     return *this;
   }
@@ -450,6 +506,33 @@ public:
     return *this;
   }
 
+  NodeHandle &graph_view_spec(GraphViewSpec spec) {
+    if (m_header_node != nullptr) {
+      ensure_graph_payload().spec = std::move(spec);
+    }
+    return *this;
+  }
+
+  NodeHandle &on_pointer_event(
+      std::function<void(const UIPointerEvent &)> callback
+  ) {
+    if (m_header_node != nullptr) {
+      ensure_callback_payload().on_pointer_event_callback = std::move(callback);
+    }
+    return *this;
+  }
+
+  NodeHandle &on_custom_hit_test(
+      std::function<std::optional<UICustomHitData>(glm::vec2 local_position)>
+          callback
+  ) {
+    if (m_header_node != nullptr) {
+      ensure_callback_payload().on_custom_hit_test_callback =
+          std::move(callback);
+    }
+    return *this;
+  }
+
   NodeHandle &on_hover(std::function<void()> callback) {
     if (m_header_node != nullptr) {
       ensure_callback_payload().on_hover_callback = std::move(callback);
@@ -527,6 +610,16 @@ public:
     return *this;
   }
 
+  NodeHandle &on_view_transform_change(
+      std::function<void(const UIViewTransformChangeEvent &)> callback
+  ) {
+    if (m_header_node != nullptr) {
+      ensure_callback_payload().on_view_transform_change_callback =
+          std::move(callback);
+    }
+    return *this;
+  }
+
   NodeHandle &on_change(std::function<void(const std::string &)> callback) {
     if (m_header_node != nullptr) {
       ensure_callback_payload().on_change_callback = std::move(callback);
@@ -572,6 +665,36 @@ public:
     return *this;
   }
 
+  NodeHandle &on_selection_change(
+      std::function<void(const UIGraphSelection &)> callback
+  ) {
+    if (m_header_node != nullptr) {
+      ensure_callback_payload().on_graph_selection_change_callback =
+          std::move(callback);
+    }
+    return *this;
+  }
+
+  NodeHandle &on_node_move(
+      std::function<void(UIGraphId, glm::vec2)> callback
+  ) {
+    if (m_header_node != nullptr) {
+      ensure_callback_payload().on_graph_node_move_callback =
+          std::move(callback);
+    }
+    return *this;
+  }
+
+  NodeHandle &on_connection_drag_end(
+      std::function<void(UIGraphId, std::optional<UIGraphId>)> callback
+  ) {
+    if (m_header_node != nullptr) {
+      ensure_callback_payload().on_graph_connection_drag_end_callback =
+          std::move(callback);
+    }
+    return *this;
+  }
+
 private:
   friend class Children;
 
@@ -604,6 +727,7 @@ private:
   NodeTextPayload &ensure_text_payload() const;
   NodeOptionPayload &ensure_option_payload() const;
   NodeLineChartPayload &ensure_line_chart_payload() const;
+  NodeGraphPayload &ensure_graph_payload() const;
   NodePopoverPayload &ensure_popover_payload() const;
   NodeCallbackPayload &ensure_callback_payload() const;
 
@@ -647,6 +771,7 @@ public:
   const NodeTextPayload &text_payload(const NodeState &state) const;
   const NodeOptionPayload &option_payload(const NodeState &state) const;
   const NodeLineChartPayload &line_chart_payload(const NodeState &state) const;
+  const NodeGraphPayload &graph_payload(const NodeState &state) const;
   const NodePopoverPayload &popover_payload(const NodeState &state) const;
   const NodeCallbackPayload &callback_payload(const NodeState &state) const;
   const dsl::StyleStep &style_step(size_t index) const {
@@ -658,6 +783,26 @@ public:
 
   void request_focus(WidgetId widget_id) {
     m_focus_requests.push_back(FocusRequest{widget_id});
+  }
+
+  void request_pointer_capture(
+      WidgetId widget_id,
+      input::MouseButton button = input::MouseButton::Left
+  ) {
+    m_pointer_capture_requests.push_back(PointerCaptureRequest{
+        .widget_id = widget_id,
+        .button = button,
+    });
+  }
+
+  void release_pointer_capture(
+      WidgetId widget_id,
+      input::MouseButton button = input::MouseButton::Left
+  ) {
+    m_pointer_capture_release_requests.push_back(PointerCaptureReleaseRequest{
+        .widget_id = widget_id,
+        .button = button,
+    });
   }
 
   void set_text_selection(WidgetId widget_id, UITextSelection selection) {
@@ -682,8 +827,22 @@ public:
     });
   }
 
+  void set_view_transform(WidgetId widget_id, UIViewTransform2D transform) {
+    m_view_transform_requests.push_back(ViewTransformRequest{
+        .widget_id = widget_id,
+        .transform = std::move(transform),
+    });
+  }
+
   const std::vector<FocusRequest> &focus_requests() const {
     return m_focus_requests;
+  }
+  const std::vector<PointerCaptureRequest> &pointer_capture_requests() const {
+    return m_pointer_capture_requests;
+  }
+  const std::vector<PointerCaptureReleaseRequest> &
+  pointer_capture_release_requests() const {
+    return m_pointer_capture_release_requests;
   }
   const std::vector<TextSelectionRequest> &text_selection_requests() const {
     return m_text_selection_requests;
@@ -694,17 +853,22 @@ public:
   const std::vector<ScrollRequest> &scroll_requests() const {
     return m_scroll_requests;
   }
+  const std::vector<ViewTransformRequest> &view_transform_requests() const {
+    return m_view_transform_requests;
+  }
 
 private:
   friend class Children;
   friend class Children::NodeHandle;
 
   NodeId create_node(dsl::NodeKind kind, WidgetId widget_id);
+  WidgetId next_auto_widget_id(WidgetId scope_id);
   void append_child(NodeId parent_id, NodeId child_id);
   void append_style(NodeId node_id, dsl::StyleBuilder builder);
   NodeTextPayload &ensure_text_payload(NodeId node_id);
   NodeOptionPayload &ensure_option_payload(NodeId node_id);
   NodeLineChartPayload &ensure_line_chart_payload(NodeId node_id);
+  NodeGraphPayload &ensure_graph_payload(NodeId node_id);
   NodePopoverPayload &ensure_popover_payload(NodeId node_id);
   NodeCallbackPayload &ensure_callback_payload(NodeId node_id);
 
@@ -742,14 +906,19 @@ private:
   BumpVector<NodeTextPayload> m_text_payloads;
   BumpVector<NodeOptionPayload> m_option_payloads;
   BumpVector<NodeLineChartPayload> m_line_chart_payloads;
+  BumpVector<NodeGraphPayload> m_graph_payloads;
   BumpVector<NodePopoverPayload> m_popover_payloads;
   BumpVector<NodeCallbackPayload> m_callback_payloads;
   NodeId m_root_node_id = k_invalid_immediate_node_id;
   std::vector<FocusRequest> m_focus_requests;
+  std::vector<PointerCaptureRequest> m_pointer_capture_requests;
+  std::vector<PointerCaptureReleaseRequest> m_pointer_capture_release_requests;
   std::vector<TextSelectionRequest> m_text_selection_requests;
   std::vector<CaretRequest> m_caret_requests;
   std::vector<ScrollRequest> m_scroll_requests;
+  std::vector<ViewTransformRequest> m_view_transform_requests;
   std::unordered_map<WidgetId, std::vector<LazySectionEntry>> m_lazy_section_registries;
+  std::unordered_map<WidgetId, uint64_t> m_auto_child_counters;
 };
 
 template <typename Rule, typename... Rest>
@@ -777,6 +946,10 @@ Children::NodeHandle::ensure_line_chart_payload() const {
   return m_frame->ensure_line_chart_payload(m_node_id);
 }
 
+inline NodeGraphPayload &Children::NodeHandle::ensure_graph_payload() const {
+  return m_frame->ensure_graph_payload(m_node_id);
+}
+
 inline NodePopoverPayload &Children::NodeHandle::ensure_popover_payload() const {
   return m_frame->ensure_popover_payload(m_node_id);
 }
@@ -784,6 +957,22 @@ inline NodePopoverPayload &Children::NodeHandle::ensure_popover_payload() const 
 inline NodeCallbackPayload &
 Children::NodeHandle::ensure_callback_payload() const {
   return m_frame->ensure_callback_payload(m_node_id);
+}
+
+inline WidgetId Children::resolve_widget_id() const {
+  ASTRA_ENSURE(
+      m_frame == nullptr || m_scope_id == k_invalid_widget_id,
+      "ui::im::Children cannot resolve ids without a valid scope"
+  );
+  return m_frame->next_auto_widget_id(m_scope_id);
+}
+
+inline Children Children::scope() const {
+  return Children{
+      m_frame,
+      m_parent_id,
+      resolve_widget_id(),
+  };
 }
 
 inline Children::NodeHandle::NodeHandle(Frame *frame, NodeId node_id)
@@ -806,6 +995,11 @@ inline NodeId Frame::create_node(dsl::NodeKind kind, WidgetId widget_id) {
   return node_id;
 }
 
+inline WidgetId Frame::next_auto_widget_id(WidgetId scope_id) {
+  uint64_t &ordinal = m_auto_child_counters[scope_id];
+  return auto_child_id(scope_id, ordinal++);
+}
+
 inline const NodeTextPayload &Frame::text_payload(const NodeState &state) const {
   return payload_or_empty(m_text_payloads, state.text_payload_index);
 }
@@ -821,6 +1015,10 @@ Frame::line_chart_payload(const NodeState &state) const {
       m_line_chart_payloads,
       state.line_chart_payload_index
   );
+}
+
+inline const NodeGraphPayload &Frame::graph_payload(const NodeState &state) const {
+  return payload_or_empty(m_graph_payloads, state.graph_payload_index);
 }
 
 inline const NodePopoverPayload &
@@ -890,6 +1088,13 @@ inline NodeLineChartPayload &Frame::ensure_line_chart_payload(NodeId node_id) {
   );
 }
 
+inline NodeGraphPayload &Frame::ensure_graph_payload(NodeId node_id) {
+  return ensure_payload(
+      m_graph_payloads,
+      m_state_nodes[node_id].graph_payload_index
+  );
+}
+
 inline NodePopoverPayload &Frame::ensure_popover_payload(NodeId node_id) {
   return ensure_payload(
       m_popover_payloads,
@@ -938,13 +1143,29 @@ Children::append_node(std::string_view local_name, dsl::NodeKind kind) {
   return append_scoped_node(resolve_widget_id(local_name), kind);
 }
 
+inline Children::NodeHandle Children::view() {
+  return append_scoped_node(resolve_widget_id(), dsl::NodeKind::View);
+}
+
 inline Children::NodeHandle Children::view(std::string_view local_name) {
   return append_node(local_name, dsl::NodeKind::View);
+}
+
+inline Children::NodeHandle Children::column() {
+  auto node = view();
+  node.style(dsl::styles::column());
+  return node;
 }
 
 inline Children::NodeHandle Children::column(std::string_view local_name) {
   auto node = view(local_name);
   node.style(dsl::styles::column());
+  return node;
+}
+
+inline Children::NodeHandle Children::row() {
+  auto node = view();
+  node.style(dsl::styles::row());
   return node;
 }
 
@@ -960,6 +1181,12 @@ inline Children::NodeHandle Children::scroll_view(std::string_view local_name) {
 
 inline Children::NodeHandle Children::spacer(std::string_view local_name) {
   auto node = view(local_name);
+  node.style(dsl::styles::flex(1.0f));
+  return node;
+}
+
+inline Children::NodeHandle Children::spacer() {
+  auto node = view();
   node.style(dsl::styles::flex(1.0f));
   return node;
 }
@@ -1079,6 +1306,13 @@ inline Children::NodeHandle Children::popover(std::string_view local_name) {
 
 inline Children::NodeHandle Children::line_chart(std::string_view local_name) {
   return append_node(local_name, dsl::NodeKind::LineChart);
+}
+
+inline Children::NodeHandle
+Children::graph_view(std::string_view local_name, GraphViewSpec spec) {
+  auto node = append_node(local_name, dsl::NodeKind::GraphView);
+  node.graph_view_spec(std::move(spec));
+  return node;
 }
 
 inline Children::NodeHandle Children::button(
