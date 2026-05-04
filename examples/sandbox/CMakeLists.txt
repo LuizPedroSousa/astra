@@ -5,6 +5,8 @@ project(sandbox LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 option(ASTRA_EDITOR "Enable editor builtins in the sandbox example" ON)
+option(ASTRA_EDITOR_HOT_RELOAD "Enable hot-reload for the editor module" ON)
+option(ASTRA_SANDBOX_HOT_RELOAD "Enable hot-reload for sandbox scenes" ON)
 
 add_definitions(-DGLM_ENABLE_EXPERIMENTAL)
 
@@ -49,9 +51,6 @@ if(NOT download_result EQUAL 0)
 endif()
 message(STATUS "Sandbox assets download complete: @SANDBOX_ASSETS_ZIP@")
 
-file(REMOVE_RECURSE "@SANDBOX_ASSETS_DIR@")
-file(MAKE_DIRECTORY "@SANDBOX_ASSETS_DIR@")
-
 message(STATUS "Extracting sandbox assets into @SANDBOX_ASSETS_DIR@")
 execute_process(
   COMMAND "@CMAKE_COMMAND@" -E tar xf "@SANDBOX_ASSETS_ZIP@"
@@ -81,12 +80,36 @@ if (NOT TARGET astralix::astra)
   find_package(astralix CONFIG REQUIRED)
 endif()
 
+get_filename_component(ASTRA_PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
+set(ASTRA_INSTALL_INCLUDE "${ASTRA_PROJECT_ROOT}/install/include")
+set(ASTRA_ENGINE_GENERATED_DIR "${ASTRA_PROJECT_ROOT}/src/assets/.astralix/generated")
+if(NOT ASTRA_MAIN_BUILD_DIR)
+  set(ASTRA_MAIN_BUILD_DIR "${ASTRA_PROJECT_ROOT}/builds/debug")
+endif()
+
 file(GLOB_RECURSE SANDBOX_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
 file(GLOB_RECURSE SANDBOX_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp)
+file(GLOB_RECURSE SANDBOX_SCENE_SRC
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/scenes/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shared/*.cpp
+)
+file(GLOB_RECURSE SANDBOX_SCENE_HEADERS
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/scenes/*.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/shared/*.hpp
+)
 
 set(SANDBOX_COMMON_SRC ${SANDBOX_SRC})
 list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/main\\.cpp$")
 list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/scene_serialization_smoke\\.cpp$")
+list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/editor-loader\\.cpp$")
+list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/render-passes-loader\\.cpp$")
+list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/sandbox-loader\\.cpp$")
+list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/sandbox-module-entry\\.cpp$")
+
+if(ASTRA_SANDBOX_HOT_RELOAD)
+  list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/scenes/")
+  list(FILTER SANDBOX_COMMON_SRC EXCLUDE REGEX "/shared/")
+endif()
 
 add_library(sandbox-app STATIC ${SANDBOX_COMMON_SRC} ${SANDBOX_HEADERS})
 target_include_directories(sandbox-app PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -96,17 +119,170 @@ target_compile_options(sandbox-app PRIVATE
     -Wall -Wextra -Wpedantic
 )
 
-add_executable(sandbox ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+if(ASTRA_SANDBOX_HOT_RELOAD)
+  set(SANDBOX_LIVE_SRC
+    ${SANDBOX_SCENE_SRC}
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/sandbox-module-entry.cpp
+  )
+
+  add_library(sandbox_live MODULE ${SANDBOX_LIVE_SRC} ${SANDBOX_SCENE_HEADERS})
+
+  target_include_directories(sandbox_live PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${ASTRA_INSTALL_INCLUDE}
+    ${ASTRA_PROJECT_ROOT}/external
+    ${ASTRA_PROJECT_ROOT}/external/PhysX/physx/include
+    ${ASTRA_PROJECT_ROOT}/src/shared/foundation
+    ${ASTRA_PROJECT_ROOT}/src/shared/allocators
+    ${ASTRA_PROJECT_ROOT}/src/shared/events
+    ${ASTRA_PROJECT_ROOT}/src/shared/ecs
+    ${ASTRA_PROJECT_ROOT}/src/modules/streams
+    ${ASTRA_PROJECT_ROOT}/src/modules/project
+    ${ASTRA_PROJECT_ROOT}/src/modules/window
+    ${ASTRA_PROJECT_ROOT}/src/modules/renderer
+    ${ASTRA_PROJECT_ROOT}/src/modules/ui
+    ${ASTRA_PROJECT_ROOT}/src/modules/physics
+    ${ASTRA_PROJECT_ROOT}/src/modules/audio
+    ${ASTRA_PROJECT_ROOT}/src/modules/terrain
+    ${ASTRA_PROJECT_ROOT}/src/modules/engine
+    ${ASTRA_PROJECT_ROOT}/src/modules/application
+    ${ASTRA_ENGINE_GENERATED_DIR}
+  )
+
+  target_compile_definitions(sandbox_live PRIVATE
+    GLM_ENABLE_EXPERIMENTAL
+    PX_PHYSX_STATIC_LIB
+    ENABLE_LOGS
+    LOG_TO_CONSOLE
+  )
+
+  target_compile_options(sandbox_live PRIVATE -fPIC)
+  target_link_libraries(sandbox_live PRIVATE glm::glm)
+  target_compile_features(sandbox_live PRIVATE cxx_std_20)
+
+  set_target_properties(sandbox_live PROPERTIES
+    PREFIX "lib"
+    OUTPUT_NAME "sandbox_live"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/hotreload"
+  )
+endif()
+
+set(SANDBOX_MAIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp)
+if(ASTRA_SANDBOX_HOT_RELOAD)
+  list(APPEND SANDBOX_MAIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/sandbox-loader.cpp)
+endif()
+if(ASTRA_EDITOR_HOT_RELOAD)
+  list(APPEND SANDBOX_MAIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/editor-loader.cpp)
+endif()
+add_executable(sandbox ${SANDBOX_MAIN_SRC})
 add_dependencies(sandbox sandbox-assets)
-target_link_libraries(sandbox PRIVATE sandbox-app)
-if(ASTRA_EDITOR AND TARGET astralix::editor)
+
+set(ASTRA_INSTALL_LIB "${ASTRA_PROJECT_ROOT}/install/lib")
+
+function(collect_astralix_installed_archives out_var)
+  set(_archives "")
+  foreach(_name IN LISTS ARGN)
+    set(
+      _archive
+      "${ASTRA_INSTALL_LIB}/${CMAKE_STATIC_LIBRARY_PREFIX}${_name}${CMAKE_STATIC_LIBRARY_SUFFIX}"
+    )
+    if(EXISTS "${_archive}")
+      list(APPEND _archives "${_archive}")
+    endif()
+  endforeach()
+  set(${out_var} "${_archives}" PARENT_SCOPE)
+endfunction()
+
+set(ASTRA_WHOLE_ARCHIVE_COMPONENTS
+  allocators
+  application
+  audio
+  ecs
+  engine
+  events
+  foundation
+  jobs
+  physics
+  project
+  renderer
+  shader-lang
+  stb_image
+  streams
+  terrain
+  tinyexr
+  ui
+  window
+)
+
+if(ASTRA_EDITOR_HOT_RELOAD)
+  collect_astralix_installed_archives(
+    ASTRA_INSTALLED_ARCHIVES
+    ${ASTRA_WHOLE_ARCHIVE_COMPONENTS}
+  )
+  target_link_libraries(sandbox PRIVATE
+    -Wl,--whole-archive
+    sandbox-app
+    ${ASTRA_INSTALLED_ARCHIVES}
+    -Wl,--no-whole-archive
+  )
+  target_compile_definitions(sandbox PRIVATE ASTRA_EDITOR ASTRA_EDITOR_HOT_RELOAD)
+  target_link_options(sandbox PRIVATE -rdynamic)
+  target_link_libraries(sandbox PRIVATE ${CMAKE_DL_LIBS})
+  target_include_directories(sandbox PRIVATE
+    ${ASTRA_PROJECT_ROOT}/src/modules/editor
+  )
+elseif(ASTRA_SANDBOX_HOT_RELOAD)
+  set(ASTRA_SANDBOX_WHOLE_ARCHIVE_COMPONENTS ${ASTRA_WHOLE_ARCHIVE_COMPONENTS})
+  if(ASTRA_EDITOR)
+    list(APPEND ASTRA_SANDBOX_WHOLE_ARCHIVE_COMPONENTS editor)
+  endif()
+  collect_astralix_installed_archives(
+    ASTRA_INSTALLED_ARCHIVES
+    ${ASTRA_SANDBOX_WHOLE_ARCHIVE_COMPONENTS}
+  )
+  target_link_libraries(sandbox PRIVATE
+    -Wl,--whole-archive
+    sandbox-app
+    ${ASTRA_INSTALLED_ARCHIVES}
+    -Wl,--no-whole-archive
+  )
+  target_link_options(sandbox PRIVATE -rdynamic)
+  target_link_libraries(sandbox PRIVATE ${CMAKE_DL_LIBS})
+else()
+  target_link_libraries(sandbox PRIVATE sandbox-app)
+endif()
+
+if(ASTRA_EDITOR)
   target_compile_definitions(sandbox PRIVATE ASTRA_EDITOR)
-  target_link_libraries(sandbox PRIVATE astralix::editor)
-elseif(ASTRA_EDITOR)
+endif()
+
+if(ASTRA_EDITOR AND TARGET astralix::editor)
+  if(NOT ASTRA_EDITOR_HOT_RELOAD AND NOT ASTRA_SANDBOX_HOT_RELOAD)
+    target_link_libraries(sandbox PRIVATE astralix::editor)
+  endif()
+elseif(ASTRA_EDITOR AND NOT ASTRA_EDITOR_HOT_RELOAD AND NOT ASTRA_SANDBOX_HOT_RELOAD)
   message(WARNING
     "Sandbox editor support was requested, but the installed astralix package "
     "does not export astralix::editor. Rebuild astralix with -DASTRA_EDITOR=ON "
     "to enable editor builtins in the sandbox example."
+  )
+endif()
+
+if(ASTRA_EDITOR_HOT_RELOAD)
+  target_compile_definitions(sandbox PRIVATE
+    ASTRA_EDITOR_HOT_RELOAD
+    ASTRA_EDITOR_MODULE_PATH="${ASTRA_MAIN_BUILD_DIR}/hotreload/libeditor_live.so"
+    ASTRA_EDITOR_SOURCE_DIR="${ASTRA_PROJECT_ROOT}/src/modules/editor"
+    ASTRA_EDITOR_BUILD_DIR="${ASTRA_MAIN_BUILD_DIR}"
+  )
+endif()
+
+if(ASTRA_SANDBOX_HOT_RELOAD)
+  target_compile_definitions(sandbox PRIVATE
+    ASTRA_SANDBOX_HOT_RELOAD
+    ASTRA_SANDBOX_MODULE_PATH="${CMAKE_CURRENT_BINARY_DIR}/hotreload/libsandbox_live.so"
+    ASTRA_SANDBOX_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src"
+    ASTRA_SANDBOX_BUILD_DIR="${CMAKE_CURRENT_BINARY_DIR}"
   )
 endif()
 

@@ -1,6 +1,9 @@
 file(GLOB_RECURSE TERRAIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp)
 file(GLOB_RECURSE TERRAIN_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/*.hpp)
 
+list(FILTER TERRAIN_SRC EXCLUDE REGEX ".*\\.test\\.cpp$")
+list(FILTER TERRAIN_HEADERS EXCLUDE REGEX ".*\\.test\\.hpp$")
+
 add_library(terrain STATIC ${TERRAIN_SRC} ${TERRAIN_HEADERS})
 
 target_include_directories(terrain
@@ -12,6 +15,7 @@ target_include_directories(terrain
 target_link_libraries(
   terrain
   PUBLIC
+  jobs
   renderer
   shared::foundation
   m
