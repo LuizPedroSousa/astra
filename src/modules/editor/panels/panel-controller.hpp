@@ -44,6 +44,8 @@ struct PanelProviderDescriptor {
   std::string title;
   PanelMinimumSize minimum_size;
   bool singleton = true;
+  bool show_shell_frame = true;
+  bool toggleable = true;
   std::function<Scope<PanelController>()> factory;
 };
 

@@ -25,4 +25,6 @@ const LayoutTemplate *LayoutRegistry::find(std::string_view id) const {
   return nullptr;
 }
 
+void LayoutRegistry::clear() { m_layouts.clear(); }
+
 } // namespace astralix::editor

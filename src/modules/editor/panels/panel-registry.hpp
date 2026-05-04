@@ -10,6 +10,7 @@ public:
   bool register_provider(PanelProviderDescriptor descriptor);
   const PanelProviderDescriptor *find(std::string_view id) const;
   std::vector<const PanelProviderDescriptor *> providers() const;
+  void clear();
 
 private:
   std::vector<PanelProviderDescriptor> m_providers;

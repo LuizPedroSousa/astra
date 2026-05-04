@@ -11,13 +11,14 @@
 
 namespace astralix::editor {
 
-inline constexpr int k_workspace_snapshot_version = 1;
+inline constexpr int k_workspace_snapshot_version = 5;
 
 struct WorkspacePanelState {
   std::string provider_id;
   std::string title;
   bool open = true;
-  std::optional<WorkspacePanelFrame> floating_frame;
+  std::optional<WorkspacePanelResolvedFrame> floating_frame;
+  std::optional<WorkspaceDockSlot> dock_slot;
   std::string state_blob;
 };
 

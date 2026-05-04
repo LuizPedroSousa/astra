@@ -11,6 +11,7 @@ struct BuiltinEditorPluginsConfig {
 void register_builtin_plugins(
     BuiltinEditorPluginsConfig config = {}
 );
+void register_builtin_context_providers();
 void register_builtin_panels();
 void register_builtin_layouts();
 void register_builtin_workspaces();

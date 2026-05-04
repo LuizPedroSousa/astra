@@ -10,6 +10,7 @@ public:
   bool register_workspace(WorkspaceDefinition workspace);
   const WorkspaceDefinition *find(std::string_view id) const;
   std::vector<const WorkspaceDefinition *> workspaces() const;
+  void clear();
 
 private:
   std::vector<WorkspaceDefinition> m_workspaces;

@@ -9,14 +9,17 @@
 namespace astralix::editor {
 namespace {
 
-void write_panel_frame(Ref<SerializationContext> ctx, const WorkspacePanelFrame &frame) {
+void write_panel_frame(
+    Ref<SerializationContext> ctx,
+    const WorkspacePanelResolvedFrame &frame
+) {
   (*ctx)["x"] = frame.x;
   (*ctx)["y"] = frame.y;
   (*ctx)["width"] = frame.width;
   (*ctx)["height"] = frame.height;
 }
 
-std::optional<WorkspacePanelFrame> read_panel_frame(ContextProxy ctx) {
+std::optional<WorkspacePanelResolvedFrame> read_panel_frame(ContextProxy ctx) {
   auto x = serialization::context::read_float(ctx["x"]);
   auto y = serialization::context::read_float(ctx["y"]);
   auto width = serialization::context::read_float(ctx["width"]);
@@ -26,11 +29,67 @@ std::optional<WorkspacePanelFrame> read_panel_frame(ContextProxy ctx) {
     return std::nullopt;
   }
 
-  return WorkspacePanelFrame{
+  return WorkspacePanelResolvedFrame{
       .x = *x,
       .y = *y,
       .width = *width,
       .height = *height,
+  };
+}
+
+WorkspaceDockEdge workspace_dock_edge_from_string(std::string_view value) {
+  if (value == "top") {
+    return WorkspaceDockEdge::Top;
+  }
+
+  if (value == "right") {
+    return WorkspaceDockEdge::Right;
+  }
+
+  if (value == "bottom") {
+    return WorkspaceDockEdge::Bottom;
+  }
+
+  if (value == "center") {
+    return WorkspaceDockEdge::Center;
+  }
+
+  return WorkspaceDockEdge::Left;
+}
+
+std::string workspace_dock_edge_to_string(WorkspaceDockEdge edge) {
+  switch (edge) {
+    case WorkspaceDockEdge::Top:
+      return "top";
+    case WorkspaceDockEdge::Right:
+      return "right";
+    case WorkspaceDockEdge::Bottom:
+      return "bottom";
+    case WorkspaceDockEdge::Center:
+      return "center";
+    case WorkspaceDockEdge::Left:
+    default:
+      return "left";
+  }
+}
+
+void write_dock_slot(Ref<SerializationContext> ctx, const WorkspaceDockSlot &slot) {
+  (*ctx)["edge"] = workspace_dock_edge_to_string(slot.edge);
+  (*ctx)["extent"] = slot.extent;
+  (*ctx)["order"] = slot.order;
+}
+
+std::optional<WorkspaceDockSlot> read_dock_slot(ContextProxy ctx) {
+  if (ctx.kind() != SerializationTypeKind::Object) {
+    return std::nullopt;
+  }
+
+  return WorkspaceDockSlot{
+      .edge = workspace_dock_edge_from_string(
+          serialization::context::read_string_or(ctx["edge"], "left")
+      ),
+      .extent = serialization::context::read_float_or(ctx["extent"], 280.0f),
+      .order = serialization::context::read_int_or(ctx["order"], 0),
   };
 }
 
@@ -64,6 +123,56 @@ std::string layout_kind_to_string(LayoutNodeKind kind) {
     default:
       return "leaf";
   }
+}
+
+ui::UILengthUnit ui_length_unit_from_string(std::string_view value) {
+  if (value == "pixels") {
+    return ui::UILengthUnit::Pixels;
+  }
+
+  if (value == "percent") {
+    return ui::UILengthUnit::Percent;
+  }
+
+  if (value == "rem") {
+    return ui::UILengthUnit::Rem;
+  }
+
+  if (value == "max-content") {
+    return ui::UILengthUnit::MaxContent;
+  }
+
+  return ui::UILengthUnit::Auto;
+}
+
+std::string ui_length_unit_to_string(ui::UILengthUnit unit) {
+  switch (unit) {
+    case ui::UILengthUnit::Pixels:
+      return "pixels";
+    case ui::UILengthUnit::Percent:
+      return "percent";
+    case ui::UILengthUnit::Rem:
+      return "rem";
+    case ui::UILengthUnit::MaxContent:
+      return "max-content";
+    case ui::UILengthUnit::Auto:
+    default:
+      return "auto";
+  }
+}
+
+void write_ui_length(Ref<SerializationContext> ctx, const ui::UILength &value) {
+  (*ctx)["unit"] = ui_length_unit_to_string(value.unit);
+  (*ctx)["value"] = value.value;
+}
+
+ui::UILength read_ui_length(ContextProxy ctx) {
+  return ui::UILength{
+      .unit = ui_length_unit_from_string(
+          serialization::context::read_string_or(ctx["unit"], "auto")
+      ),
+      .value = serialization::context::read_float_or(ctx["value"], 0.0f),
+  };
 }
 
 } // namespace
@@ -168,6 +277,12 @@ WorkspaceStore::read_context_file(const std::filesystem::path &path) const {
     return std::nullopt;
   }
 
+  std::error_code error_code;
+  const auto file_size = std::filesystem::file_size(path, error_code);
+  if (!error_code && file_size == 0u) {
+    return std::nullopt;
+  }
+
   auto reader = FileStreamReader(path);
   reader.read();
   return SerializationContext::create(storage_format(), reader.get_buffer());
@@ -212,6 +327,11 @@ void WorkspaceStore::write_snapshot(Ref<SerializationContext> ctx, const Workspa
       write_panel_frame(frame_ctx, *panel.floating_frame);
       (*panel_ctx)["floating_frame"] = frame_ctx;
     }
+    if (panel.dock_slot.has_value()) {
+      auto dock_ctx = create_context();
+      write_dock_slot(dock_ctx, *panel.dock_slot);
+      (*panel_ctx)["dock_slot"] = dock_ctx;
+    }
     (*panel_ctx)["state_blob"] = panel.state_blob;
     (*ctx)["panels"][static_cast<int>(panel_index++)] = panel_ctx;
   }
@@ -244,6 +364,7 @@ WorkspaceSnapshot WorkspaceStore::read_snapshot(Ref<SerializationContext> ctx) c
                            .title = serialization::context::read_string_or(panel_proxy["title"]),
                            .open = serialization::context::read_bool_or(panel_proxy["open"], true),
                            .floating_frame = read_panel_frame(panel_proxy["floating_frame"]),
+                           .dock_slot = read_dock_slot(panel_proxy["dock_slot"]),
                            .state_blob = serialization::context::read_string_or(panel_proxy["state_blob"]),
                        }
       );
@@ -260,6 +381,14 @@ void WorkspaceStore::write_layout_node(Ref<SerializationContext> ctx, const Layo
     case LayoutNodeKind::Split: {
       (*ctx)["axis"] = flex_direction_to_string(node.split_axis);
       (*ctx)["ratio"] = node.split_ratio;
+      (*ctx)["resizable"] = node.split_behavior.resizable;
+      (*ctx)["show_divider"] = node.split_behavior.show_divider;
+
+      if (node.split_behavior.first_extent.unit != ui::UILengthUnit::Auto) {
+        auto extent_ctx = create_context();
+        write_ui_length(extent_ctx, node.split_behavior.first_extent);
+        (*ctx)["first_extent"] = extent_ctx;
+      }
 
       if (node.first != nullptr) {
         auto first_ctx = create_context();
@@ -303,6 +432,13 @@ LayoutNode WorkspaceStore::read_layout_node(ContextProxy ctx) const {
       );
       node.split_ratio =
           serialization::context::read_float_or(ctx["ratio"], 0.5f);
+      node.split_behavior.resizable =
+          serialization::context::read_bool_or(ctx["resizable"], true);
+      node.split_behavior.show_divider =
+          serialization::context::read_bool_or(ctx["show_divider"], true);
+      if (ctx["first_extent"].kind() == SerializationTypeKind::Object) {
+        node.split_behavior.first_extent = read_ui_length(ctx["first_extent"]);
+      }
       node.first = create_scope<LayoutNode>(read_layout_node(ctx["first"]));
       node.second = create_scope<LayoutNode>(read_layout_node(ctx["second"]));
       return node;
