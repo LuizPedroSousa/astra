@@ -1,6 +1,7 @@
 #pragma once
 
 #include "entities/derived-override.hpp"
+#include "project.hpp"
 #include "world.hpp"
 
 #include "guid.hpp"
@@ -111,6 +112,13 @@ public:
       refresh_source_overlay();
     }
   }
+  const SceneRenderOverrides &render_overrides() const {
+    return m_render_overrides;
+  }
+  void set_render_overrides(SceneRenderOverrides overrides) {
+    m_render_overrides = std::move(overrides);
+    m_world.touch();
+  }
   const std::optional<ScenePreviewBuildInfo> &get_preview_build_info() const {
     return m_preview_build_info;
   }
@@ -198,6 +206,7 @@ private:
   std::optional<std::filesystem::file_time_type> m_loaded_preview_write_time;
   std::optional<std::filesystem::file_time_type> m_loaded_runtime_write_time;
   DerivedState m_derived_state;
+  SceneRenderOverrides m_render_overrides;
   std::optional<ScenePreviewBuildInfo> m_preview_build_info;
   std::optional<SceneRuntimePromotionInfo> m_runtime_promotion_info;
 };
