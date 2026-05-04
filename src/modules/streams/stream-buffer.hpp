@@ -11,8 +11,11 @@ namespace astralix {
 
 struct StreamBuffer {
 public:
-  StreamBuffer(size_t capacity) : m_arena(capacity) {
-    m_data = m_arena.allocate(capacity);
+  StreamBuffer(size_t capacity)
+      : m_arena(capacity > 0 ? capacity : 1u), m_size(capacity) {
+    if (capacity > 0) {
+      m_data = m_arena.allocate(capacity);
+    }
   }
 
   ~StreamBuffer() {
@@ -35,15 +38,17 @@ public:
     }
   }
 
-  char *data() { return static_cast<char *>(m_data->data); }
+  char *data() {
+    return m_data != nullptr ? static_cast<char *>(m_data->data) : &m_empty;
+  }
 
-  size_t size() const { return m_data->size; }
+  size_t size() const { return m_data != nullptr ? m_data->size : m_size; }
 
 private:
   ElasticArena m_arena;
-
   ElasticArena::Block *m_data = nullptr;
-  ;
+  size_t m_size = 0u;
+  char m_empty = '\0';
 };
 
 [[nodiscard]] inline Scope<StreamBuffer>
