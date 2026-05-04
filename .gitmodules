@@ -2,10 +2,6 @@
 	path = external/PhysX
 	url = https://github.com/NVIDIA-Omniverse/PhysX
   branch = main
-[submodule "external/faker-cxx"]
-	path = external/faker-cxx
-	url = https://github.com/cieslarmichal/faker-cxx
-	branch = main
 [submodule "external/imgui"]
 	path = external/imgui
 	url = https://github.com/LuizPedroSousa/imgui
