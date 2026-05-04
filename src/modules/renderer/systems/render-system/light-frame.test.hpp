@@ -49,6 +49,7 @@ TEST(LightFrameTest, CollectsDirectionalPointAndSpotLightData) {
 
   EXPECT_TRUE(frame.directional.valid);
   EXPECT_EQ(frame.directional.position, glm::vec3(-4.0f, 8.0f, -3.0f));
+  EXPECT_EQ(frame.directional.direction, glm::vec3(0.0f, 0.0f, -1.0f));
   EXPECT_FLOAT_EQ(frame.directional.near_plane, 0.5f);
   EXPECT_FLOAT_EQ(frame.directional.far_plane, 150.0f);
   EXPECT_NE(frame.directional.light_space_matrix, glm::mat4(1.0f));
@@ -88,6 +89,26 @@ TEST(LightFrameTest, FallsBackToMainCameraForSpotLightWhenTargetIsMissing) {
   EXPECT_EQ(frame.spot.direction, glm::vec3(1.0f, 0.0f, 0.0f));
 }
 
+TEST(LightFrameTest, CollectsDirectionalLightDirectionFromTransformRotation) {
+  ecs::World world;
+
+  auto sun = world.spawn("sun");
+  sun.emplace<scene::Transform>(scene::Transform{
+      .position = glm::vec3(3.0f, 6.0f, 9.0f),
+      .rotation = glm::angleAxis(
+          glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f)
+      ),
+  });
+  sun.emplace<Light>(Light{.type = LightType::Directional});
+
+  const auto frame = collect_light_frame(world);
+
+  EXPECT_TRUE(frame.directional.valid);
+  EXPECT_NEAR(frame.directional.direction.x, 0.0f, 1.0e-5f);
+  EXPECT_NEAR(frame.directional.direction.y, 0.0f, 1.0e-5f);
+  EXPECT_NEAR(frame.directional.direction.z, 1.0f, 1.0e-5f);
+}
+
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
 TEST(LightFrameTest, BuildsForwardLightParamsFromMaterialBindingsAndPreparedLightFrame) {
   ecs::World world;
@@ -125,25 +146,27 @@ TEST(LightFrameTest, BuildsForwardLightParamsFromMaterialBindingsAndPreparedLigh
   binding.bloom_intensity = 1.5f;
 
   const auto frame = collect_light_frame(world);
-  auto params = build_forward_light_params(frame, binding);
+  auto scene_params = build_forward_scene_params(frame);
+  auto material_params = build_forward_material_params(binding);
 
-  EXPECT_EQ(params.materials[0].base_color_factor,
+  EXPECT_EQ(material_params.materials[0].base_color_factor,
             glm::vec4(0.9f, 0.8f, 0.7f, 1.0f));
-  EXPECT_EQ(params.materials[0].emissive_factor,
+  EXPECT_EQ(material_params.materials[0].emissive_factor,
             glm::vec3(3.0f, 2.0f, 1.0f));
-  EXPECT_FLOAT_EQ(params.materials[0].metallic_factor, 0.25f);
-  EXPECT_FLOAT_EQ(params.materials[0].roughness_factor, 0.65f);
-  EXPECT_FLOAT_EQ(params.materials[0].occlusion_strength, 0.75f);
-  EXPECT_FLOAT_EQ(params.materials[0].normal_scale, 0.5f);
-  EXPECT_FLOAT_EQ(params.materials[0].bloom_intensity, 1.5f);
-  EXPECT_EQ(params.bloom_layer, k_default_bloom_render_layer);
-  EXPECT_EQ(params.directional.position, glm::vec3(-4.0f, 8.0f, -3.0f));
-  EXPECT_EQ(params.point_lights[0].position, glm::vec3(5.0f, 1.0f, -2.0f));
-  EXPECT_EQ(params.spot_light.position, glm::vec3(1.0f, 2.0f, 3.0f));
-  EXPECT_EQ(params.spot_light.direction, glm::vec3(0.0f, 0.0f, -1.0f));
-  EXPECT_FLOAT_EQ(params.spot_light.attenuation.constant, 1.5f);
-  EXPECT_FLOAT_EQ(params.spot_light.attenuation.linear, 0.15f);
-  EXPECT_FLOAT_EQ(params.spot_light.attenuation.quadratic, 0.025f);
+  EXPECT_FLOAT_EQ(material_params.materials[0].metallic_factor, 0.25f);
+  EXPECT_FLOAT_EQ(material_params.materials[0].roughness_factor, 0.65f);
+  EXPECT_FLOAT_EQ(material_params.materials[0].occlusion_strength, 0.75f);
+  EXPECT_FLOAT_EQ(material_params.materials[0].normal_scale, 0.5f);
+  EXPECT_FLOAT_EQ(material_params.materials[0].bloom_intensity, 1.5f);
+  EXPECT_EQ(scene_params.bloom_layer, k_default_bloom_render_layer);
+  EXPECT_EQ(scene_params.directional.position, glm::vec3(-4.0f, 8.0f, -3.0f));
+  EXPECT_EQ(scene_params.directional.direction, glm::vec3(0.0f, 0.0f, -1.0f));
+  EXPECT_EQ(scene_params.point_lights[0].position, glm::vec3(5.0f, 1.0f, -2.0f));
+  EXPECT_EQ(scene_params.spot_light.position, glm::vec3(1.0f, 2.0f, 3.0f));
+  EXPECT_EQ(scene_params.spot_light.direction, glm::vec3(0.0f, 0.0f, -1.0f));
+  EXPECT_FLOAT_EQ(scene_params.spot_light.attenuation.constant, 1.5f);
+  EXPECT_FLOAT_EQ(scene_params.spot_light.attenuation.linear, 0.15f);
+  EXPECT_FLOAT_EQ(scene_params.spot_light.attenuation.quadratic, 0.025f);
 }
 #endif
 

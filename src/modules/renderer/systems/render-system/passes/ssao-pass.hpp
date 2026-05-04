@@ -183,8 +183,8 @@ private:
   Ref<Shader> m_shader = nullptr;
   Ref<Texture2D> m_noise_texture = nullptr;
   rendering::ResolvedMeshDraw m_fullscreen_quad{};
-  static constexpr float k_ssao_radius = 1.5f;
-  static constexpr float k_ssao_bias = 0.25f;
+  static constexpr float k_ssao_radius = 0.45f;
+  static constexpr float k_ssao_bias = 0.03f;
   static constexpr uint32_t k_kernel_size = 64;
 
   std::vector<glm::vec3> m_ssao_kernel;

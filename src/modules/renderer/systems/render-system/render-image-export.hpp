@@ -11,7 +11,22 @@ enum class RenderImageResource : uint8_t {
   ShadowMap,
   SSAO,
   SSAOBlur,
+  SSGI,
+  SSGIBlur,
+  SSGITemporal,
+  SSGIHistory,
+  SSR,
+  SSRBlur,
+  Velocity,
   Bloom,
+  MotionBlur,
+  ChromaticAberration,
+  Vignette,
+  FilmGrain,
+  DepthOfField,
+  GodRays,
+  CAS,
+  TAAOutput,
   FinalOutput,
 };
 
@@ -20,12 +35,14 @@ enum class RenderImageAspect : uint8_t {
   Color1,
   Color2,
   Color3,
+  Color4,
   Depth,
 };
 
 enum class GBufferAspect : uint8_t {
   Position,
   Normal,
+  GeometricNormal,
   Albedo,
   Emissive,
   Depth,
@@ -54,10 +71,12 @@ constexpr RenderImageAspect to_render_image_aspect(GBufferAspect aspect) {
       return RenderImageAspect::Color0;
     case GBufferAspect::Normal:
       return RenderImageAspect::Color1;
-    case GBufferAspect::Albedo:
+    case GBufferAspect::GeometricNormal:
       return RenderImageAspect::Color2;
-    case GBufferAspect::Emissive:
+    case GBufferAspect::Albedo:
       return RenderImageAspect::Color3;
+    case GBufferAspect::Emissive:
+      return RenderImageAspect::Color4;
     case GBufferAspect::Depth:
       return RenderImageAspect::Depth;
   }
@@ -75,8 +94,9 @@ constexpr RenderImageExportKey make_g_buffer_export_key(
 
 static_assert(to_render_image_aspect(GBufferAspect::Position) == RenderImageAspect::Color0);
 static_assert(to_render_image_aspect(GBufferAspect::Normal) == RenderImageAspect::Color1);
-static_assert(to_render_image_aspect(GBufferAspect::Albedo) == RenderImageAspect::Color2);
-static_assert(to_render_image_aspect(GBufferAspect::Emissive) == RenderImageAspect::Color3);
+static_assert(to_render_image_aspect(GBufferAspect::GeometricNormal) == RenderImageAspect::Color2);
+static_assert(to_render_image_aspect(GBufferAspect::Albedo) == RenderImageAspect::Color3);
+static_assert(to_render_image_aspect(GBufferAspect::Emissive) == RenderImageAspect::Color4);
 static_assert(to_render_image_aspect(GBufferAspect::Depth) == RenderImageAspect::Depth);
 
 struct RenderImageExportBinding {

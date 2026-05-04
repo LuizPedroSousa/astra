@@ -99,6 +99,7 @@ private:
     Ref<Shader> image;
     Ref<Shader> text;
     Ref<Shader> polyline;
+    Ref<Shader> vector;
   };
 
   Shaders m_shaders{};

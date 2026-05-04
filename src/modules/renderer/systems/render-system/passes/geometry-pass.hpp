@@ -14,6 +14,7 @@
 #include "trace.hpp"
 
 #include <array>
+#include <cstddef>
 
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
 
@@ -43,16 +44,36 @@ public:
 
     const auto *g_position = ctx.find_graph_image("g_position");
     const auto *g_normal = ctx.find_graph_image("g_normal");
+    const auto *g_geometric_normal = ctx.find_graph_image("g_geometric_normal");
     const auto *g_albedo = ctx.find_graph_image("g_albedo");
     const auto *g_emissive = ctx.find_graph_image("g_emissive");
     const auto *g_entity_id = ctx.find_graph_image("g_entity_id");
+    const auto *g_velocity = ctx.find_graph_image("g_velocity");
     const auto *scene_depth_resource = ctx.find_graph_image("scene_depth");
 
-    if (g_position == nullptr || g_normal == nullptr || g_albedo == nullptr ||
-        g_emissive == nullptr || g_entity_id == nullptr ||
-        scene_depth_resource == nullptr || m_shader == nullptr) {
-      return;
-    }
+#define GEOMETRY_PASS_REQUIRED_RESOURCES(ENTRY) \
+    ENTRY(g_position)                           \
+    ENTRY(g_normal)                             \
+    ENTRY(g_geometric_normal)                   \
+    ENTRY(g_albedo)                             \
+    ENTRY(g_emissive)                           \
+    ENTRY(g_entity_id)                          \
+    ENTRY(g_velocity)                           \
+    ENTRY(scene_depth_resource)
+
+#define CHECK_MISSING(var)                      \
+  if (!(var)) {                                 \
+    LOG_WARN("[GeometryPass] Missing: " #var);  \
+    missing = true;                             \
+  }
+
+    bool missing = false;
+    GEOMETRY_PASS_REQUIRED_RESOURCES(CHECK_MISSING)
+    if (!m_shader) { LOG_WARN("[GeometryPass] Missing: geometry_shader"); missing = true; }
+    if (missing) return;
+
+#undef CHECK_MISSING
+#undef GEOMETRY_PASS_REQUIRED_RESOURCES
 
     using namespace shader_bindings::engine_shaders_g_buffer_axsl;
     const rendering::MaterialBindingLayout material_layout{
@@ -90,9 +111,9 @@ public:
     const auto extent = ctx.graph_image_extent(*g_position);
 
     bool rendering_started = false;
-    std::array<ImageHandle, 5> gbuffer_colors{};
+    std::array<ImageHandle, 7> gbuffer_colors{};
     ImageHandle scene_depth{};
-    RenderPipelineHandle pipeline{};
+    std::array<RenderPipelineHandle, 3> pipelines{};
     RenderBindingGroupHandle scene_bindings{};
     std::unordered_map<
         rendering::MaterialGroupKey,
@@ -118,13 +139,19 @@ public:
           "geometry.g-normal", *g_normal
       );
       gbuffer_colors[2] = ctx.register_graph_image(
-          "geometry.g-albedo", *g_albedo
+          "geometry.g-geometric-normal", *g_geometric_normal
       );
       gbuffer_colors[3] = ctx.register_graph_image(
-          "geometry.g-emissive", *g_emissive
+          "geometry.g-albedo", *g_albedo
       );
       gbuffer_colors[4] = ctx.register_graph_image(
+          "geometry.g-emissive", *g_emissive
+      );
+      gbuffer_colors[5] = ctx.register_graph_image(
           "geometry.g-entity-id", *g_entity_id
+      );
+      gbuffer_colors[6] = ctx.register_graph_image(
+          "geometry.g-velocity", *g_velocity
       );
       scene_depth = ctx.register_graph_image(
           "geometry.scene-depth", *scene_depth_resource, ImageAspect::Depth
@@ -158,15 +185,18 @@ public:
       rendering_started = true;
     };
 
-    const auto ensure_pipeline_and_scene_bindings = [&] {
+    const auto ensure_pipeline_and_scene_bindings = [&](
+                                                    CullMode cull_mode) -> RenderPipelineHandle {
       ensure_rendering_started();
 
-      if (!pipeline.valid()) {
-        pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+      const size_t pipeline_index = static_cast<size_t>(cull_mode);
+      if (!pipelines[pipeline_index].valid()) {
+        pipeline_desc.raster.cull_mode = cull_mode;
+        pipelines[pipeline_index] = frame.register_pipeline(pipeline_desc, m_shader);
       }
 
       if (scene_bindings.valid()) {
-        return;
+        return pipelines[pipeline_index];
       }
 
       scene_bindings = frame.register_binding_group(
@@ -184,15 +214,20 @@ public:
           )
       );
       rendering::record_shader_params(frame, scene_bindings, CameraParams{
-                                                                .view = scene_frame->main_camera->view,
-                                                                .projection = scene_frame->main_camera->projection,
-                                                                .position = scene_frame->main_camera->position,
-                                                            });
+          .view = scene_frame->main_camera->view,
+          .projection = scene_frame->main_camera->projection,
+          .position = scene_frame->main_camera->position,
+          .previous_view = scene_frame->main_camera->previous_view,
+          .previous_projection =
+              scene_frame->main_camera->previous_projection,
+      });
       rendering::record_shader_params(
           frame,
           scene_bindings,
           rendering::build_gbuffer_scene_params(scene_frame->light_frame)
       );
+
+      return pipelines[pipeline_index];
     };
 
     for (const auto &surface : scene_frame->opaque_surfaces) {
@@ -201,7 +236,10 @@ public:
         continue;
       }
 
-      ensure_pipeline_and_scene_bindings();
+      const CullMode cull_mode =
+          surface.material.double_sided ? CullMode::None : CullMode::Back;
+      const auto pipeline =
+          ensure_pipeline_and_scene_bindings(cull_mode);
 
       const auto material_key =
           rendering::make_material_group_key(surface.material);
@@ -250,12 +288,14 @@ public:
       );
       rendering::record_shader_params(
           frame, draw_bindings, DrawParams{
-                                    .use_instancing = false,
-                                    .g_model = surface.model,
-                                    .bloom_enabled = surface.bloom_enabled,
-                                    .bloom_layer = surface.bloom_layer,
-                                    .entity_id = static_cast<int>(surface.pick_id),
-                                }
+              .use_instancing = false,
+              .g_model = surface.model,
+              .previous_model = surface.previous_model,
+              .has_previous_model = surface.has_previous_model,
+              .bloom_enabled = surface.bloom_enabled,
+              .bloom_layer = surface.bloom_layer,
+              .entity_id = static_cast<int>(surface.pick_id),
+          }
       );
 
       const auto mesh_buffer = frame.register_vertex_array(

@@ -1,6 +1,8 @@
 #include "systems/render-system/passes/post-process-pass.hpp"
 
 #include "resources/shader.hpp"
+#include "shader-lang/reflection.hpp"
+#include "systems/render-system/eye-adaptation.hpp"
 #include "systems/render-system/passes/render-graph-pass.hpp"
 #include "vertex-array.hpp"
 #include <gtest/gtest.h>
@@ -87,6 +89,28 @@ protected:
   void set_typed_value(uint64_t, ShaderValueKind, const void *) const override {}
 };
 
+class FakeStorageBuffer : public StorageBuffer {
+public:
+  explicit FakeStorageBuffer(uint32_t renderer_id = 99u)
+      : m_renderer_id(renderer_id) {}
+
+  void bind() const override {}
+  void unbind() const override {}
+  void bind_base(uint32_t) const override {}
+
+  void set_data(const void *data, uint32_t size) const override {
+    bytes.resize(size);
+    std::memcpy(bytes.data(), data, size);
+  }
+
+  uint32_t renderer_id() const override { return m_renderer_id; }
+
+  mutable std::vector<uint8_t> bytes;
+
+private:
+  uint32_t m_renderer_id = 0;
+};
+
 ResolvedRenderPassDependency make_shader_dependency(
     std::string slot, ResourceDescriptorID descriptor_id, Ref<Shader> shader
 ) {
@@ -122,6 +146,19 @@ RenderGraphResource make_graph_image_resource(
   return RenderGraphResource(desc);
 }
 
+RenderGraphResource make_storage_buffer_resource(
+    const std::string &name,
+    StorageBuffer *buffer
+) {
+  RenderGraphResourceDescriptor desc;
+  desc.type = RenderGraphResourceType::StorageBuffer;
+  desc.name = name;
+  desc.lifetime = RenderGraphResourceLifetime::Transient;
+  desc.spec = StorageBufferSpec{.size = sizeof(EyeAdaptationExposureData)};
+  desc.external_resource = buffer;
+  return RenderGraphResource(desc);
+}
+
 rendering::ResolvedMeshDraw make_fullscreen_quad_draw(const Ref<VertexArray> &vao,
                                                       uint32_t index_count) {
   rendering::ResolvedMeshDraw draw;
@@ -135,8 +172,9 @@ TEST(PostProcessPassTest, RecordsFullscreenCompositeToPresent) {
   auto quad = create_ref<FakeVertexArray>();
   auto scene_color = create_ref<FakeFramebuffer>(1280, 720, 21);
   auto bloom = create_ref<FakeFramebuffer>(1280, 720, 22);
-
   auto present = create_ref<FakeFramebuffer>(1280, 720, 23);
+  auto exposure = create_ref<FakeStorageBuffer>();
+  EyeAdaptationState eye_adaptation_state;
 
   auto scene_resource = make_graph_image_resource(
       "scene_color", 1280, 720, ImageFormat::RGBA16F,
@@ -151,13 +189,20 @@ TEST(PostProcessPassTest, RecordsFullscreenCompositeToPresent) {
       ImageUsage::ColorAttachment | ImageUsage::TransferSrc |
           ImageUsage::Sampled
   );
+  auto exposure_resource = make_storage_buffer_resource(
+      std::string(k_eye_adaptation_exposure_resource), exposure.get()
+  );
   std::vector<const RenderGraphResource *> resources{
       &scene_resource,
       &bloom_resource,
       &present_resource,
+      &exposure_resource,
   };
 
-  auto pass = create_scope<PostProcessPass>(make_fullscreen_quad_draw(quad, 6));
+  auto pass = create_scope<PostProcessPass>(
+      make_fullscreen_quad_draw(quad, 6),
+      &eye_adaptation_state
+  );
   RenderGraphPass graph_pass(std::move(pass));
   graph_pass.set_resolved_dependencies(
       {make_shader_dependency("hdr_shader", "shaders::hdr", shader)}
@@ -188,50 +233,57 @@ TEST(PostProcessPassTest, RecordsFullscreenCompositeToPresent) {
   ASSERT_EQ(binding_group.sampled_images.size(), 2u);
   EXPECT_EQ(
       binding_group.sampled_images[0].binding_id,
-      shader_bindings::engine_shaders_hdr_axsl::GlobalsResources::screen_texture
-          .binding_id
+      shader_binding_id("__globals.screen_texture")
   );
   EXPECT_EQ(
       binding_group.sampled_images[1].binding_id,
-      shader_bindings::engine_shaders_hdr_axsl::GlobalsResources::bloom_texture
-          .binding_id
+      shader_binding_id("__globals.bloom_texture")
   );
-  ASSERT_EQ(binding_group.values.size(), 3u);
+  ASSERT_EQ(binding_group.storage_buffers.size(), 1u);
+  EXPECT_EQ(
+      binding_group.storage_buffers[0].binding_id,
+      shader_binding_id("exposure_data")
+  );
+  EXPECT_EQ(
+      binding_group.storage_buffers[0].binding_point,
+      k_eye_adaptation_exposure_binding_point
+  );
+  EXPECT_EQ(binding_group.storage_buffers[0].buffer_renderer_id, 99u);
+
+  ASSERT_EQ(binding_group.values.size(), 2u);
   EXPECT_EQ(
       binding_group.values[0].binding_id,
-      shader_bindings::engine_shaders_hdr_axsl::GlobalsUniform::bloom_strength
-          .binding_ids[0]
+      shader_binding_id("__globals.bloom_strength")
   );
   EXPECT_EQ(binding_group.values[0].kind, ShaderValueKind::Float);
   EXPECT_EQ(
       binding_group.values[1].binding_id,
-      shader_bindings::engine_shaders_hdr_axsl::GlobalsUniform::gamma
-          .binding_ids[0]
+      shader_binding_id("__globals.gamma")
   );
   EXPECT_EQ(binding_group.values[1].kind, ShaderValueKind::Float);
-  EXPECT_EQ(
-      binding_group.values[2].binding_id,
-      shader_bindings::engine_shaders_hdr_axsl::GlobalsUniform::exposure
-          .binding_ids[0]
-  );
-  EXPECT_EQ(binding_group.values[2].kind, ShaderValueKind::Float);
 
   float bloom_strength = 0.0f;
   float gamma = 0.0f;
-  float exposure = 0.0f;
   std::memcpy(
       &bloom_strength,
       binding_group.values[0].bytes.data(),
       sizeof(bloom_strength)
   );
   std::memcpy(&gamma, binding_group.values[1].bytes.data(), sizeof(gamma));
-  std::memcpy(
-      &exposure, binding_group.values[2].bytes.data(), sizeof(exposure)
-  );
 
   EXPECT_FLOAT_EQ(bloom_strength, 0.12f);
   EXPECT_FLOAT_EQ(gamma, 2.2f);
-  EXPECT_FLOAT_EQ(exposure, 0.7f);
+
+  ASSERT_EQ(exposure->bytes.size(), sizeof(EyeAdaptationExposureData));
+  EyeAdaptationExposureData uploaded_exposure{};
+  std::memcpy(
+      &uploaded_exposure,
+      exposure->bytes.data(),
+      sizeof(uploaded_exposure)
+  );
+  EXPECT_FLOAT_EQ(uploaded_exposure.average_luminance, 1.0f);
+  EXPECT_FLOAT_EQ(uploaded_exposure.exposure, 0.7f);
+  EXPECT_FALSE(eye_adaptation_state.initialized);
 
   const auto &draw = std::get<DrawIndexedCmd>(commands[5]);
   EXPECT_EQ(draw.args.index_count, 6u);

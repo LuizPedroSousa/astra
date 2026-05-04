@@ -81,6 +81,8 @@ inline std::optional<CameraFrame> extract_main_camera_frame(ecs::World &world) {
       .orthographic = selection->camera->orthographic,
       .fov_degrees = selection->camera->fov_degrees,
       .orthographic_scale = selection->camera->orthographic_scale,
+      .near_plane = selection->camera->runtime_near_plane_override.value_or(selection->camera->near_plane),
+      .far_plane = selection->camera->runtime_far_plane_override.value_or(selection->camera->far_plane),
   };
 }
 

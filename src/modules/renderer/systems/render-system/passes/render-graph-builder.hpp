@@ -159,6 +159,10 @@ public:
 
   Scope<RenderGraph> build();
 
+  std::vector<Scope<RenderGraphPass>> take_passes() {
+    return std::move(m_passes);
+  }
+
   uint32_t resolve_resource_index(ImageHandle handle) const {
     auto it = m_image_resource_indices.find(handle.id);
     ASTRA_ENSURE(

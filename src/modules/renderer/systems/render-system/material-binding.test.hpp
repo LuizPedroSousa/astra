@@ -65,5 +65,68 @@ TEST(MaterialBindingTest, UpdateMaterialBindingSlotSetsOnlyUnassignedPbrSlots) {
   EXPECT_EQ(state.displacement_slot, 8);
 }
 
+TEST(MaterialBindingTest, ResolvesPerSubmeshMaterialIds) {
+  MaterialSlots material_slots{
+      .materials = {"materials::a", "materials::b", "materials::c"},
+  };
+
+  const auto *first =
+      resolve_material_id_for_submesh(nullptr, &material_slots, 0u);
+  const auto *second =
+      resolve_material_id_for_submesh(nullptr, &material_slots, 1u);
+  const auto *overflow =
+      resolve_material_id_for_submesh(nullptr, &material_slots, 7u);
+
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(second, nullptr);
+  ASSERT_NE(overflow, nullptr);
+  EXPECT_EQ(*first, "materials::a");
+  EXPECT_EQ(*second, "materials::b");
+  EXPECT_EQ(*overflow, "materials::a");
+}
+
+TEST(MaterialBindingTest, ResolvesModelMaterialSlotsForSubmeshes) {
+  Model model(
+      ResourceHandle{1, 1},
+      {},
+      {"materials::stone", "materials::wood", "materials::metal"},
+      {2u, 0u, 1u, 2u}
+  );
+
+  const auto *first = resolve_material_id_for_submesh(&model, nullptr, 0u);
+  const auto *second = resolve_material_id_for_submesh(&model, nullptr, 1u);
+  const auto *third = resolve_material_id_for_submesh(&model, nullptr, 2u);
+  const auto *fourth = resolve_material_id_for_submesh(&model, nullptr, 3u);
+
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(second, nullptr);
+  ASSERT_NE(third, nullptr);
+  ASSERT_NE(fourth, nullptr);
+  EXPECT_EQ(*first, "materials::metal");
+  EXPECT_EQ(*second, "materials::stone");
+  EXPECT_EQ(*third, "materials::wood");
+  EXPECT_EQ(*fourth, "materials::metal");
+}
+
+TEST(MaterialBindingTest, UsesNeutralFallbackPbrTextureIds) {
+  const ResolvedMaterialData material_data{};
+
+  const auto metallic =
+      resolve_surface_texture_binding(material_data, MaterialBindingSemantic::Metallic);
+  const auto roughness =
+      resolve_surface_texture_binding(material_data, MaterialBindingSemantic::Roughness);
+
+  EXPECT_EQ(
+      metallic.descriptor_id,
+      "textures::defaults::pbr_metallic_black"
+  );
+  EXPECT_EQ(metallic.channel, 0);
+  EXPECT_EQ(
+      roughness.descriptor_id,
+      "textures::defaults::pbr_roughness_white"
+  );
+  EXPECT_EQ(roughness.channel, 0);
+}
+
 } // namespace
 } // namespace astralix::rendering

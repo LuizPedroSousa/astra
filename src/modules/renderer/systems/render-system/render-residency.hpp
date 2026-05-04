@@ -160,6 +160,7 @@ inline void request_ui_command_resources(SceneResidencyRequests &requests,
     case ui::DrawCommandType::Rect:
     case ui::DrawCommandType::RenderImageView:
     case ui::DrawCommandType::Polyline:
+    case ui::DrawCommandType::Path:
       return;
   }
 }
@@ -188,6 +189,35 @@ inline void resolve_scene_residency(const SceneResidencyRequests &requests,
   load_descriptor_ids<Texture3DDescriptor>(backend, requests.textures_3d);
   load_descriptor_ids<FontDescriptor>(backend, requests.fonts);
   load_descriptor_ids<SvgDescriptor>(backend, requests.svgs);
+}
+
+inline void resolve_scene_residency_async(
+    const SceneResidencyRequests &requests,
+    Ref<RenderTarget> render_target
+) {
+  if (render_target == nullptr) {
+    return;
+  }
+
+  const auto backend = render_target->backend();
+  load_descriptor_ids<ShaderDescriptor>(backend, requests.shaders);
+  load_descriptor_ids<MaterialDescriptor>(backend, requests.materials);
+  load_descriptor_ids<Texture3DDescriptor>(backend, requests.textures_3d);
+  load_descriptor_ids<FontDescriptor>(backend, requests.fonts);
+  load_descriptor_ids<SvgDescriptor>(backend, requests.svgs);
+
+  auto manager = resource_manager();
+  if (manager == nullptr) {
+    return;
+  }
+
+  for (const auto &descriptor_id : requests.models) {
+    manager->request_model_async(descriptor_id);
+  }
+
+  for (const auto &descriptor_id : requests.textures_2d) {
+    manager->request_texture_2d_async(backend, descriptor_id);
+  }
 }
 
 inline void prepare_requested_font_glyphs(

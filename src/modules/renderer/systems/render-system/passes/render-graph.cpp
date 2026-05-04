@@ -60,7 +60,7 @@ collect_pass_resources(const std::vector<RenderGraphResource> &resources, const 
   return result;
 }
 
-void append_pass_dependency_requests(
+void append_pass_setup_dependency_requests(
     const RenderPassDependencyDeclaration &dependency,
     rendering::SceneResidencyRequests &requests
 ) {
@@ -72,20 +72,10 @@ void append_pass_dependency_requests(
       rendering::request_texture(requests, dependency.descriptor_id, false);
       return;
     case RenderPassDependencyType::Texture3D:
-      rendering::request_texture(requests, dependency.descriptor_id, true);
-      return;
     case RenderPassDependencyType::Material:
-      rendering::request_material(requests, dependency.descriptor_id);
-      return;
     case RenderPassDependencyType::Model:
-      rendering::request_model(requests, dependency.descriptor_id);
-      return;
     case RenderPassDependencyType::Font:
-      requests.fonts.insert(dependency.descriptor_id);
-      return;
     case RenderPassDependencyType::Svg:
-      rendering::request_svg(requests, dependency.descriptor_id);
-      return;
     case RenderPassDependencyType::AudioClip:
     case RenderPassDependencyType::TerrainRecipe:
     case RenderPassDependencyType::Opaque:
@@ -154,49 +144,77 @@ void RenderGraph::compile(Ref<RenderTarget> target) {
 
   LOG_INFO("[RenderGraph] Compiling render graph");
 
-  compute_resource_lifetimes();
-
-  infer_dependencies();
-
-  topological_sort();
-
-  cull_passes();
-
-  alias_resources();
-
-  create_transient_resources();
-
-  compile_transitions();
-  compile_exports();
-  compile_present_edges();
-
-  validate_graph();
-
-  setup_passes();
+  {
+    ASTRA_PROFILE_N("RenderGraph::compute_resource_lifetimes");
+    compute_resource_lifetimes();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::infer_dependencies");
+    infer_dependencies();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::topological_sort");
+    topological_sort();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::cull_passes");
+    cull_passes();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::alias_resources");
+    alias_resources();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::create_transient_resources");
+    create_transient_resources();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::compile_transitions");
+    compile_transitions();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::compile_exports");
+    compile_exports();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::compile_present_edges");
+    compile_present_edges();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::validate_graph");
+    validate_graph();
+  }
+  {
+    ASTRA_PROFILE_N("RenderGraph::setup_passes");
+    setup_passes();
+  }
 
   ASTRA_ENSURE(m_render_target == nullptr, "[RenderGraph] RenderTarget must be created");
   auto backend = m_render_target->backend();
 
-  switch (backend) {
-    case RendererBackend::OpenGL: {
-      m_opengl_executor.reset();
-      m_opengl_executor = create_scope<OpenGLExecutor>(*m_render_target);
-      break;
-    }
-    case RendererBackend::Vulkan: {
-      m_vulkan_executor.reset();
+  {
+    ASTRA_PROFILE_N("RenderGraph::create_executor");
+    switch (backend) {
+      case RendererBackend::OpenGL: {
+        m_opengl_executor.reset();
+        m_opengl_executor = create_scope<OpenGLExecutor>(*m_render_target);
+        break;
+      }
+      case RendererBackend::Vulkan: {
+        m_vulkan_executor.reset();
 
-      auto window = window_manager()->get_window_by_id(m_render_target->window_id());
-      m_vulkan_executor = create_scope<VulkanExecutor>(
-          window->handle(),
-          static_cast<uint32_t>(window->width()),
-          static_cast<uint32_t>(window->height())
-      );
-      break;
+        auto window = window_manager()->get_window_by_id(m_render_target->window_id());
+        m_vulkan_executor = create_scope<VulkanExecutor>(
+            window->handle(),
+            static_cast<uint32_t>(window->width()),
+            static_cast<uint32_t>(window->height())
+        );
+        break;
+      }
+      default:
+        ASTRA_ENSURE(m_render_target == nullptr, "[RenderGraph] RenderTarget must create a RenderBackend first");
+        break;
     }
-    default:
-      ASTRA_ENSURE(m_render_target == nullptr, "[RenderGraph] RenderTarget must create a RenderBackend first");
-      break;
   }
 
   LOG_INFO("[RenderGraph] Compilation complete");
@@ -615,6 +633,7 @@ void RenderGraph::create_transient_resources() {
 }
 
 void RenderGraph::setup_passes() {
+  ASTRA_PROFILE_N("RenderGraph::setup_passes");
   rendering::SceneResidencyRequests requests;
 
   for (const auto &pass : m_passes) {
@@ -623,15 +642,27 @@ void RenderGraph::setup_passes() {
     }
 
     for (const auto &dependency : pass->get_asset_dependencies()) {
-      append_pass_dependency_requests(dependency, requests);
+      append_pass_setup_dependency_requests(dependency, requests);
     }
   }
 
-  rendering::resolve_scene_residency(requests, m_render_target);
+  {
+    ASTRA_PROFILE_N("resolve_pass_setup_residency");
+    rendering::load_descriptor_ids<ShaderDescriptor>(
+        m_render_target->backend(),
+        requests.shaders
+    );
+    rendering::load_descriptor_ids<Texture2DDescriptor>(
+        m_render_target->backend(),
+        requests.textures_2d
+    );
+  }
 
   for (auto &pass : m_passes) {
     LOG_DEBUG("[RenderGraph] Setting up pass: ", pass->get_name());
     if (!pass->is_culled()) {
+      ASTRA_PROFILE_DYN(pass->get_name().c_str(), pass->get_name().size());
+
       std::vector<ResolvedRenderPassDependency> resolved_dependencies;
       resolved_dependencies.reserve(pass->get_asset_dependencies().size());
 
@@ -750,6 +781,33 @@ void RenderGraph::cleanup() {
   m_transient_storage_buffers.clear();
   m_opengl_executor.reset();
   m_vulkan_executor.reset();
+}
+
+void RenderGraph::prepare_for_pass_reload() {
+  for (auto &pass : m_passes) {
+    pass->cleanup();
+  }
+  m_passes.clear();
+  m_execution_order.clear();
+  m_compiled_exports.clear();
+  m_compiled_present_edges.clear();
+}
+
+void RenderGraph::replace_passes(std::vector<Scope<RenderGraphPass>> new_passes) {
+  m_passes = std::move(new_passes);
+}
+
+void RenderGraph::finalize_pass_reload() {
+  compute_resource_lifetimes();
+  infer_dependencies();
+  topological_sort();
+  cull_passes();
+  compile_transitions();
+  compile_exports();
+  compile_present_edges();
+  validate_graph();
+  setup_passes();
+  LOG_INFO("[RenderGraph] Pass reload finalized");
 }
 
 bool RenderGraph::has_lifetime_overlap(const RenderGraphResource &a, const RenderGraphResource &b) const {

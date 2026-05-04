@@ -35,7 +35,10 @@ struct MaterialBindingState {
   float roughness_factor = 1.0f;
   float occlusion_strength = 1.0f;
   float normal_scale = 1.0f;
+  float height_scale = 0.02f;
   float bloom_intensity = 0.0f;
+  int alpha_mask_enabled = 0;
+  float alpha_cutoff = 0.5f;
   int next_texture_slot = 0;
 };
 
@@ -81,7 +84,10 @@ struct MaterialGroupKey {
   float roughness_factor = 1.0f;
   float occlusion_strength = 1.0f;
   float normal_scale = 1.0f;
+  float height_scale = 0.02f;
   float bloom_intensity = 0.0f;
+  int alpha_mask_enabled = 0;
+  float alpha_cutoff = 0.5f;
   std::vector<TextureBindingIdentity> extra_textures;
 
   friend bool operator==(const MaterialGroupKey &,
@@ -120,7 +126,10 @@ struct MaterialGroupKeyHash {
     seed = hash_combine(seed, std::hash<float>{}(key.roughness_factor));
     seed = hash_combine(seed, std::hash<float>{}(key.occlusion_strength));
     seed = hash_combine(seed, std::hash<float>{}(key.normal_scale));
+    seed = hash_combine(seed, std::hash<float>{}(key.height_scale));
     seed = hash_combine(seed, std::hash<float>{}(key.bloom_intensity));
+    seed = hash_combine(seed, std::hash<int>{}(key.alpha_mask_enabled));
+    seed = hash_combine(seed, std::hash<float>{}(key.alpha_cutoff));
     for (const auto &texture : key.extra_textures) {
       seed = hash_texture_identity(seed, texture);
     }
@@ -161,6 +170,38 @@ resolve_material_slots(const Model *model, const MaterialSlots *material_slots,
 
   fallback_slots.materials = model->materials;
   return &fallback_slots;
+}
+
+inline const ResourceDescriptorID *
+resolve_material_id_for_submesh(const Model *model,
+                                const MaterialSlots *material_slots,
+                                uint32_t submesh_index) {
+  if (material_slots != nullptr && !material_slots->materials.empty()) {
+    if (material_slots->materials.size() == 1u) {
+      return &material_slots->materials.front();
+    }
+
+    if (submesh_index < material_slots->materials.size()) {
+      return &material_slots->materials[submesh_index];
+    }
+
+    return &material_slots->materials.front();
+  }
+
+  if (model == nullptr || model->materials.empty()) {
+    return nullptr;
+  }
+
+  uint32_t material_slot = submesh_index;
+  if (submesh_index < model->material_slots.size()) {
+    material_slot = model->material_slots[submesh_index];
+  }
+
+  if (material_slot < model->materials.size()) {
+    return &model->materials[material_slot];
+  }
+
+  return &model->materials.front();
 }
 
 inline Ref<Texture> resolve_texture_resource(const ResourceDescriptorID &id,
@@ -318,14 +359,14 @@ inline ResolvedSurfaceTextureBinding resolve_surface_texture_binding(
 
 inline ResolvedMaterialData
 resolve_material_data(const Model *model, const MaterialSlots *material_slots,
-                      const TextureBindings *texture_bindings) {
+                      const TextureBindings *texture_bindings,
+                      uint32_t submesh_index = 0u) {
   ResolvedMaterialData material_data;
-  MaterialSlots fallback_slots;
 
-  material_slots = resolve_material_slots(model, material_slots, fallback_slots);
-
-  if (material_slots != nullptr && !material_slots->materials.empty()) {
-    material_data.material_id = material_slots->materials.front();
+  if (const auto *material_id =
+          resolve_material_id_for_submesh(model, material_slots, submesh_index);
+      material_id != nullptr) {
+    material_data.material_id = *material_id;
 
     auto manager = resource_manager();
     auto material =
@@ -341,7 +382,12 @@ resolve_material_data(const Model *model, const MaterialSlots *material_slots,
       material_data.roughness_factor = material->roughness_factor;
       material_data.occlusion_strength = material->occlusion_strength;
       material_data.normal_scale = material->normal_scale;
+      material_data.height_scale = material->height_scale;
       material_data.bloom_intensity = material->bloom_intensity;
+      material_data.alpha_mask = material->alpha_mask;
+      material_data.alpha_blend = material->alpha_blend;
+      material_data.alpha_cutoff = material->alpha_cutoff;
+      material_data.double_sided = material->double_sided;
 
       if (material->base_color_id.has_value()) {
         material_data.base_color_descriptor_id = *material->base_color_id;
@@ -464,7 +510,10 @@ inline MaterialGroupKey make_material_group_key(
   key.roughness_factor = material_data.roughness_factor;
   key.occlusion_strength = material_data.occlusion_strength;
   key.normal_scale = material_data.normal_scale;
+  key.height_scale = material_data.height_scale;
   key.bloom_intensity = material_data.bloom_intensity;
+  key.alpha_mask_enabled = material_data.alpha_mask ? 1 : 0;
+  key.alpha_cutoff = material_data.alpha_cutoff;
 
   key.extra_textures.reserve(material_data.extra_textures.size());
   for (const auto &binding : material_data.extra_textures) {
@@ -601,7 +650,10 @@ inline MaterialBindingState record_resolved_material_bindings(
   state.roughness_factor = material_data.roughness_factor;
   state.occlusion_strength = material_data.occlusion_strength;
   state.normal_scale = material_data.normal_scale;
+  state.height_scale = material_data.height_scale;
   state.bloom_intensity = material_data.bloom_intensity;
+  state.alpha_mask_enabled = material_data.alpha_mask ? 1 : 0;
+  state.alpha_cutoff = material_data.alpha_cutoff;
   state.next_texture_slot = starting_slot;
 
   const auto record_pbr_binding =

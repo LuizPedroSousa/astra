@@ -90,9 +90,7 @@ void EditorGizmoPass::record(
   if (!draw_target_available || !selected_entity_id.has_value()) {
     static int gizmo_skip_count = 0;
     if (gizmo_skip_count++ < 5) {
-      LOG_WARN("[EditorGizmoPass::record] early exit: interaction_rect=",
-               draw_target_available, " selected_entity=",
-               selected_entity_id.has_value());
+      LOG_WARN("[EditorGizmoPass::record] early exit: interaction_rect=", draw_target_available, " selected_entity=", selected_entity_id.has_value());
     }
     return;
   }
@@ -138,8 +136,6 @@ void EditorGizmoPass::record(
     return;
   }
 
-  LOG_INFO("[EditorGizmoPass::record] drawing ", vertices.size(), " vertices, scale=", gizmo_scale);
-
   auto &frame = ctx.frame();
   const auto extent = ctx.graph_image_extent(*scene_color_resource);
 
@@ -176,11 +172,10 @@ void EditorGizmoPass::record(
       )
   );
   rendering::record_shader_params(
-      frame, bindings,
-      shader_bindings::engine_shaders_editor_gizmo_axsl::CameraParams{
-          .view = camera_frame.view,
-          .projection = camera_frame.projection,
-      }
+      frame, bindings, shader_bindings::engine_shaders_editor_gizmo_axsl::CameraParams{
+                           .view = camera_frame.view,
+                           .projection = camera_frame.projection,
+                       }
   );
 
   RenderPipelineDesc pipeline_desc;

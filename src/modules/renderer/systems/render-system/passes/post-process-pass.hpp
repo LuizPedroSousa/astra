@@ -3,21 +3,24 @@
 #include "framebuffer.hpp"
 #include "render-pass.hpp"
 #include "resources/shader.hpp"
+#include "shader-lang/reflection.hpp"
 #include "systems/render-system/core/compiled-frame.hpp"
 #include "systems/render-system/core/pass-recorder.hpp"
-#include "systems/render-system/core/shader-param-recorder.hpp"
+#include "systems/render-system/eye-adaptation.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include "systems/render-system/render-frame.hpp"
 #include "trace.hpp"
-
-#include ASTRALIX_ENGINE_BINDINGS_HEADER
 
 namespace astralix {
 
 class PostProcessPass : public FramePass {
 public:
-  explicit PostProcessPass(rendering::ResolvedMeshDraw fullscreen_quad = {})
-      : m_fullscreen_quad(std::move(fullscreen_quad)) {}
+  explicit PostProcessPass(
+      rendering::ResolvedMeshDraw fullscreen_quad = {},
+      EyeAdaptationState *eye_adaptation_state = nullptr
+  )
+      : m_fullscreen_quad(std::move(fullscreen_quad)),
+        m_eye_adaptation_state(eye_adaptation_state) {}
   ~PostProcessPass() override = default;
 
   void setup(PassSetupContext &ctx) override {
@@ -34,6 +37,8 @@ public:
     const auto *scene_color_resource = ctx.find_graph_image("scene_color");
     const auto *bloom_resource = ctx.find_graph_image("bloom");
     const auto *present_resource = ctx.find_graph_image("present");
+    auto *exposure_buffer =
+        ctx.find_storage_buffer(std::string(k_eye_adaptation_exposure_resource));
 
     if (m_shader == nullptr || scene_color_resource == nullptr ||
         bloom_resource == nullptr || present_resource == nullptr ||
@@ -54,8 +59,6 @@ public:
 
     auto present_image =
         ctx.register_graph_image("post-process.present", *present_resource);
-
-    using namespace shader_bindings::engine_shaders_hdr_axsl;
 
     RenderPipelineDesc pipeline_desc;
     pipeline_desc.debug_name = "post-process";
@@ -81,20 +84,59 @@ public:
     );
 
     frame.add_sampled_image_binding(
-        bindings, GlobalsResources::screen_texture.binding_id, ImageViewRef{.image = scene_color_image}
+        bindings,
+        shader_binding_id("__globals.screen_texture"),
+        ImageViewRef{.image = scene_color_image}
     );
     frame.add_sampled_image_binding(
-        bindings, GlobalsResources::bloom_texture.binding_id, ImageViewRef{.image = bloom_image}
+        bindings,
+        shader_binding_id("__globals.bloom_texture"),
+        ImageViewRef{.image = bloom_image}
     );
 
-    constexpr float k_bloom_strength = 0.12f;
-    constexpr float k_gamma = 2.2f;
-    constexpr float k_exposure = 0.7f;
-    rendering::record_shader_params(frame, bindings, GlobalsParams{
-                                                         .bloom_strength = k_bloom_strength,
-                                                         .gamma = k_gamma,
-                                                         .exposure = k_exposure,
-                                                     });
+    if (exposure_buffer != nullptr) {
+      const auto *scene_frame = ctx.scene();
+      if (scene_frame == nullptr || !scene_frame->eye_adaptation.enabled) {
+        const EyeAdaptationExposureData default_exposure{};
+        exposure_buffer->set_data(&default_exposure, sizeof(default_exposure));
+        if (m_eye_adaptation_state != nullptr) {
+          m_eye_adaptation_state->initialized = false;
+        }
+      }
+
+      frame.add_storage_buffer_binding(
+          bindings,
+          shader_binding_id("exposure_data"),
+          k_eye_adaptation_exposure_binding_point,
+          exposure_buffer->renderer_id()
+      );
+    }
+
+    const auto *scene_frame_ptr = ctx.scene();
+    const float bloom_strength = scene_frame_ptr != nullptr
+        ? scene_frame_ptr->tonemapping.bloom_strength : 0.12f;
+    const float gamma = scene_frame_ptr != nullptr
+        ? scene_frame_ptr->tonemapping.gamma : 2.2f;
+    const int tonemap_operator = scene_frame_ptr != nullptr
+        ? scene_frame_ptr->tonemapping.tonemap_operator : 1;
+    frame.add_value_binding(
+        bindings,
+        shader_binding_id("__globals.bloom_strength"),
+        ShaderValueKind::Float,
+        bloom_strength
+    );
+    frame.add_value_binding(
+        bindings,
+        shader_binding_id("__globals.gamma"),
+        ShaderValueKind::Float,
+        gamma
+    );
+    frame.add_value_binding(
+        bindings,
+        shader_binding_id("__globals.tonemap_operator"),
+        ShaderValueKind::Int,
+        tonemap_operator
+    );
 
     const auto fullscreen_quad = frame.register_vertex_array(
         "post-process.fullscreen-quad", m_fullscreen_quad.vertex_array
@@ -126,6 +168,7 @@ public:
   std::string name() const override { return "PostProcessPass"; }
 
 private:
+  EyeAdaptationState *m_eye_adaptation_state = nullptr;
   Ref<Shader> m_shader = nullptr;
   rendering::ResolvedMeshDraw m_fullscreen_quad{};
 };

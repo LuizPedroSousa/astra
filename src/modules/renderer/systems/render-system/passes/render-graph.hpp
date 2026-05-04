@@ -31,6 +31,10 @@ public:
 
   void cleanup();
 
+  void prepare_for_pass_reload();
+  void replace_passes(std::vector<Scope<RenderGraphPass>> new_passes);
+  void finalize_pass_reload();
+
   void export_graph(const RenderGraphExporter &exporter,
                     const std::string &filename) const;
 

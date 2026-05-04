@@ -31,7 +31,8 @@ inline void ensure_mesh_uploaded(Mesh &mesh, Ref<RenderTarget> render_target) {
       {BufferElement(ShaderDataType::Float3, "position").at_location(0),
        BufferElement(ShaderDataType::Float3, "normal").at_location(1),
        BufferElement(ShaderDataType::Float2, "texture_coordinates").at_location(2),
-       BufferElement(ShaderDataType::Float3, "tangent").at_location(3)}
+       BufferElement(ShaderDataType::Float3, "tangent").at_location(3),
+       BufferElement(ShaderDataType::Float, "tangent_sign").at_location(4)}
   );
 
   vertex_buffer->set_layout(layout);
@@ -54,6 +55,7 @@ prepare_mesh_draw(Mesh &mesh, const ResourceDescriptorID &source_model_id,
       .vertex_array = mesh.vertex_array,
       .draw_type = mesh.draw_type,
       .index_count = static_cast<uint32_t>(mesh.indices.size()),
+      .local_bounds = mesh.bounds,
   };
 }
 
