@@ -19,6 +19,13 @@ struct Image {
   unsigned char *data;
 };
 
+struct HDRImage {
+  int width;
+  int height;
+  int nr_channels;
+  float *data;
+};
+
 enum class TextureParameter {
   WrapS = 0,
   WrapT = 1,
@@ -35,9 +42,12 @@ enum class TextureValue {
   LinearMipMap = 5
 };
 
-enum class TextureFormat { Red = 0,
-                           RGB = 1,
-                           RGBA = 2 };
+enum class TextureFormat {
+  Red = 0,
+  RGB = 1,
+  RGBA = 2,
+  RGBA16F = 3,
+};
 
 class Texture2DDescriptor;
 class Texture3DDescriptor;
@@ -53,6 +63,9 @@ public:
 
   int get_slot() { return m_slot; }
   void set_slot(int slot) { m_slot = slot; }
+
+  static HDRImage load_hdr_image(Ref<Path> path, bool flip_image_on_loading);
+  static void free_hdr_image(float *data);
 
 protected:
   static Image load_image(Ref<Path> path, bool flip_image_on_loading);
@@ -79,6 +92,13 @@ struct TextureConfig {
   unsigned char *buffer = nullptr;
 };
 
+struct PreparedTexture2DData {
+  uint32_t width = 0;
+  uint32_t height = 0;
+  int nr_channels = 0;
+  std::vector<unsigned char> bytes;
+};
+
 class Texture2D : public Texture {
 public:
   static Ref<Texture2DDescriptor>
@@ -88,7 +108,15 @@ public:
 
   static Ref<Texture2DDescriptor> define(const ResourceDescriptorID &id, TextureConfig config);
 
+  static PreparedTexture2DData
+  prepare_descriptor(Ref<Texture2DDescriptor> descriptor);
+
   static Ref<Texture2D> from_descriptor(const ResourceHandle &id, Ref<Texture2DDescriptor> descriptor);
+  static Ref<Texture2D> from_prepared_descriptor(
+      const ResourceHandle &id,
+      Ref<Texture2DDescriptor> descriptor,
+      PreparedTexture2DData prepared
+  );
 
   Texture2D(const ResourceHandle &id) : Texture(id) {};
 };
@@ -97,6 +125,25 @@ class Texture3D : public Texture {
 public:
   static Ref<Texture3DDescriptor>
   create(const ResourceDescriptorID &id, const std::vector<Ref<Path>> &faces_path);
+
+  static Ref<Texture3DDescriptor>
+  create_from_equirectangular(const ResourceDescriptorID &id, Ref<Path> equirectangular_path, uint32_t face_resolution = 1024);
+
+  static Ref<Texture3DDescriptor>
+  create_from_buffer(
+      const ResourceDescriptorID &id,
+      uint32_t face_width,
+      uint32_t face_height,
+      const std::vector<const unsigned char *> &face_buffers
+  );
+
+  static Ref<Texture3DDescriptor>
+  create_from_float_buffer(
+      const ResourceDescriptorID &id,
+      uint32_t face_width,
+      uint32_t face_height,
+      std::vector<std::vector<float>> float_face_data
+  );
 
   static Ref<Texture3DDescriptor>
   define(const ResourceDescriptorID &id, const std::vector<Ref<Path>> &faces_path);
