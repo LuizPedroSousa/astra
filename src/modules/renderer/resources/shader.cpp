@@ -11,17 +11,22 @@ namespace astralix {
 Ref<ShaderDescriptor> Shader::create(const ResourceDescriptorID &id,
                                      Ref<Path> fragment_path,
                                      Ref<Path> vertex_path,
-                                     Ref<Path> geometry_path) {
+                                     Ref<Path> geometry_path,
+                                     Ref<Path> compute_path) {
   return resource_manager()->register_shader(
-      ShaderDescriptor::create(id, fragment_path, vertex_path, geometry_path));
+      ShaderDescriptor::create(
+          id, fragment_path, vertex_path, geometry_path, compute_path
+      )
+  );
 }
 
 Ref<ShaderDescriptor> Shader::define(const ResourceDescriptorID &id,
                                      Ref<Path> fragment_path,
                                      Ref<Path> vertex_path,
-                                     Ref<Path> geometry_path) {
+                                     Ref<Path> geometry_path,
+                                     Ref<Path> compute_path) {
   return ShaderDescriptor::create(id, fragment_path, vertex_path,
-                                  geometry_path);
+                                  geometry_path, compute_path);
 }
 
 Ref<Shader> Shader::from_descriptor(const ResourceHandle &id,

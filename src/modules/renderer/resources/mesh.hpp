@@ -12,11 +12,20 @@ namespace astralix {
 
 class Mesh;
 
+struct AABB {
+  glm::vec3 min = glm::vec3(std::numeric_limits<float>::max());
+  glm::vec3 max = glm::vec3(std::numeric_limits<float>::lowest());
+
+  glm::vec3 center() const { return (min + max) * 0.5f; }
+  glm::vec3 extents() const { return (max - min) * 0.5f; }
+};
+
 struct Vertex {
   glm::vec3 position;
   glm::vec3 normal;
   glm::vec2 texture_coordinates;
   glm::vec3 tangent;
+  float bitangent_sign = 1.0f;
 };
 
 class Mesh {
@@ -36,18 +45,30 @@ public:
   static Mesh quad(float size = 1.0f);
   static Mesh sphere();
 
+  AABB bounds;
+
   RendererAPI::DrawPrimitive draw_type = RendererAPI::DrawPrimitive::TRIANGLES;
 
-  Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices) {
+  Mesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices,
+       bool = false) {
     this->vertices = std::move(vertices);
     this->indices = std::move(indices);
 
-    calculate_tanget_and_bitangents();
+    calculate_tangents_mikktspace();
 
+    compute_bounds();
     id = generate_hash_id();
   };
 
   ~Mesh() = default;
+
+  void compute_bounds() {
+    bounds = AABB{};
+    for (const auto &vertex : vertices) {
+      bounds.min = glm::min(bounds.min, vertex.position);
+      bounds.max = glm::max(bounds.max, vertex.position);
+    }
+  }
 
   std::size_t generate_hash_id() {
     std::size_t seed = 0;
@@ -69,50 +90,7 @@ public:
     return seed;
   }
 
-  void calculate_tanget_and_bitangents() {
-    for (auto &vertex : vertices) {
-      vertex.tangent = glm::vec3(0.0f);
-    }
-
-    for (size_t i = 0; i < indices.size(); i += 3) {
-      unsigned int i1 = indices[i];
-      unsigned int i2 = indices[i + 1];
-      unsigned int i3 = indices[i + 2];
-
-      const Vertex &v1 = vertices[i1];
-      const Vertex &v2 = vertices[i2];
-      const Vertex &v3 = vertices[i3];
-
-      glm::vec3 edge1 = v2.position - v1.position;
-      glm::vec3 edge2 = v3.position - v1.position;
-
-      glm::vec2 deltaUV1 = v2.texture_coordinates - v1.texture_coordinates;
-      glm::vec2 deltaUV2 = v3.texture_coordinates - v1.texture_coordinates;
-
-      float determinant = deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x;
-      if (std::abs(determinant) <= 1e-8f) {
-        continue;
-      }
-
-      float f = 1.0f / determinant;
-      glm::vec3 tangent = (edge1 * deltaUV2.y - edge2 * deltaUV1.y) * f;
-
-      vertices[i1].tangent += tangent;
-      vertices[i2].tangent += tangent;
-      vertices[i3].tangent += tangent;
-    }
-
-    for (auto &vertex : vertices) {
-      if (glm::dot(vertex.tangent, vertex.tangent) <= 1e-8f) {
-        const glm::vec3 up = std::abs(vertex.normal.z) < 0.999f
-                                 ? glm::vec3(0.0f, 0.0f, 1.0f)
-                                 : glm::vec3(0.0f, 1.0f, 0.0f);
-        vertex.tangent = glm::normalize(glm::cross(up, vertex.normal));
-      } else {
-        vertex.tangent = glm::normalize(vertex.tangent);
-      }
-    }
-  }
+  void calculate_tangents_mikktspace();
 };
 
 } // namespace astralix

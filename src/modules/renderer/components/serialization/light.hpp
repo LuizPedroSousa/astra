@@ -38,6 +38,9 @@ inline ComponentSnapshot snapshot_component(const rendering::Light &light) {
   snapshot.fields.push_back({"type", light_type_to_string(light.type)});
   serialization::fields::append_vec3(snapshot.fields, "color", light.color);
   snapshot.fields.push_back({"intensity", light.intensity});
+  snapshot.fields.push_back({"ambient_strength", light.ambient_strength});
+  snapshot.fields.push_back({"diffuse_strength", light.diffuse_strength});
+  snapshot.fields.push_back({"specular_strength", light.specular_strength});
   snapshot.fields.push_back({"casts_shadows", light.casts_shadows});
   return snapshot;
 }
@@ -73,6 +76,7 @@ snapshot_component(const rendering::DirectionalShadowSettings &settings) {
   snapshot.fields.push_back({"ortho_extent", settings.ortho_extent});
   snapshot.fields.push_back({"near_plane", settings.near_plane});
   snapshot.fields.push_back({"far_plane", settings.far_plane});
+  snapshot.fields.push_back({"shadow_intensity", settings.shadow_intensity});
   return snapshot;
 }
 
@@ -96,6 +100,12 @@ apply_light_snapshot(ecs::EntityRef entity,
           serialization::fields::read_vec3(fields, "color", glm::vec3(1.0f)),
       .intensity = serialization::fields::read_float(fields, "intensity")
                        .value_or(1.0f),
+      .ambient_strength = serialization::fields::read_float(fields, "ambient_strength")
+                              .value_or(0.2f),
+      .diffuse_strength = serialization::fields::read_float(fields, "diffuse_strength")
+                              .value_or(0.5f),
+      .specular_strength = serialization::fields::read_float(fields, "specular_strength")
+                               .value_or(0.5f),
       .casts_shadows =
           serialization::fields::read_bool(fields, "casts_shadows")
               .value_or(true),
@@ -147,6 +157,8 @@ inline void apply_directional_shadow_settings_snapshot(
                         .value_or(1.0f),
       .far_plane = serialization::fields::read_float(fields, "far_plane")
                        .value_or(100.0f),
+      .shadow_intensity = serialization::fields::read_float(fields, "shadow_intensity")
+                              .value_or(1.0f),
   });
 }
 

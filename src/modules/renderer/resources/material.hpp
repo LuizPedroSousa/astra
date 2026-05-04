@@ -25,7 +25,12 @@ public:
   float roughness_factor = 1.0f;
   float occlusion_strength = 1.0f;
   float normal_scale = 1.0f;
+  float height_scale = 0.02f;
   float bloom_intensity = 0.0f;
+  bool alpha_mask = false;
+  bool alpha_blend = false;
+  float alpha_cutoff = 0.5f;
+  bool double_sided = false;
 
   Material(RESOURCE_INIT_PARAMS, Ref<MaterialDescriptor> descriptor);
 
@@ -45,7 +50,12 @@ public:
       float roughness_factor = 1.0f,
       float occlusion_strength = 1.0f,
       float normal_scale = 1.0f,
-      float bloom_intensity = 0.0f);
+      float height_scale = 0.02f,
+      float bloom_intensity = 0.0f,
+      bool alpha_mask = false,
+      bool alpha_blend = false,
+      float alpha_cutoff = 0.5f,
+      bool double_sided = false);
 
   static Ref<MaterialDescriptor> define(
       const ResourceDescriptorID &id,
@@ -63,7 +73,12 @@ public:
       float roughness_factor = 1.0f,
       float occlusion_strength = 1.0f,
       float normal_scale = 1.0f,
-      float bloom_intensity = 0.0f);
+      float height_scale = 0.02f,
+      float bloom_intensity = 0.0f,
+      bool alpha_mask = false,
+      bool alpha_blend = false,
+      float alpha_cutoff = 0.5f,
+      bool double_sided = false);
 
   static Ref<Material> from_descriptor(const ResourceHandle &id,
                                        Ref<MaterialDescriptor> descriptor);

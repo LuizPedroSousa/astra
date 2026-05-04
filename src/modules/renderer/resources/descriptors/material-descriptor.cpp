@@ -18,7 +18,12 @@ Ref<MaterialDescriptor> MaterialDescriptor::create(
     float roughness_factor,
     float occlusion_strength,
     float normal_scale,
-    float bloom_intensity) {
+    float height_scale,
+    float bloom_intensity,
+    bool alpha_mask,
+    bool alpha_blend,
+    float alpha_cutoff,
+    bool double_sided) {
   return create_ref<MaterialDescriptor>(
       id,
       std::move(base_color_id),
@@ -35,7 +40,12 @@ Ref<MaterialDescriptor> MaterialDescriptor::create(
       roughness_factor,
       occlusion_strength,
       normal_scale,
-      bloom_intensity);
+      height_scale,
+      bloom_intensity,
+      alpha_mask,
+      alpha_blend,
+      alpha_cutoff,
+      double_sided);
 }
 
 } // namespace astralix

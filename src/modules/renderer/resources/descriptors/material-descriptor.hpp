@@ -26,7 +26,12 @@ public:
       float roughness_factor = 1.0f,
       float occlusion_strength = 1.0f,
       float normal_scale = 1.0f,
-      float bloom_intensity = 0.0f);
+      float height_scale = 0.02f,
+      float bloom_intensity = 0.0f,
+      bool alpha_mask = false,
+      bool alpha_blend = false,
+      float alpha_cutoff = 0.5f,
+      bool double_sided = false);
 
   MaterialDescriptor(
       const ResourceDescriptorID &id,
@@ -44,7 +49,12 @@ public:
       float roughness_factor,
       float occlusion_strength,
       float normal_scale,
-      float bloom_intensity)
+      float height_scale,
+      float bloom_intensity,
+      bool alpha_mask,
+      bool alpha_blend,
+      float alpha_cutoff,
+      bool double_sided)
       : RESOURCE_DESCRIPTOR_INIT(), base_color_id(std::move(base_color_id)),
         normal_id(std::move(normal_id)),
         metallic_id(std::move(metallic_id)),
@@ -56,7 +66,10 @@ public:
         base_color_factor(base_color_factor), emissive_factor(emissive_factor),
         metallic_factor(metallic_factor), roughness_factor(roughness_factor),
         occlusion_strength(occlusion_strength), normal_scale(normal_scale),
-        bloom_intensity(bloom_intensity) {}
+        height_scale(height_scale),
+        bloom_intensity(bloom_intensity), alpha_mask(alpha_mask),
+        alpha_blend(alpha_blend),
+        alpha_cutoff(alpha_cutoff), double_sided(double_sided) {}
 
   RESOURCE_DESCRIPTOR_PARAMS;
 
@@ -74,7 +87,12 @@ public:
   float roughness_factor = 1.0f;
   float occlusion_strength = 1.0f;
   float normal_scale = 1.0f;
+  float height_scale = 0.02f;
   float bloom_intensity = 0.0f;
+  bool alpha_mask = false;
+  bool alpha_blend = false;
+  float alpha_cutoff = 0.5f;
+  bool double_sided = false;
 };
 
 } // namespace astralix

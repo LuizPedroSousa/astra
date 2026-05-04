@@ -5,10 +5,11 @@ if(POLICY CMP0079)
   cmake_policy(SET CMP0079 NEW)
 endif()
 
-option(ASTRA_EDITOR "Astra internal Layer Editor" OFF)
+option(ASTRA_EDITOR "Astra internal Layer Editor" ON)
 option(ASTRA_EDITOR_USOCKET "Astra forward serialization with USocket for external Editor" true)
 option(ASTRA_ENABLE_TESTS "Enable unit tests" false)
-option(ASTRA_TRACE "Enable tracing" OFF)
+option(ASTRA_RENDERER_HOT_RELOAD "Enable renderer hot-reload (shaders + passes via dlopen)" ON)
+option(ASTRA_TRACE "Enable tracing" ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
@@ -25,6 +26,10 @@ add_definitions(-DLOG_TO_CONSOLE)
 if(ASTRA_EDITOR)
   add_definitions(-DASTRA_EDITOR)
   add_definitions(-DASTRA_EDITOR_USOCKET)
+endif()
+
+if(ASTRA_RENDERER_HOT_RELOAD)
+  add_definitions(-DASTRA_RENDERER_HOT_RELOAD)
 endif()
 
 set(VCPKG_INSTALLED_ROOT "${CMAKE_SOURCE_DIR}/vcpkg_installed/x64-linux")
@@ -83,6 +88,10 @@ if(ASTRA_ENABLE_TESTS)
        ${CMAKE_SOURCE_DIR}/src/modules/ui/immediate/*.cpp)
   file(GLOB_RECURSE UI_LAYOUT_SUPPORT_SRC CONFIGURE_DEPENDS
        ${CMAKE_SOURCE_DIR}/src/modules/ui/layout/*.cpp)
+  file(GLOB_RECURSE UI_CANVAS_SUPPORT_SRC CONFIGURE_DEPENDS
+       ${CMAKE_SOURCE_DIR}/src/modules/ui/canvas/*.cpp)
+  file(GLOB_RECURSE UI_WIDGET_SUPPORT_SRC CONFIGURE_DEPENDS
+       ${CMAKE_SOURCE_DIR}/src/modules/ui/widgets/*.cpp)
   list(
     FILTER UI_LAYOUT_SUPPORT_SRC EXCLUDE
     REGEX ".*/widgets/content/render-image-view\\.cpp$")
@@ -130,8 +139,10 @@ if(ASTRA_ENABLE_TESTS)
       ${CMAKE_SOURCE_DIR}/tests/project-serializer-stub.cpp
       ${CMAKE_SOURCE_DIR}/tests/model-stub.cpp
       ${CMAKE_SOURCE_DIR}/tests/ui-layout-renderer-stub.cpp
+      ${UI_CANVAS_SUPPORT_SRC}
       ${UI_DOCUMENT_SUPPORT_SRC}
       ${UI_IMMEDIATE_SUPPORT_SRC}
+      ${UI_WIDGET_SUPPORT_SRC}
       ${UI_LAYOUT_SUPPORT_SRC})
   set_source_files_properties(
     ${HEADER_ONLY_TEST_SRC}
@@ -167,6 +178,24 @@ target_include_directories(stb_image
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/stb_image>
 )
+
+enable_language(C)
+add_library(mikktspace STATIC "external/mikktspace/mikktspace.c")
+
+target_include_directories(mikktspace
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external/mikktspace>
+)
+
+add_library(tinyexr STATIC "external/tinyexr/tinyexr.cpp")
+
+target_include_directories(tinyexr
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/external>
+)
+
+target_compile_definitions(tinyexr PRIVATE TINYEXR_USE_MINIZ=0)
+target_link_libraries(tinyexr PRIVATE ZLIB::ZLIB)
 
 set(LIB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/external
                     ${VCPKG_INSTALLED_ROOT}/include)
@@ -238,6 +267,7 @@ if(NOT ASTRA_ENABLE_TESTS)
       foundation
       allocators
       containers
+      jobs
       events
       ecs
       streams
@@ -252,6 +282,8 @@ if(NOT ASTRA_ENABLE_TESTS)
       engine
       application
       stb_image
+      tinyexr
+      mikktspace
   )
     if(TARGET "${_astralix_target}" AND NOT TARGET "astralix::${_astralix_target}")
       add_library("astralix::${_astralix_target}" ALIAS "${_astralix_target}")
@@ -281,6 +313,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   set(ASTRA_CORE_LIBS
       astralix::foundation
       astralix::allocators
+      astralix::jobs
       astralix::events
       astralix::ecs
       astralix::streams
@@ -294,12 +327,14 @@ if(NOT ASTRA_ENABLE_TESTS)
       astralix::terrain
       astralix::engine
       astralix::application
-      astralix::stb_image)
+      astralix::stb_image
+      astralix::tinyexr)
   list(JOIN ASTRA_CORE_LIBS "," ASTRALIX_CORE_LIBS_RESCAN)
 
   target_include_directories(astra INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/foundation>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/allocators>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/jobs>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/events>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/shared/ecs>
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/modules/streams>
@@ -316,6 +351,7 @@ if(NOT ASTRA_ENABLE_TESTS)
     $<INSTALL_INTERFACE:include>
     $<INSTALL_INTERFACE:include/astralix/shared/foundation>
     $<INSTALL_INTERFACE:include/astralix/shared/allocators>
+    $<INSTALL_INTERFACE:include/astralix/modules/jobs>
     $<INSTALL_INTERFACE:include/astralix/shared/events>
     $<INSTALL_INTERFACE:include/astralix/shared/ecs>
     $<INSTALL_INTERFACE:include/astralix/modules/streams>
@@ -364,6 +400,7 @@ if(NOT ASTRA_ENABLE_TESTS)
   foreach(tgt
       foundation
       allocators
+      jobs
       events
       ecs
       streams
@@ -378,7 +415,8 @@ if(NOT ASTRA_ENABLE_TESTS)
       application
   )
       target_compile_definitions(${tgt}
-          PUBLIC ASTRALIX_ASSETS_DIR="${ASTRALIX_ASSETS_DIR_VALUE}"
+          PRIVATE ASTRALIX_ASSETS_DIR="${ASTRALIX_ASSETS_DIR_VALUE}"
+          PRIVATE ASTRALIX_ENGINE_SOURCE_ASSETS_DIR="${ASTRALIX_ENGINE_ASSETS_DIR}"
       )
   endforeach()
 
@@ -397,6 +435,7 @@ if(NOT ASTRA_ENABLE_TESTS)
           foundation
           allocators
           containers
+          jobs
           events
           ecs
           streams
@@ -413,6 +452,8 @@ if(NOT ASTRA_ENABLE_TESTS)
           application
           editor
           stb_image
+          tinyexr
+          mikktspace
           EXPORT astralixTargets
           ARCHIVE DESTINATION lib
           LIBRARY DESTINATION lib
@@ -422,10 +463,12 @@ if(NOT ASTRA_ENABLE_TESTS)
 
   install(CODE [[
     file(REMOVE_RECURSE
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/job"
       "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/ui/ui"
       "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/ui"
       "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/systems/ui-system")
     file(REMOVE
+      "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/libjob.a"
       "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/components/ui.hpp"
       "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/include/astralix/modules/renderer/systems/ui-system.hpp")
   ]])

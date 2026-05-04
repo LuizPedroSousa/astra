@@ -17,6 +17,9 @@ struct Light {
   LightType type = LightType::Directional;
   glm::vec3 color = glm::vec3(1.0f);
   float intensity = 1.0f;
+  float ambient_strength = 0.2f;
+  float diffuse_strength = 0.5f;
+  float specular_strength = 0.5f;
   bool casts_shadows = true;
 };
 
@@ -41,6 +44,7 @@ struct DirectionalShadowSettings {
   float ortho_extent = 10.0f;
   float near_plane = 1.0f;
   float far_plane = 100.0f;
+  float shadow_intensity = 1.0f;
 };
 
 struct SpotLightTarget {

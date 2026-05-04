@@ -1,5 +1,6 @@
 #include "mesh.hpp"
 #include "glm/glm.hpp"
+#include "mikktspace.h"
 #include "iostream"
 #include "numbers"
 
@@ -222,6 +223,76 @@ Mesh Mesh::capsule(float radius, float height, int segments, int rings) {
   }
 
   return Mesh(vertices, indices);
+}
+
+namespace {
+
+struct MikkUserData {
+  std::vector<Vertex> *vertices;
+  std::vector<unsigned int> *indices;
+};
+
+int mikk_get_num_faces(const SMikkTSpaceContext *context) {
+  auto *data = static_cast<MikkUserData *>(context->m_pUserData);
+  return static_cast<int>(data->indices->size() / 3);
+}
+
+int mikk_get_num_vertices_of_face(const SMikkTSpaceContext *, const int) {
+  return 3;
+}
+
+void mikk_get_position(const SMikkTSpaceContext *context, float output[], const int face, const int vertex) {
+  auto *data = static_cast<MikkUserData *>(context->m_pUserData);
+  unsigned int index = (*data->indices)[face * 3 + vertex];
+  const glm::vec3 &position = (*data->vertices)[index].position;
+  output[0] = position.x;
+  output[1] = position.y;
+  output[2] = position.z;
+}
+
+void mikk_get_normal(const SMikkTSpaceContext *context, float output[], const int face, const int vertex) {
+  auto *data = static_cast<MikkUserData *>(context->m_pUserData);
+  unsigned int index = (*data->indices)[face * 3 + vertex];
+  const glm::vec3 &normal = (*data->vertices)[index].normal;
+  output[0] = normal.x;
+  output[1] = normal.y;
+  output[2] = normal.z;
+}
+
+void mikk_get_tex_coord(const SMikkTSpaceContext *context, float output[], const int face, const int vertex) {
+  auto *data = static_cast<MikkUserData *>(context->m_pUserData);
+  unsigned int index = (*data->indices)[face * 3 + vertex];
+  const glm::vec2 &uv = (*data->vertices)[index].texture_coordinates;
+  output[0] = uv.x;
+  output[1] = uv.y;
+}
+
+void mikk_set_tspace_basic(const SMikkTSpaceContext *context, const float tangent[], const float sign, const int face, const int vertex) {
+  auto *data = static_cast<MikkUserData *>(context->m_pUserData);
+  unsigned int index = (*data->indices)[face * 3 + vertex];
+  (*data->vertices)[index].tangent = glm::vec3(tangent[0], tangent[1], tangent[2]);
+  (*data->vertices)[index].bitangent_sign = sign;
+}
+
+} // namespace
+
+void Mesh::calculate_tangents_mikktspace() {
+  MikkUserData user_data{&vertices, &indices};
+
+  SMikkTSpaceInterface interface_callbacks{};
+  interface_callbacks.m_getNumFaces = mikk_get_num_faces;
+  interface_callbacks.m_getNumVerticesOfFace = mikk_get_num_vertices_of_face;
+  interface_callbacks.m_getPosition = mikk_get_position;
+  interface_callbacks.m_getNormal = mikk_get_normal;
+  interface_callbacks.m_getTexCoord = mikk_get_tex_coord;
+  interface_callbacks.m_setTSpaceBasic = mikk_set_tspace_basic;
+  interface_callbacks.m_setTSpace = nullptr;
+
+  SMikkTSpaceContext context{};
+  context.m_pInterface = &interface_callbacks;
+  context.m_pUserData = &user_data;
+
+  genTangSpaceDefault(&context);
 }
 
 } // namespace astralix

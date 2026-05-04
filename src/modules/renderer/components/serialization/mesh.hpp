@@ -1,7 +1,9 @@
 #pragma once
 
+#include "entities/serializers/axmesh-serializer.hpp"
 #include "components/mesh.hpp"
 #include "entities/serializers/scene-snapshot-types.hpp"
+#include "managers/project-manager.hpp"
 #include "renderer-api.hpp"
 #include "serialized-fields.hpp"
 #include "world.hpp"
@@ -44,6 +46,8 @@ inline ComponentSnapshot snapshot_component(const rendering::MeshSet &mesh_set) 
       serialization::fields::append_vec3(snapshot.fields,
                                          vertex_prefix + ".tangent",
                                          vertex.tangent);
+      snapshot.fields.push_back(
+          {vertex_prefix + ".bitangent_sign", vertex.bitangent_sign});
     }
 
     for (size_t index = 0; index < mesh.indices.size(); ++index) {
@@ -57,6 +61,15 @@ inline ComponentSnapshot snapshot_component(const rendering::MeshSet &mesh_set) 
 
 inline std::vector<Mesh>
 read_mesh_set(const serialization::fields::FieldList &fields) {
+  if (const auto asset_path =
+          serialization::fields::read_string(fields, "asset.path");
+      asset_path.has_value() && !asset_path->empty()) {
+    auto project = active_project();
+    ASTRA_ENSURE(project == nullptr,
+                 "Cannot resolve MeshSet asset without an active project");
+    return AxMeshSerializer::read(project->resolve_path(*asset_path));
+  }
+
   std::vector<Mesh> meshes;
   const int mesh_count =
       serialization::fields::read_int(fields, "mesh_count").value_or(0);
@@ -89,6 +102,9 @@ read_mesh_set(const serialization::fields::FieldList &fields) {
                   fields, vertex_prefix + ".texture_coordinates"),
           .tangent = serialization::fields::read_vec3(
               fields, vertex_prefix + ".tangent"),
+          .bitangent_sign = serialization::fields::read_float(
+                                fields, vertex_prefix + ".bitangent_sign")
+                                .value_or(1.0f),
       });
     }
 
@@ -99,7 +115,7 @@ read_mesh_set(const serialization::fields::FieldList &fields) {
               .value_or(0)));
     }
 
-    Mesh mesh(vertices, indices);
+    Mesh mesh(vertices, indices, true);
     mesh.draw_type = static_cast<RendererAPI::DrawPrimitive>(
         serialization::fields::read_int(fields, prefix + ".draw_type")
             .value_or(static_cast<int>(RendererAPI::DrawPrimitive::TRIANGLES)));
