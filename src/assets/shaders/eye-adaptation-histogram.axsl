@@ -1,0 +1,31 @@
+@version 450;
+
+uniform sampler2D scene_color;
+uniform float min_log_luminance;
+uniform float max_log_luminance;
+uniform vec2 image_size;
+
+@std430
+@binding(0)
+in HistogramBuffer {
+  uint bins[256];
+} histogram;
+
+@compute(16, 16, 1)
+fn main() -> void {
+  vec2 pixel = vec2(gl_GlobalInvocationID.xy);
+  if (pixel.x >= image_size.x || pixel.y >= image_size.y) {
+    return;
+  }
+
+  vec2 uv = (pixel + vec2(0.5)) / image_size;
+  vec3 color = texture(scene_color, uv).rgb;
+  float luminance = max(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.000001);
+  float log_luminance =
+      clamp(log2(luminance), min_log_luminance, max_log_luminance);
+  float normalized =
+      (log_luminance - min_log_luminance) /
+      max(max_log_luminance - min_log_luminance, 0.0001);
+  uint bin = min(255u, uint(clamp(normalized * 255.0, 0.0, 255.0)));
+  atomicAdd(histogram.bins[bin], 1u);
+}

@@ -1,0 +1,234 @@
+@version 450;
+
+@include "helpers/ssgi.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Camera {
+  mat4 view;
+  mat4 projection;
+  mat4 previous_view;
+  mat4 previous_projection;
+  vec3 position;
+}
+
+@uniform
+interface GBuffer {
+  sampler2D g_position;
+  sampler2D g_normal;
+  sampler2D g_geometric_normal;
+  sampler2D g_albedo;
+  isampler2D g_entity_id;
+  sampler2D scene_color;
+}
+
+@uniform
+interface SSGI {
+  sampler2D noise_texture;
+  sampler2D ssgi_history;
+  bool enabled = true;
+  float intensity = 1.0;
+  float radius = 1.5;
+  float thickness = 0.15;
+  int directions = 8;
+  int steps_per_direction = 2;
+  float max_distance = 2.0;
+  vec2 noise_scale = vec2(1.0);
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+fn build_hemisphere_direction(vec3 normal, vec3 noise, int index, int total_directions) -> vec3 {
+  vec3 tangent = normalize(noise - normal * dot(noise, normal));
+  if (length(tangent) < 0.001) {
+    tangent = abs(normal.y) < 0.999
+        ? normalize(cross(normal, vec3(0.0, 1.0, 0.0)))
+        : normalize(cross(normal, vec3(1.0, 0.0, 0.0)));
+  }
+  vec3 bitangent = normalize(cross(normal, tangent));
+
+  float azimuth = (float(index) + noise.x * 0.5) * 2.39996323;
+  float xi = fract(float(index) / float(total_directions) + noise.z * 0.5);
+  float cos_elevation = sqrt(max(1.0 - xi, 0.0));
+  float sin_elevation = sqrt(max(xi, 0.0));
+
+  vec3 hemisphere = vec3(
+      cos(azimuth) * sin_elevation,
+      sin(azimuth) * sin_elevation,
+      cos_elevation
+  );
+  return normalize(mat3(tangent, bitangent, normal) * hemisphere);
+}
+
+@fragment
+fn main(VertexOutput vertex, Camera camera, GBuffer g_buffer, SSGI ssgi) -> FragmentOutput {
+  const float k_edge_fade_width = 0.08;
+  const float k_min_trace_distance = 0.005;
+  const vec3 k_max_bounce_radiance = vec3(8.0);
+  const float k_base_bias = 0.02;
+  const float k_distance_bias_scale = 0.005;
+
+  int entity_id = texture(g_buffer.g_entity_id, vertex.texture).r;
+
+  if (entity_id == 0 || !ssgi.enabled) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  vec4 g_position = texture(g_buffer.g_position, vertex.texture);
+  vec4 g_normal = texture(g_buffer.g_normal, vertex.texture);
+  vec4 g_geometric_normal = texture(g_buffer.g_geometric_normal, vertex.texture);
+
+  vec3 fragment_world = g_position.rgb;
+  vec3 surface_normal = normalize(g_normal.rgb);
+  vec3 surface_geometric_normal = normalize(g_geometric_normal.rgb);
+  if (length(surface_normal) < 0.001) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  float view_distance = length(camera.position - fragment_world);
+  float ray_bias = max(k_base_bias, ssgi.thickness) +
+      view_distance * k_distance_bias_scale;
+
+  vec3 noise =
+      normalize(texture(ssgi.noise_texture, vertex.texture * ssgi.noise_scale).xyz * 2.0 - 1.0);
+  float trace_distance =
+      max(k_min_trace_distance, min(ssgi.radius, ssgi.max_distance));
+  int directions = clamp(ssgi.directions, 1, 32);
+  int steps = clamp(ssgi.steps_per_direction, 1, 32);
+  float edge_fade = compute_edge_fade(vertex.texture, k_edge_fade_width);
+
+  vec3 indirect_accum = vec3(0.0);
+  float valid_samples = 0.0;
+  float total_samples = float(directions * steps);
+
+  for (int direction_index = 0; direction_index < 8; ++direction_index) {
+    if (direction_index >= directions) {
+      break;
+    }
+
+    vec3 ray_direction = build_hemisphere_direction(
+        surface_geometric_normal,
+        noise,
+        direction_index,
+        directions
+    );
+    float grazing_factor = dot(ray_direction, surface_geometric_normal);
+    if (grazing_factor <= 0.0) {
+      continue;
+    }
+    float angle_bias = ray_bias / max(grazing_factor, 0.25);
+
+    for (int step_index = 0; step_index < 32; ++step_index) {
+      if (step_index >= steps) {
+        break;
+      }
+
+      float normalized_step =
+          (float(step_index) + 1.0) / float(steps);
+      float distance_along_ray = normalized_step * trace_distance;
+      vec3 biased_origin = fragment_world +
+          surface_geometric_normal * angle_bias;
+      vec3 sample_world = biased_origin +
+          ray_direction * distance_along_ray;
+      vec2 sample_uv =
+          project_world_to_uv(camera.view, camera.projection, sample_world);
+
+      if (sample_uv.x < 0.0 || sample_uv.y < 0.0 ||
+          sample_uv.x > 1.0 || sample_uv.y > 1.0) {
+        continue;
+      }
+
+      int hit_entity_id = texture(g_buffer.g_entity_id, sample_uv).r;
+      if (hit_entity_id == 0) {
+        continue;
+      }
+
+      vec3 hit_world = texture(g_buffer.g_position, sample_uv).rgb;
+      vec3 hit_geometric_normal =
+          normalize(texture(g_buffer.g_geometric_normal, sample_uv).rgb);
+
+      vec3 to_hit = hit_world - sample_world;
+      float along_ray = dot(to_hit, ray_direction);
+      if (along_ray < -ssgi.thickness * 0.5) {
+        continue;
+      }
+
+      float thickness_delta = length(to_hit - ray_direction * along_ray);
+      float scaled_thickness = ssgi.thickness * (1.0 + distance_along_ray * 0.5);
+      if (along_ray > scaled_thickness || thickness_delta > scaled_thickness) {
+        continue;
+      }
+
+      vec3 to_hit_dir = normalize(hit_world - fragment_world);
+      float receiver_alignment =
+          max(dot(surface_geometric_normal, to_hit_dir), 0.0);
+      if (receiver_alignment <= 0.01) {
+        continue;
+      }
+
+      float emitter_alignment =
+          max(dot(hit_geometric_normal, -ray_direction), 0.0);
+      float softened_emitter = max(emitter_alignment, 0.2);
+
+      float distance_falloff =
+          1.0 - clamp(distance_along_ray / max(ssgi.max_distance, 0.001), 0.0, 1.0);
+
+      vec3 direct_radiance = texture(g_buffer.scene_color, sample_uv).rgb;
+      vec3 hit_albedo = texture(g_buffer.g_albedo, sample_uv).rgb;
+      vec2 history_uv = project_world_to_uv(
+          camera.previous_view, camera.previous_projection, hit_world
+      );
+      vec3 previous_indirect = vec3(0.0);
+
+      if (history_uv.x >= 0.0 && history_uv.y >= 0.0 &&
+          history_uv.x <= 1.0 && history_uv.y <= 1.0) {
+        previous_indirect = texture(ssgi.ssgi_history, history_uv).rgb * hit_albedo;
+      }
+
+      vec3 source_radiance = min(
+          direct_radiance + previous_indirect,
+          k_max_bounce_radiance
+      );
+
+      vec3 contribution =
+          source_radiance * receiver_alignment * softened_emitter *
+          distance_falloff;
+
+      indirect_accum += max(contribution, vec3(0.0));
+      valid_samples += 1.0;
+    }
+  }
+
+  vec3 indirect =
+      valid_samples > 0.0 ? indirect_accum / valid_samples : vec3(0.0);
+  float confidence =
+      total_samples > 0.0 ? valid_samples / total_samples : 0.0;
+
+  return FragmentOutput(vec4(indirect * edge_fade, confidence * edge_fade));
+}

@@ -1,0 +1,44 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface LensFlareCompositeResources {
+  sampler2D lens_flare_input;
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    LensFlareCompositeResources resources
+) -> FragmentOutput {
+  vec3 flare = texture(resources.lens_flare_input, vertex.texture).rgb;
+  return FragmentOutput(vec4(flare, 1.0));
+}

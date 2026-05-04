@@ -1,0 +1,60 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface ChromaticAberrationResources {
+  sampler2D screen_texture;
+}
+
+@uniform
+interface ChromaticAberrationParams {
+  float intensity = 0.005;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    ChromaticAberrationResources resources,
+    ChromaticAberrationParams params
+) -> FragmentOutput {
+  vec2 uv = vertex.texture_coordinates;
+  vec2 center = vec2(0.5);
+  vec2 direction = uv - center;
+  float distance_from_center = length(direction);
+
+  vec2 offset = direction * params.intensity * distance_from_center;
+
+  float red = texture(resources.screen_texture, uv + offset).r;
+  float green = texture(resources.screen_texture, uv).g;
+  float blue = texture(resources.screen_texture, uv - offset).b;
+
+  return FragmentOutput(vec4(red, green, blue, 1.0));
+}

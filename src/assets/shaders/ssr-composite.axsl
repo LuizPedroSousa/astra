@@ -1,0 +1,93 @@
+@version 450;
+
+@include "helpers/shadow.axsl";
+@include "helpers/light.axsl";
+@include "helpers/pbr.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface CompositeResources {
+  sampler2D ssr_input;
+  sampler2D g_position;
+  sampler2D g_normal;
+  isampler2D g_entity_id;
+}
+
+@uniform
+interface CompositeParams {
+  bool enabled = true;
+  float intensity = 1.0;
+}
+
+@uniform
+interface Camera {
+  vec3 position;
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    CompositeResources composite,
+    CompositeParams params,
+    Camera camera
+) -> FragmentOutput {
+  if (!params.enabled) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  int entity_id = texture(composite.g_entity_id, vertex.texture).r;
+  if (entity_id == 0) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  vec4 ssr_sample = texture(composite.ssr_input, vertex.texture);
+  if (ssr_sample.a < 0.001) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  vec4 position_sample = texture(composite.g_position, vertex.texture);
+  vec4 normal_sample = texture(composite.g_normal, vertex.texture);
+
+  vec3 fragment_world = position_sample.rgb;
+  vec3 surface_normal = normalize(normal_sample.rgb);
+  float roughness = position_sample.a;
+  float metallic = normal_sample.a;
+
+  vec3 view_direction = normalize(camera.position - fragment_world);
+  float n_dot_v = max(dot(surface_normal, view_direction), 0.0);
+
+  vec3 f0 = mix(vec3(0.04), vec3(1.0), metallic);
+  vec3 fresnel = fresnel_schlick(n_dot_v, f0);
+
+  vec3 reflection_contribution = ssr_sample.rgb * fresnel * ssr_sample.a * params.intensity;
+
+  return FragmentOutput(vec4(reflection_contribution, 0.0));
+}

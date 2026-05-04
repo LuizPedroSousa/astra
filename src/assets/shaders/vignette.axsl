@@ -1,0 +1,58 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface VignetteResources {
+  sampler2D screen_texture;
+}
+
+@uniform
+interface VignetteParams {
+  float intensity = 0.3;
+  float smoothness = 0.5;
+  float roundness = 1.0;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    VignetteResources resources,
+    VignetteParams params
+) -> FragmentOutput {
+  vec2 uv = vertex.texture_coordinates;
+  vec3 color = texture(resources.screen_texture, uv).rgb;
+
+  vec2 distance_from_center = abs(uv - 0.5) * params.intensity;
+  distance_from_center = pow(distance_from_center, vec2(params.roundness));
+  float vignette = pow(clamp(1.0 - dot(distance_from_center, distance_from_center), 0.0, 1.0), params.smoothness);
+
+  return FragmentOutput(vec4(color * vignette, 1.0));
+}
