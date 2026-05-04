@@ -1,12 +1,141 @@
 #include "tools/scene/helpers.hpp"
 
+#include "entities/serializers/scene-snapshot.hpp"
 #include "managers/project-manager.hpp"
+#include "tools/inspector/fields.hpp"
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 
 namespace astralix::editor::scene_panel {
+namespace {
+
+glm::vec4 danger_color() {
+  return glm::vec4(0.937f, 0.267f, 0.267f, 1.0f);
+}
+
+std::string join_labels(const std::vector<std::string> &values) {
+  std::string joined;
+  for (size_t index = 0u; index < values.size(); ++index) {
+    if (index > 0u) {
+      joined += ", ";
+    }
+    joined += values[index];
+  }
+  return joined;
+}
+
+const std::string &artifact_path_for_kind(
+    const ProjectSceneEntryConfig &entry,
+    SceneSessionKind kind
+) {
+  switch (kind) {
+    case SceneSessionKind::Source:
+      return entry.source_path;
+    case SceneSessionKind::Preview:
+      return entry.preview_path;
+    case SceneSessionKind::Runtime:
+      return entry.runtime_path;
+  }
+
+  return entry.source_path;
+}
+
+std::string relative_age_label(
+    const std::optional<std::filesystem::file_time_type> &write_time
+) {
+  if (!write_time.has_value()) {
+    return {};
+  }
+
+  const auto now = std::filesystem::file_time_type::clock::now();
+  auto age = now - *write_time;
+  if (age <= decltype(age)::zero()) {
+    return "just now";
+  }
+
+  const auto minutes =
+      std::chrono::duration_cast<std::chrono::minutes>(age).count();
+  if (minutes <= 0) {
+    return "just now";
+  }
+
+  if (minutes < 60) {
+    return std::to_string(minutes) + "m ago";
+  }
+
+  const auto hours = minutes / 60;
+  if (hours < 24) {
+    return std::to_string(hours) + "h ago";
+  }
+
+  const auto days = hours / 24;
+  return std::to_string(days) + "d ago";
+}
+
+std::string artifact_activity_prefix(SceneSessionKind kind) {
+  switch (kind) {
+    case SceneSessionKind::Source:
+      return "last saved ";
+    case SceneSessionKind::Preview:
+      return "built ";
+    case SceneSessionKind::Runtime:
+      return "promoted ";
+  }
+
+  return {};
+}
+
+std::string serialization_format_label(SerializationFormat format) {
+  switch (format) {
+    case SerializationFormat::Json:
+      return "JSON";
+    case SerializationFormat::Toml:
+      return "TOML";
+    case SerializationFormat::Yaml:
+      return "YAML";
+    case SerializationFormat::Xml:
+      return "XML";
+  }
+
+  return "JSON";
+}
+
+std::string derived_override_detail(const DerivedOverrideRecord &record) {
+  std::vector<std::string> labels;
+  labels.reserve(record.components.size() + record.removed_components.size());
+
+  for (const auto &component : record.components) {
+    labels.push_back(component.name);
+  }
+
+  for (const auto &removed_component : record.removed_components) {
+    labels.push_back("Removed " + removed_component);
+  }
+
+  if (!labels.empty()) {
+    return join_labels(labels);
+  }
+
+  if (record.name.has_value()) {
+    return "Renamed to " + *record.name;
+  }
+
+  if (!record.active) {
+    return "Entity disabled in derived output";
+  }
+
+  return "Entity modified in derived output";
+}
+
+std::string revision_gap_label(uint64_t gap, std::string_view target) {
+  return std::string(target) + " is " + std::to_string(gap) +
+         (gap == 1u ? " revision" : " revisions");
+}
+
+} // namespace
 
 std::string lowercase_copy(std::string_view value) {
   std::string lowered(value);
@@ -107,7 +236,7 @@ const char *scene_runtime_state_label(SceneRuntimeState state) {
     case SceneRuntimeState::Missing:
       return "Missing";
     case SceneRuntimeState::BehindPreview:
-      return "Behind Preview";
+      return "Behind";
     case SceneRuntimeState::Promoted:
       return "Promoted";
     case SceneRuntimeState::Error:
@@ -143,14 +272,34 @@ glm::vec4 scene_preview_state_color(
     const ScenePanelTheme &theme,
     ScenePreviewState state
 ) {
-  return state == ScenePreviewState::Current ? theme.success : theme.accent;
+  switch (state) {
+    case ScenePreviewState::Missing:
+    case ScenePreviewState::Stale:
+      return theme.accent;
+    case ScenePreviewState::Current:
+      return theme.success;
+    case ScenePreviewState::Error:
+      return danger_color();
+  }
+
+  return theme.accent;
 }
 
 glm::vec4 scene_runtime_state_color(
     const ScenePanelTheme &theme,
     SceneRuntimeState state
 ) {
-  return state == SceneRuntimeState::Promoted ? theme.success : theme.accent;
+  switch (state) {
+    case SceneRuntimeState::Missing:
+      return theme.accent;
+    case SceneRuntimeState::BehindPreview:
+    case SceneRuntimeState::Error:
+      return danger_color();
+    case SceneRuntimeState::Promoted:
+      return theme.success;
+  }
+
+  return theme.accent;
 }
 
 glm::vec4 scene_execution_state_color(
@@ -317,6 +466,267 @@ std::string runtime_prompt_body(
   }
 
   return {};
+}
+
+std::string format_file_size(uintmax_t bytes) {
+  if (bytes < 1024u) {
+    return std::to_string(bytes) + " B";
+  }
+
+  if (bytes < 1024u * 1024u) {
+    return std::to_string(bytes / 1024u) + " KB";
+  }
+
+  return std::to_string(bytes / (1024u * 1024u)) + " MB";
+}
+
+std::string scene_session_revision_label(const Scene *scene, SceneSessionKind kind) {
+  if (scene == nullptr) {
+    return {};
+  }
+
+  switch (kind) {
+    case SceneSessionKind::Source:
+      return {};
+    case SceneSessionKind::Preview:
+      if (const auto &preview_info = scene->get_preview_build_info();
+          preview_info.has_value() && preview_info->source_revision > 0u) {
+        return "rev " + std::to_string(preview_info->source_revision);
+      }
+      return {};
+    case SceneSessionKind::Runtime:
+      if (const auto &runtime_info = scene->get_runtime_promotion_info();
+          runtime_info.has_value() &&
+          runtime_info->promoted_from_preview_revision > 0u) {
+        return "rev " +
+               std::to_string(runtime_info->promoted_from_preview_revision);
+      }
+      return {};
+  }
+
+  return {};
+}
+
+std::string scene_artifact_activity_label(
+    const ProjectSceneEntryConfig &entry,
+    SceneSessionKind kind
+) {
+  auto project = active_project();
+  if (project == nullptr) {
+    return {};
+  }
+
+  const auto &relative_path = artifact_path_for_kind(entry, kind);
+  if (relative_path.empty()) {
+    return {};
+  }
+
+  const auto absolute_path = project->resolve_path(relative_path);
+  std::error_code error_code;
+  const auto write_time = std::filesystem::last_write_time(
+      absolute_path, error_code
+  );
+  if (error_code) {
+    return {};
+  }
+
+  const auto age = relative_age_label(
+      std::optional<std::filesystem::file_time_type>{write_time}
+  );
+  if (age.empty()) {
+    return {};
+  }
+
+  return artifact_activity_prefix(kind) + age;
+}
+
+std::vector<ArtifactInfo> gather_artifact_info(const ProjectSceneEntryConfig &entry) {
+  auto project = active_project();
+  std::vector<ArtifactInfo> artifacts;
+  artifacts.reserve(3);
+
+  auto resolve_size = [&](const std::string &relative_path) -> std::string {
+    if (project == nullptr || relative_path.empty()) {
+      return "";
+    }
+    auto full_path = project->resolve_path(relative_path);
+    std::error_code error_code;
+    auto size = std::filesystem::file_size(full_path, error_code);
+    if (error_code) {
+      return "";
+    }
+    return format_file_size(size);
+  };
+
+  artifacts.push_back(ArtifactInfo{
+      .label = "Source",
+      .path = entry.source_path,
+      .size = resolve_size(entry.source_path),
+  });
+  artifacts.push_back(ArtifactInfo{
+      .label = "Preview",
+      .path = entry.preview_path,
+      .size = resolve_size(entry.preview_path),
+  });
+  artifacts.push_back(ArtifactInfo{
+      .label = "Runtime",
+      .path = entry.runtime_path,
+      .size = resolve_size(entry.runtime_path),
+  });
+
+  return artifacts;
+}
+
+std::vector<DerivedEntityInfo> gather_derived_entity_info(
+    const Scene &scene,
+    const ScenePanelTheme &theme
+) {
+  std::vector<DerivedEntityInfo> entries;
+  const auto &state = scene.get_derived_state();
+  entries.reserve(state.overrides.size() + state.suppressions.size());
+
+  for (const auto &override_record : state.overrides) {
+    entries.push_back(DerivedEntityInfo{
+        .name = override_record.key.generator_id + " / " +
+                override_record.key.stable_key,
+        .detail = derived_override_detail(override_record),
+        .state_text = "Override",
+        .state_color = theme.accent,
+    });
+  }
+
+  for (const auto &suppression : state.suppressions) {
+    entries.push_back(DerivedEntityInfo{
+        .name = suppression.key.generator_id + " / " +
+                suppression.key.stable_key,
+        .detail = "Entity hidden from derived output",
+        .state_text = "Suppressed",
+        .state_color = danger_color(),
+    });
+  }
+
+  return entries;
+}
+
+std::string derived_entity_summary(const Scene &scene) {
+  const auto &state = scene.get_derived_state();
+  return std::to_string(state.overrides.size()) + " overrides · " +
+         std::to_string(state.suppressions.size()) + " suppressed";
+}
+
+SerializationSummary gather_serialization_summary(const Scene &scene) {
+  SerializationSummary summary;
+  auto project = active_project();
+  summary.format = project != nullptr
+                       ? serialization_format_label(
+                             project->get_config().serialization.format
+                         )
+                       : "JSON";
+  summary.components = std::to_string(
+                           inspector_panel::component_descriptor_count()
+                       ) +
+                       " registered types";
+
+  const auto entity_snapshots =
+      serialization::collect_scene_snapshots(scene.world());
+  size_t visible_component_total = 0u;
+  for (const auto &snapshot : entity_snapshots) {
+    visible_component_total +=
+        inspector_panel::visible_component_count(snapshot.components);
+  }
+
+  summary.snapshots =
+      std::to_string(entity_snapshots.size()) + " entities · " +
+      std::to_string(visible_component_total) + " components";
+  return summary;
+}
+
+const char *startup_target_label(SceneStartupTarget target) {
+  switch (target) {
+    case SceneStartupTarget::Source:
+      return "Source";
+    case SceneStartupTarget::Preview:
+      return "Preview";
+    case SceneStartupTarget::Runtime:
+      return "Runtime";
+  }
+  return "Source";
+}
+
+std::string status_bar_warning(
+    const SceneLifecycleStatus &status,
+    const Scene *scene
+) {
+  if (status.source == SceneSourceSaveState::Dirty) {
+    return "Source has unsaved changes.";
+  }
+
+  if (status.preview == ScenePreviewState::Stale) {
+    if (scene != nullptr && scene->get_session_kind() == SceneSessionKind::Source) {
+      if (const auto &preview_info = scene->get_preview_build_info();
+          preview_info.has_value() &&
+          scene->world().revision() > preview_info->source_revision) {
+        const auto gap = scene->world().revision() - preview_info->source_revision;
+        return revision_gap_label(gap, "Preview") + " behind source.";
+      }
+    }
+
+    return "Preview is behind source.";
+  }
+
+  if (status.preview == ScenePreviewState::Missing) {
+    return "Preview artifact is missing.";
+  }
+
+  if (status.runtime == SceneRuntimeState::BehindPreview) {
+    if (scene != nullptr) {
+      const auto &preview_info = scene->get_preview_build_info();
+      const auto &runtime_info = scene->get_runtime_promotion_info();
+      if (preview_info.has_value() && runtime_info.has_value() &&
+          preview_info->source_revision >
+              runtime_info->promoted_from_preview_revision) {
+        const auto gap = preview_info->source_revision -
+                         runtime_info->promoted_from_preview_revision;
+        return revision_gap_label(gap, "Runtime") + " behind preview.";
+      }
+    }
+
+    return "Runtime is behind preview.";
+  }
+
+  if (status.runtime == SceneRuntimeState::Missing &&
+      status.preview == ScenePreviewState::Current) {
+    return "Runtime artifact is missing.";
+  }
+
+  return {};
+}
+
+std::string status_bar_hint(const SceneLifecycleStatus &status) {
+  if (status.source == SceneSourceSaveState::Dirty) {
+    return "Save source to persist changes.";
+  }
+
+  if (status.preview == ScenePreviewState::Stale ||
+      status.preview == ScenePreviewState::Missing) {
+    return "Save source and promote to preview to bring pipeline up to date.";
+  }
+
+  if (status.runtime == SceneRuntimeState::BehindPreview ||
+      status.runtime == SceneRuntimeState::Missing) {
+    return "Promote preview to runtime to bring pipeline up to date.";
+  }
+
+  return {};
+}
+
+bool status_bar_visible(const SceneLifecycleStatus &status) {
+  return status.source == SceneSourceSaveState::Dirty ||
+         status.preview == ScenePreviewState::Stale ||
+         status.preview == ScenePreviewState::Missing ||
+         status.runtime == SceneRuntimeState::BehindPreview ||
+         (status.runtime == SceneRuntimeState::Missing &&
+          status.preview == ScenePreviewState::Current);
 }
 
 } // namespace astralix::editor::scene_panel

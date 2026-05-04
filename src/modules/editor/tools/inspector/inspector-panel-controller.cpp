@@ -6,15 +6,35 @@
 #include "managers/resource-manager.hpp"
 #include "managers/scene-manager.hpp"
 #include "resources/descriptors/material-descriptor.hpp"
+#include "resources/descriptors/model-descriptor.hpp"
+#include "resources/model.hpp"
 #include "trace.hpp"
+#include "workspaces/workspace-ui-store.hpp"
 
 #include <algorithm>
+#include <iomanip>
+#include <sstream>
 #include <utility>
 
 namespace astralix::editor {
 namespace panel = inspector_panel;
 
 namespace {
+
+std::string format_two_digit_index(size_t index) {
+  std::ostringstream out;
+  out << std::setw(2) << std::setfill('0') << index;
+  return out.str();
+}
+
+std::string material_properties_component_name(std::string_view scope) {
+  std::string name(panel::k_material_properties_component_name);
+  if (!scope.empty()) {
+    name += "::";
+    name += scope;
+  }
+  return name;
+}
 
 std::string optional_descriptor_label(
     const std::optional<ResourceDescriptorID> &descriptor_id
@@ -23,9 +43,15 @@ std::string optional_descriptor_label(
 }
 
 serialization::ComponentSnapshot
-build_material_properties_snapshot(const ResourceDescriptorID &material_id) {
+build_material_properties_snapshot(
+    std::string component_name,
+    const ResourceDescriptorID &material_id,
+    std::string label
+) {
   serialization::ComponentSnapshot snapshot{
-      .name = std::string(panel::k_material_properties_component_name)};
+      .name = std::move(component_name)
+  };
+  snapshot.fields.push_back({"__label", std::move(label)});
   snapshot.fields.push_back({"material_id", material_id});
 
   auto manager = resource_manager();
@@ -51,10 +77,7 @@ build_material_properties_snapshot(const ResourceDescriptorID &material_id) {
   snapshot.fields.push_back(
       {"roughness_id", optional_descriptor_label(material->roughness_id)}
   );
-  snapshot.fields.push_back({"metallic_roughness_id",
-                             optional_descriptor_label(
-                                 material->metallic_roughness_id
-                             )});
+  snapshot.fields.push_back({"metallic_roughness_id", optional_descriptor_label(material->metallic_roughness_id)});
   snapshot.fields.push_back(
       {"occlusion_id", optional_descriptor_label(material->occlusion_id)}
   );
@@ -85,36 +108,140 @@ build_material_properties_snapshot(const ResourceDescriptorID &material_id) {
       {"occlusion_strength", material->occlusion_strength}
   );
   snapshot.fields.push_back({"normal_scale", material->normal_scale});
+  snapshot.fields.push_back({"height_scale", material->height_scale});
   snapshot.fields.push_back({"bloom_intensity", material->bloom_intensity});
   return snapshot;
 }
 
-void append_material_properties_snapshot(
+std::vector<ResourceDescriptorID>
+model_material_ids(const ResourceDescriptorID &model_id) {
+  if (model_id.empty()) {
+    return {};
+  }
+
+  auto manager = resource_manager();
+  if (manager == nullptr) {
+    return {};
+  }
+
+  auto descriptor = manager->get_by_descriptor_id<ModelDescriptor>(model_id);
+  if (descriptor != nullptr && !descriptor->material_ids.empty()) {
+    return descriptor->material_ids;
+  }
+
+  auto model = manager->get_by_descriptor_id<Model>(model_id);
+  if (model != nullptr) {
+    return model->materials;
+  }
+
+  return {};
+}
+
+std::vector<serialization::ComponentSnapshot>::iterator
+append_material_property_cards(
+    std::vector<serialization::ComponentSnapshot> &components,
+    std::vector<serialization::ComponentSnapshot>::iterator insert_position,
+    const std::vector<ResourceDescriptorID> &material_ids,
+    std::string_view scope_prefix,
+    std::string_view label_prefix
+) {
+  for (size_t material_index = 0u; material_index < material_ids.size();
+       ++material_index) {
+    if (material_ids[material_index].empty()) {
+      continue;
+    }
+
+    insert_position =
+        components.insert(
+            insert_position,
+            build_material_properties_snapshot(
+                material_properties_component_name(
+                    std::string(scope_prefix) + format_two_digit_index(material_index)
+                ),
+                material_ids[material_index],
+                std::string(label_prefix) + " " +
+                    format_two_digit_index(material_index)
+            )
+        );
+    ++insert_position;
+  }
+
+  return insert_position;
+}
+
+void append_material_properties_snapshots(
     std::vector<serialization::ComponentSnapshot> &components
 ) {
-  const auto *material_slots =
-      panel::find_component_snapshot(components, "MaterialSlots");
-  if (material_slots == nullptr) {
+  if (auto *material_slots =
+          panel::find_component_snapshot(components, "MaterialSlots");
+      material_slots != nullptr) {
+    const auto material_ids = serialization::fields::read_string_series(
+        material_slots->fields,
+        "material_"
+    );
+    if (!material_ids.empty()) {
+      auto insert_position = components.end();
+      for (auto it = components.begin(); it != components.end(); ++it) {
+        if (it->name == "MaterialSlots") {
+          insert_position = std::next(it);
+          break;
+        }
+      }
+
+      (void)append_material_property_cards(
+          components,
+          insert_position,
+          material_ids,
+          "override_",
+          material_ids.size() == 1u ? "Material Override"
+                                    : "Material Override Slot"
+      );
+      return;
+    }
+  }
+
+  const auto *model_ref = panel::find_component_snapshot(components, "ModelRef");
+  if (model_ref == nullptr) {
     return;
   }
 
-  const auto material_id =
-      serialization::fields::read_string(material_slots->fields, "material_0");
-  if (!material_id.has_value() || material_id->empty()) {
+  const auto model_ids = serialization::fields::read_string_series(
+      model_ref->fields,
+      "model_"
+  );
+  if (model_ids.empty()) {
     return;
   }
 
   auto insert_position = components.end();
   for (auto it = components.begin(); it != components.end(); ++it) {
-    if (it->name == "MaterialSlots") {
+    if (it->name == "ModelRef") {
       insert_position = std::next(it);
       break;
     }
   }
 
-  components.insert(
-      insert_position, build_material_properties_snapshot(*material_id)
-  );
+  for (size_t model_index = 0u; model_index < model_ids.size(); ++model_index) {
+    const auto material_ids = model_material_ids(model_ids[model_index]);
+    if (material_ids.empty()) {
+      continue;
+    }
+
+    const std::string scope_prefix =
+        "model_" + format_two_digit_index(model_index) + "_slot_";
+    const std::string label_prefix =
+        model_ids.size() == 1u
+            ? std::string("Material Slot")
+            : std::string("Model ") + format_two_digit_index(model_index) +
+                  " Material Slot";
+    insert_position = append_material_property_cards(
+        components,
+        insert_position,
+        material_ids,
+        scope_prefix,
+        label_prefix
+    );
+  }
 }
 
 } // namespace
@@ -133,10 +260,19 @@ void InspectorPanelController::unmount() {
   m_scalar_drafts.clear();
   m_group_drafts.clear();
   m_component_expansion.clear();
+  m_entity_name_widget = ui::im::k_invalid_widget_id;
+  m_pending_entity_name_focus = false;
   mark_render_dirty();
 }
 
-void InspectorPanelController::update(const PanelUpdateContext &) { refresh(); }
+void InspectorPanelController::update(const PanelUpdateContext &) {
+  if (workspace_ui_store()->consume_inspector_entity_name_focus_request()) {
+    m_pending_entity_name_focus = true;
+    mark_render_dirty();
+  }
+
+  refresh();
+}
 
 std::optional<uint64_t> InspectorPanelController::render_version() const {
   return m_render_revision;
@@ -167,7 +303,7 @@ InspectorPanelController::collect_snapshot() const {
   snapshot.entity_name = std::string(entity.name());
   snapshot.entity_active = entity.active();
   snapshot.components = serialization::collect_entity_component_snapshots(entity);
-  append_material_properties_snapshot(snapshot.components);
+  append_material_properties_snapshots(snapshot.components);
   return snapshot;
 }
 
@@ -286,143 +422,122 @@ void InspectorPanelController::render(ui::im::Frame &ui) {
       fill().background(theme.shell_background).padding(12.0f).gap(10.0f)
   );
   {
-  ASTRA_PROFILE_N("InspectorPanel::summary");
-  auto summary = root.column("summary").style(
-      fill_x()
-          .padding(14.0f)
-          .gap(8.0f)
-          .radius(12.0f)
-          .background(theme.panel_background)
-          .border(1.0f, theme.panel_border)
-  );
-  auto header_row = summary.row("header").style(fill_x().items_center().gap(8.0f));
-  auto header_title = header_row.column("title").style(items_start().gap(3.0f));
-  header_title.text("heading", "Inspector")
-      .style(font_size(18.0f).text_color(theme.text_primary));
-  header_title.text("body", "Inspect and edit the selected scene entity.")
-      .style(font_size(12.0f).text_color(theme.text_muted));
-  header_row.spacer("spacer");
-  auto scene_chip = header_row.row("scene-chip").style(
-      items_center()
-          .padding_xy(12.0f, 6.0f)
-          .background(theme.accent_soft)
-          .border(1.0f, theme.accent)
-          .radius(8.0f)
-  );
-  scene_chip
-      .text(
-          "label",
-          m_snapshot.has_scene ? m_snapshot.scene_name : std::string("No active scene")
-      )
-      .style(font_size(12.0f).text_color(theme.accent));
+    ASTRA_PROFILE_N("InspectorPanel::summary");
+    auto summary = root.column("summary").style(
+        fill_x()
+            .padding(14.0f)
+            .gap(8.0f)
+            .radius(12.0f)
+            .background(theme.panel_background)
+            .border(1.0f, theme.panel_border)
+    );
+    auto header_row = summary.row("header").style(fill_x().items_center().gap(8.0f));
+    auto scene_chip = header_row.row("scene-chip").style(items_center().padding_xy(12.0f, 6.0f).background(theme.accent_soft).border(1.0f, theme.accent).radius(8.0f));
+    scene_chip
+        .text(
+            "label",
+            m_snapshot.has_scene ? m_snapshot.scene_name : std::string("No active scene")
+        )
+        .style(font_size(12.0f).text_color(theme.accent));
 
-  summary.text("selection-title", selection_title)
-      .style(
-          font_size(16.0f).text_color(
-              has_selection ? theme.text_primary : theme.text_muted
-          )
-      );
-  summary.text(
-      "component-count",
-      panel::component_count_label(
-          panel::visible_component_count(m_snapshot.components)
-      )
-  )
-      .style(font_size(12.0f).text_color(theme.text_muted));
-  summary.text("entity-id", entity_id_label)
-      .style(font_size(12.0f).text_color(theme.text_muted));
-  summary
-      .text_input(
-          "entity-name",
-          has_selection ? m_snapshot.entity_name : std::string{},
-          "Entity name"
-      )
-      .enabled(has_selection)
-      .select_all_on_focus(true)
-      .on_change([this](const std::string &value) { set_entity_name(value); })
-      .style(panel::input_field_style(theme));
-  summary
-      .checkbox(
-          "entity-active", "Entity is active", has_selection && m_snapshot.entity_active
-      )
-      .enabled(has_selection)
-      .style(panel::checkbox_field_style(theme))
-      .on_toggle([this](bool active) { set_entity_active(active); });
-
+    summary.text("selection-title", selection_title)
+        .style(
+            font_size(16.0f).text_color(
+                has_selection ? theme.text_primary : theme.text_muted
+            )
+        );
+    summary.text(
+               "component-count",
+               panel::component_count_label(
+                   panel::visible_component_count(m_snapshot.components)
+               )
+    )
+        .style(font_size(12.0f).text_color(theme.text_muted));
+    summary.text("entity-id", entity_id_label)
+        .style(font_size(12.0f).text_color(theme.text_muted));
+    auto entity_name_input =
+        summary
+            .text_input(
+                "entity-name",
+                has_selection ? m_snapshot.entity_name : std::string{},
+                "Entity name"
+            )
+            .enabled(has_selection)
+            .select_all_on_focus(true)
+            .on_change([this](const std::string &value) { set_entity_name(value); })
+            .style(panel::input_field_style(theme));
+    m_entity_name_widget = entity_name_input.widget_id();
+    if (has_selection && m_pending_entity_name_focus &&
+        m_entity_name_widget != ui::im::k_invalid_widget_id) {
+      ui.request_focus(m_entity_name_widget);
+      m_pending_entity_name_focus = false;
+    }
+    summary
+        .checkbox(
+            "entity-active", "Entity is active", has_selection && m_snapshot.entity_active
+        )
+        .enabled(has_selection)
+        .style(panel::checkbox_field_style(theme))
+        .on_toggle([this](bool active) { set_entity_active(active); });
   }
 
   {
-  ASTRA_PROFILE_N("InspectorPanel::add_component_row");
-  auto add_row = root.row("add-row").style(fill_x().items_center().gap(8.0f));
-  add_row
-      .select(
-          "add-component-select",
-          m_add_component_options,
-          add_component_selected_index,
-          "Add component"
-      )
-      .enabled(has_selection && !m_add_component_options.empty())
-      .on_select([this](size_t, const std::string &value) {
-        const auto it = m_add_component_lookup.find(value);
-        const std::string next_pending =
-            it != m_add_component_lookup.end() ? it->second : std::string{};
-        if (m_pending_add_component_name == next_pending) {
-          return;
-        }
+    ASTRA_PROFILE_N("InspectorPanel::add_component_row");
+    auto add_row = root.row("add-row").style(fill_x().items_center().gap(8.0f));
+    add_row
+        .select(
+            "add-component-select",
+            m_add_component_options,
+            add_component_selected_index,
+            "Add component"
+        )
+        .enabled(has_selection && !m_add_component_options.empty())
+        .on_select([this](size_t, const std::string &value) {
+          const auto it = m_add_component_lookup.find(value);
+          const std::string next_pending =
+              it != m_add_component_lookup.end() ? it->second : std::string{};
+          if (m_pending_add_component_name == next_pending) {
+            return;
+          }
 
-        m_pending_add_component_name = next_pending;
-        mark_render_dirty();
-      })
-      .style(panel::input_field_style(theme).flex(1.0f));
+          m_pending_add_component_name = next_pending;
+          mark_render_dirty();
+        })
+        .style(panel::input_field_style(theme).flex(1.0f));
 
-  auto add_button = add_row.pressable("add-component-button")
-                        .enabled(
-                            has_selection && !m_pending_add_component_name.empty()
-                        )
-                        .on_click([this]() {
-                          add_component(m_pending_add_component_name);
-                        })
-                        .style(
-                            panel::compact_button_style(theme)
-                                .items_center()
-                                .justify_center()
-                                .cursor_pointer()
-                        );
-  add_button.text("label", "Add")
-      .style(font_size(12.5f).text_color(theme.text_primary));
-
+    auto add_button = add_row.pressable("add-component-button")
+                          .enabled(
+                              has_selection && !m_pending_add_component_name.empty()
+                          )
+                          .on_click([this]() {
+                            add_component(m_pending_add_component_name);
+                          })
+                          .style(
+                              panel::compact_button_style(theme)
+                                  .items_center()
+                                  .justify_center()
+                                  .cursor_pointer()
+                          );
+    add_button.text("label", "Add")
+        .style(font_size(12.5f).text_color(theme.text_primary));
   }
 
-  if (auto scroll = root.scroll_view("component-scroll").visible(has_selection).style(
-      fill_x()
-          .flex(1.0f)
-          .padding(ui::UIEdges{
-              .left = 6.0f,
-              .top = 6.0f,
-              .right = 6.0f,
-              .bottom = 10.0f,
-          })
-          .gap(8.0f)
-          .background(theme.panel_background)
-          .border(1.0f, theme.panel_border)
-          .radius(12.0f)
-  )) {
+  if (auto scroll = root.scroll_view("component-scroll").visible(has_selection).style(fill_x().flex(1.0f).padding(ui::UIEdges{
+                                                                                                                      .left = 6.0f,
+                                                                                                                      .top = 6.0f,
+                                                                                                                      .right = 6.0f,
+                                                                                                                      .bottom = 10.0f,
+                                                                                                                  })
+                                                                                          .gap(8.0f)
+                                                                                          .background(theme.panel_background)
+                                                                                          .border(1.0f, theme.panel_border)
+                                                                                          .radius(12.0f))) {
     ASTRA_PROFILE_N("InspectorPanel::component_cards");
     auto stack = scroll.column("component-stack").style(fill_x().gap(4.0f));
     render_component_cards(stack);
   }
 
-  if (auto empty = root.column("empty-state").visible(!has_selection).style(
-      fill_x()
-          .flex(1.0f)
-          .justify_center()
-          .items_center()
-          .padding(18.0f)
-          .gap(8.0f)
-          .radius(12.0f)
-          .background(theme.panel_background)
-          .border(1.0f, theme.panel_border)
-  )) {
+  if (auto empty = root.column("empty-state").visible(!has_selection).style(fill_x().flex(1.0f).justify_center().items_center().padding(18.0f).gap(8.0f).radius(12.0f).background(theme.panel_background).border(1.0f, theme.panel_border))) {
     empty.text("title", empty_title)
         .style(font_size(16.0f).text_color(theme.text_primary));
     empty.text("body", empty_body)

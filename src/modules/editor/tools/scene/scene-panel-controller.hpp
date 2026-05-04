@@ -12,7 +12,7 @@ class ScenePanelController final : public PanelController {
 public:
   static constexpr PanelMinimumSize kMinimumSize{
       .width = 460.0f,
-      .height = 360.0f,
+      .height = 300.0f,
   };
 
   PanelMinimumSize minimum_size() const override { return kMinimumSize; }

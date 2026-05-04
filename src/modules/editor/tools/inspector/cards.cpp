@@ -1,4 +1,5 @@
 #include "fields.hpp"
+#include "serialized-fields.hpp"
 #include "styles.hpp"
 
 #include <algorithm>
@@ -15,6 +16,45 @@ namespace {
 ResourceDescriptorID disclosure_indicator_texture(bool expanded) {
   return expanded ? ResourceDescriptorID{"icons::right_arrow_down"}
                   : ResourceDescriptorID{"icons::right_arrow"};
+}
+
+std::string component_title(
+    const serialization::ComponentSnapshot &component
+) {
+  if (!panel::is_material_properties_component(component.name)) {
+    return panel::humanize_token(component.name);
+  }
+
+  auto label = serialization::fields::read_string(component.fields, "__label");
+  if (label.has_value() && !label->empty()) {
+    return *label;
+  }
+
+  auto material_id =
+      serialization::fields::read_string(component.fields, "material_id");
+  if (material_id.has_value() && !material_id->empty()) {
+    return *material_id;
+  }
+
+  return std::string("Material Properties");
+}
+
+std::string component_caption(
+    const serialization::ComponentSnapshot &component,
+    const std::vector<panel::FieldGroup> &field_groups
+) {
+  if (!panel::is_material_properties_component(component.name)) {
+    return field_groups.empty() ? std::string("Tag component")
+                                : panel::component_count_label(field_groups.size());
+  }
+
+  auto material_id =
+      serialization::fields::read_string(component.fields, "material_id");
+  if (material_id.has_value() && !material_id->empty()) {
+    return *material_id;
+  }
+
+  return std::string("Material descriptor");
 }
 
 StyleBuilder component_header_style(
@@ -144,13 +184,12 @@ void InspectorPanelController::render_component_cards(ui::im::Children &parent) 
                 .tint(expanded ? theme.accent : theme.text_muted)
         );
     auto toggle_text = toggle_content.column("text").style(items_start().gap(2.0f));
-    toggle_text.text("title", panel::humanize_token(component.name))
+    toggle_text.text("title", component_title(component))
         .style(font_size(14.0f).text_color(theme.text_primary));
     toggle_text
         .text(
             "caption",
-            field_groups.empty() ? std::string("Tag component")
-                                 : panel::component_count_label(field_groups.size())
+            component_caption(component, field_groups)
         )
         .style(font_size(11.0f).text_color(theme.text_muted));
     toggle_content.spacer("spacer");
@@ -372,6 +411,38 @@ void InspectorPanelController::render_component_cards(ui::im::Children &parent) 
                 )
                 .style(panel::input_field_style(theme));
           }
+          break;
+        }
+
+        case panel::FieldMode::Slider: {
+          const float current_value = std::get<float>(group.values.front());
+          auto field = group_scope.row("slider").style(fill_x().items_center().gap(8.0f));
+          field.text("label", group.label)
+              .style(
+                  width(px(140.0f))
+                      .font_size(11.5f)
+                      .text_color(theme.text_muted)
+              );
+          field
+              .slider(
+                  "input",
+                  current_value,
+                  group.slider_hint.min,
+                  group.slider_hint.max
+              )
+              .step(group.slider_hint.step)
+              .style(flex(1.0f))
+              .on_value_change(
+                  [this, component_name, field_name = group.field_names.front()](
+                      float value
+                  ) { set_float_field(component_name, field_name, value); }
+              );
+          field.text("value", panel::format_value(current_value))
+              .style(
+                  width(px(45.0f))
+                      .font_size(11.0f)
+                      .text_color(theme.text_primary)
+              );
           break;
         }
 

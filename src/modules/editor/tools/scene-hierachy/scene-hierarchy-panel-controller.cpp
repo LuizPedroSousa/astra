@@ -4,6 +4,7 @@
 #include "fnv1a.hpp"
 #include "serialization-context-readers.hpp"
 #include "tools/scene-hierachy/helpers.hpp"
+#include "workspaces/workspace-ui-store.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -56,6 +57,12 @@ void SceneHierarchyPanelController::unmount() {
 void SceneHierarchyPanelController::update(const PanelUpdateContext &context) {
   m_elapsed_time += context.dt;
   m_snapshot_poll_elapsed += context.dt;
+
+  if (workspace_ui_store()->consume_scene_hierarchy_create_menu_request()) {
+    open_create_menu_anchored();
+    refresh(true);
+    return;
+  }
 
   if (editor_selection_store()->revision() != m_last_selection_revision) {
     refresh(true);

@@ -195,19 +195,10 @@ void ConsolePanelController::render(ui::im::Frame &ui) {
   );
 
   if (auto header = root.row("header")
-          .frozen(m_header_frozen)
-          .style(fill_x().items_center().gap(12.0f))) {
+                        .frozen(m_header_frozen)
+                        .style(fill_x().items_center().gap(12.0f))) {
     m_header_frozen = true;
     ASTRA_PROFILE_N("ConsolePanel::header");
-    auto title = header.column("title").style(items_start().gap(2.0f));
-    title.text("heading", "Console")
-        .style(font_size(20.0f).text_color(theme.text_primary));
-    title.text(
-             "body",
-             "Operator workbench for logs, commands, and runtime output"
-    )
-        .style(font_size(13.0f).text_color(theme.text_muted));
-    header.spacer("spacer");
     auto hint = header.row("hint").style(
         items_center()
             .padding_xy(12.0f, 8.0f)

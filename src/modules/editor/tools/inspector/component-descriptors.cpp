@@ -11,6 +11,7 @@
 #include "components/tags.hpp"
 #include "components/terrain-clipmap-controller.hpp"
 #include "components/terrain-tile.hpp"
+#include "components/lens-flare.hpp"
 #include "components/text.hpp"
 #include "components/transform.hpp"
 #include "components/audio-emitter.hpp"
@@ -78,6 +79,11 @@ bool can_add_spot_light_target(ecs::EntityRef entity) {
          !entity.has<rendering::SpotLightTarget>();
 }
 
+bool can_add_lens_flare(ecs::EntityRef entity) {
+  return entity.exists() && entity.has<rendering::Light>() &&
+         !entity.has<rendering::LensFlare>();
+}
+
 bool editable_all_fields(std::string_view) { return true; }
 bool editable_no_fields(std::string_view) { return false; }
 
@@ -93,7 +99,7 @@ bool editable_material_properties_field(std::string_view field_name) {
   return field_name == "base_color_factor" || field_name == "emissive_factor" ||
          field_name == "metallic_factor" || field_name == "roughness_factor" ||
          field_name == "occlusion_strength" || field_name == "normal_scale" ||
-         field_name == "bloom_intensity";
+         field_name == "height_scale" || field_name == "bloom_intensity";
 }
 
 const std::vector<std::string> *no_enum_options(std::string_view) {
@@ -102,6 +108,29 @@ const std::vector<std::string> *no_enum_options(std::string_view) {
 
 const std::vector<std::string> *light_enum_options(std::string_view field_name) {
   return field_name == "type" ? &kLightTypeOptions : nullptr;
+}
+
+const SliderHint kIntensitySlider{.min = 0.0f, .max = 20.0f, .step = 0.1f};
+const SliderHint kStrengthSlider{.min = 0.0f, .max = 10.0f, .step = 0.05f};
+
+const SliderHint *light_slider_hint(std::string_view field_name) {
+  if (field_name == "intensity") return &kIntensitySlider;
+  if (field_name == "ambient_strength") return &kStrengthSlider;
+  if (field_name == "diffuse_strength") return &kStrengthSlider;
+  if (field_name == "specular_strength") return &kStrengthSlider;
+  return nullptr;
+}
+
+const SliderHint kShadowIntensitySlider{.min = 0.0f, .max = 2.0f, .step = 0.05f};
+const SliderHint kOrthoExtentSlider{.min = 1.0f, .max = 200.0f, .step = 1.0f};
+const SliderHint kPlaneSlider{.min = 0.01f, .max = 500.0f, .step = 0.5f};
+
+const SliderHint *directional_shadow_slider_hint(std::string_view field_name) {
+  if (field_name == "shadow_intensity") return &kShadowIntensitySlider;
+  if (field_name == "ortho_extent") return &kOrthoExtentSlider;
+  if (field_name == "near_plane") return &kPlaneSlider;
+  if (field_name == "far_plane") return &kPlaneSlider;
+  return nullptr;
 }
 
 const std::vector<std::string> *rigid_body_enum_options(
@@ -153,6 +182,7 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .remove_component = &erase_component<rendering::Light>,
         .field_editable = &editable_all_fields,
         .enum_options = &light_enum_options,
+        .slider_hint = &light_slider_hint,
     },
     {
         .name = "PointLightAttenuation",
@@ -181,6 +211,7 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .remove_component = &erase_component<rendering::DirectionalShadowSettings>,
         .field_editable = &editable_all_fields,
         .enum_options = &no_enum_options,
+        .slider_hint = &directional_shadow_slider_hint,
     },
     {
         .name = "SpotLightTarget",
@@ -323,6 +354,13 @@ const ComponentDescriptor kComponentDescriptors[] = {
         .field_editable = &editable_all_fields,
         .enum_options = &no_enum_options,
     },
+    {
+        .name = "LensFlare",
+        .can_add = &can_add_lens_flare,
+        .remove_component = &erase_component<rendering::LensFlare>,
+        .field_editable = &editable_all_fields,
+        .enum_options = &no_enum_options,
+    },
 };
 
 } // namespace
@@ -334,6 +372,10 @@ size_t component_descriptor_count() {
 }
 
 const ComponentDescriptor *find_component_descriptor(std::string_view name) {
+  if (is_material_properties_component(name)) {
+    name = k_material_properties_component_name;
+  }
+
   for (size_t index = 0u; index < component_descriptor_count(); ++index) {
     const auto &descriptor = component_descriptors()[index];
     if (descriptor.name == name) {

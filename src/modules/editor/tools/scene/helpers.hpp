@@ -3,15 +3,36 @@
 #include "editor-theme.hpp"
 #include "managers/scene-manager.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace astralix::editor::scene_panel {
 
 struct SceneMenuEntryPresentation {
   std::string status_text;
   glm::vec4 status_color = glm::vec4(0.0f);
+};
+
+struct ArtifactInfo {
+  const char *label;
+  std::string path;
+  std::string size;
+};
+
+struct DerivedEntityInfo {
+  std::string name;
+  std::string detail;
+  std::string state_text;
+  glm::vec4 state_color = glm::vec4(0.0f);
+};
+
+struct SerializationSummary {
+  std::string format;
+  std::string components;
+  std::string snapshots;
 };
 
 std::string lowercase_copy(std::string_view value);
@@ -70,5 +91,29 @@ std::string runtime_prompt_body(
     std::optional<SceneSessionKind> target_kind,
     const SceneLifecycleStatus &status
 );
+
+std::string format_file_size(uintmax_t bytes);
+std::string scene_session_revision_label(const Scene *scene, SceneSessionKind kind);
+std::string scene_artifact_activity_label(
+    const ProjectSceneEntryConfig &entry,
+    SceneSessionKind kind
+);
+std::vector<ArtifactInfo> gather_artifact_info(const ProjectSceneEntryConfig &entry);
+std::vector<DerivedEntityInfo> gather_derived_entity_info(
+    const Scene &scene,
+    const ScenePanelTheme &theme
+);
+std::string derived_entity_summary(const Scene &scene);
+SerializationSummary gather_serialization_summary(const Scene &scene);
+const char *startup_target_label(SceneStartupTarget target);
+
+std::string status_bar_warning(
+    const SceneLifecycleStatus &status,
+    const Scene *scene
+);
+std::string status_bar_hint(
+    const SceneLifecycleStatus &status
+);
+bool status_bar_visible(const SceneLifecycleStatus &status);
 
 } // namespace astralix::editor::scene_panel

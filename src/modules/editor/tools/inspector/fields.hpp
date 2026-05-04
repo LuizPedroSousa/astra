@@ -22,6 +22,13 @@ enum class FieldMode : uint8_t {
   Numeric,
   Toggle,
   Enum,
+  Slider,
+};
+
+struct SliderHint {
+  float min = 0.0f;
+  float max = 1.0f;
+  float step = 0.01f;
 };
 
 struct FieldGroup {
@@ -32,6 +39,7 @@ struct FieldGroup {
   std::vector<SerializableValue> values;
   FieldMode mode = FieldMode::ReadOnly;
   const std::vector<std::string> *options = nullptr;
+  SliderHint slider_hint{};
 };
 
 struct ComponentDescriptor {
@@ -42,6 +50,7 @@ struct ComponentDescriptor {
   void (*remove_component)(ecs::EntityRef) = nullptr;
   bool (*field_editable)(std::string_view) = nullptr;
   const std::vector<std::string> *(*enum_options)(std::string_view) = nullptr;
+  const SliderHint *(*slider_hint)(std::string_view) = nullptr;
 };
 
 bool same_entity(EntityID lhs, EntityID rhs);
