@@ -1,4 +1,5 @@
 #include "args.hpp"
+#include "cook.hpp"
 #include "project-bootstrap.hpp"
 #include "project-locator.hpp"
 #include "shader-lang/compiler.hpp"
@@ -17,6 +18,8 @@ void print_usage(const char *prog) {
   std::cout << "Usage:\n"
             << "  " << prog
             << " sync-shaders [--manifest <path>] [--root <dir>] [--watch]\n"
+            << "  " << prog
+            << " cook-assets [--manifest <path>] [--root <dir>]\n"
             << "  " << prog << " --help\n";
 }
 
@@ -116,11 +119,22 @@ int main(int argc, char **argv) {
   }
 
   try {
-    if (options.watch) {
+    if (options.command == axgen::Options::Command::SyncShaders &&
+        options.watch) {
       return axgen::run_watch_loop(options, axgen::run_sync_once);
     }
 
-    return axgen::run_sync_once(options).ok ? 0 : 1;
+    switch (options.command) {
+    case axgen::Options::Command::SyncShaders:
+      return axgen::run_sync_once(options).ok ? 0 : 1;
+    case axgen::Options::Command::CookAssets:
+      return axgen::run_cook_once(options).ok ? 0 : 1;
+    case axgen::Options::Command::None:
+      break;
+    }
+
+    std::cerr << "error: no command specified\n";
+    return 1;
   } catch (const std::exception &error) {
     std::cerr << "error: " << error.what() << '\n';
     return 1;

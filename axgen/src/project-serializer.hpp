@@ -1,5 +1,6 @@
 #pragma once
 
+#include "assets/asset_binding.hpp"
 #include "serialization-context.hpp"
 
 #include <cstdint>
@@ -21,6 +22,7 @@ struct ShaderDescriptorInput {
   std::optional<ManifestPath> vertex_path;
   std::optional<ManifestPath> fragment_path;
   std::optional<ManifestPath> geometry_path;
+  std::optional<ManifestPath> compute_path;
 };
 
 struct ProjectManifest {
@@ -30,6 +32,7 @@ struct ProjectManifest {
   astralix::SerializationFormat serialization_format =
       astralix::SerializationFormat::Json;
   std::vector<ShaderDescriptorInput> shaders;
+  std::vector<astralix::AssetBindingConfig> asset_bindings;
 };
 
 class ProjectSerializer {

@@ -38,12 +38,14 @@ bool parse(const std::vector<Token> &tokens, Options &opts) {
 
     if (token.kind == Token::Kind::Value) {
       if (!command_seen) {
-        if (token.text != "sync-shaders") {
+        if (token.text != "sync-shaders" && token.text != "cook-assets") {
           std::cerr << "error: unknown command '" << token.text << "'\n";
           return false;
         }
 
-        opts.command = Options::Command::SyncShaders;
+        opts.command = token.text == "sync-shaders"
+                           ? Options::Command::SyncShaders
+                           : Options::Command::CookAssets;
         command_seen = true;
         continue;
       }
@@ -90,6 +92,11 @@ bool parse(const std::vector<Token> &tokens, Options &opts) {
 
   if (!opts.help && opts.command == Options::Command::None) {
     std::cerr << "error: no command specified\n";
+    return false;
+  }
+
+  if (opts.command == Options::Command::CookAssets && opts.watch) {
+    std::cerr << "error: --watch is only supported by sync-shaders\n";
     return false;
   }
 

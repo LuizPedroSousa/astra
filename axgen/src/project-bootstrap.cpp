@@ -97,7 +97,8 @@ discover_project_shaders(const std::filesystem::path &manifest_path,
   for (const auto &descriptor : manifest->shaders) {
     if (!collect_shader(descriptor.vertex_path) ||
         !collect_shader(descriptor.fragment_path) ||
-        !collect_shader(descriptor.geometry_path)) {
+        !collect_shader(descriptor.geometry_path) ||
+        !collect_shader(descriptor.compute_path)) {
       return std::nullopt;
     }
   }

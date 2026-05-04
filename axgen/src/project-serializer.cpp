@@ -176,6 +176,21 @@ std::optional<ManifestPath> parse_path(ContextProxy ctx, std::string *error) {
   return parsed_path;
 }
 
+bool has_inline_resource_fields(ContextProxy &asset) {
+  return asset["type"].kind() == SerializationTypeKind::String ||
+         asset["path"].kind() == SerializationTypeKind::String ||
+         asset["vertex"].kind() == SerializationTypeKind::String ||
+         asset["fragment"].kind() == SerializationTypeKind::String ||
+         asset["compute"].kind() == SerializationTypeKind::String ||
+         asset["geometry"].kind() == SerializationTypeKind::String ||
+         asset["faces"].kind() == SerializationTypeKind::Array ||
+         asset["textures"].kind() == SerializationTypeKind::Object;
+}
+
+bool is_asset_binding_entry(ContextProxy &asset) {
+  return asset["asset"].kind() == SerializationTypeKind::String;
+}
+
 } // namespace
 
 std::optional<ProjectManifest>
@@ -205,6 +220,28 @@ ProjectSerializer::deserialize(const std::filesystem::path &manifest_path,
   manifest.resources_directory =
       (*ctx)["project"]["resources"]["directory"].as<std::string>();
 
+  const auto declared_project_directory =
+      (*ctx)["project"]["directory"].as<std::string>();
+  if (!declared_project_directory.empty()) {
+    const auto declared_path = std::filesystem::path(declared_project_directory);
+    manifest.project_root =
+        declared_path.is_absolute()
+            ? declared_path.lexically_normal()
+            : (normalized_manifest.parent_path() / declared_path)
+                  .lexically_normal();
+  } else if (!manifest.resources_directory.empty()) {
+    const auto direct_resources_root =
+        (manifest.project_root / manifest.resources_directory).lexically_normal();
+    const auto parent_resources_root =
+        (manifest.project_root.parent_path() / manifest.resources_directory)
+            .lexically_normal();
+
+    if (!std::filesystem::exists(direct_resources_root) &&
+        std::filesystem::exists(parent_resources_root)) {
+      manifest.project_root = manifest.project_root.parent_path().lexically_normal();
+    }
+  }
+
   const auto declared_format =
       (*ctx)["project"]["serialization"]["format"].as<std::string>();
   if (!declared_format.empty()) {
@@ -226,9 +263,36 @@ ProjectSerializer::deserialize(const std::filesystem::path &manifest_path,
   auto resources = (*ctx)["resources"];
   const auto resource_count = resources.size();
   manifest.shaders.reserve(resource_count);
+  manifest.asset_bindings.reserve(resource_count);
 
   for (size_t i = 0; i < resource_count; ++i) {
     auto asset = resources[static_cast<int>(i)];
+
+    const bool asset_binding = is_asset_binding_entry(asset);
+    const bool inline_resource = has_inline_resource_fields(asset);
+
+    if (asset_binding && inline_resource) {
+      set_error(error, "resource entry mixes inline fields with an asset binding");
+      return std::nullopt;
+    }
+
+    if (asset_binding) {
+      const auto id = asset["id"].as<std::string>();
+      const auto asset_path = asset["asset"].as<std::string>();
+      if (id.empty()) {
+        set_error(error, "asset binding id is required");
+        return std::nullopt;
+      }
+      if (asset_path.empty()) {
+        set_error(error, "asset binding path is required for '" + id + "'");
+        return std::nullopt;
+      }
+
+      manifest.asset_bindings.push_back(
+          astralix::AssetBindingConfig{.id = id, .asset_path = asset_path}
+      );
+    }
+
     if (asset["type"].as<std::string>() != "Shader") {
       continue;
     }
@@ -256,6 +320,14 @@ ProjectSerializer::deserialize(const std::filesystem::path &manifest_path,
     descriptor.geometry_path = parse_path(asset["geometry"], &path_error);
     if (!path_error.empty()) {
       set_error(error, "invalid geometry path for shader '" + shader_id +
+                           "': " + path_error);
+      return std::nullopt;
+    }
+
+    path_error.clear();
+    descriptor.compute_path = parse_path(asset["compute"], &path_error);
+    if (!path_error.empty()) {
+      set_error(error, "invalid compute path for shader '" + shader_id +
                            "': " + path_error);
       return std::nullopt;
     }

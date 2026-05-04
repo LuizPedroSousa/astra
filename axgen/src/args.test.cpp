@@ -38,6 +38,12 @@ TEST(AxgenArgs, ParsesSyncShadersCommand) {
   EXPECT_EQ(options.command, Options::Command::SyncShaders);
 }
 
+TEST(AxgenArgs, ParsesCookAssetsCommand) {
+  Options options;
+  EXPECT_TRUE(parse(make_tokens({"cook-assets"}), options));
+  EXPECT_EQ(options.command, Options::Command::CookAssets);
+}
+
 TEST(AxgenArgs, ParsesManifestAndWatchFlags) {
   Options options;
   EXPECT_TRUE(parse(make_tokens(
@@ -80,6 +86,11 @@ TEST(AxgenArgs, ParsesRootFlag) {
 TEST(AxgenArgs, RejectsRootWithoutValue) {
   Options options;
   EXPECT_FALSE(parse(make_tokens({"sync-shaders", "--root"}), options));
+}
+
+TEST(AxgenArgs, RejectsWatchForCookAssets) {
+  Options options;
+  EXPECT_FALSE(parse(make_tokens({"cook-assets", "--watch"}), options));
 }
 
 } // namespace axgen
