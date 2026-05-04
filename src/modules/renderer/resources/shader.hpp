@@ -13,9 +13,11 @@
 #include <array>
 #include <concepts>
 #include <cstdint>
+#include <filesystem>
 #include <tuple>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace astralix {
 
@@ -111,6 +113,8 @@ public:
   virtual void bind() const = 0;
   virtual void unbind() const = 0;
   virtual void attach() const = 0;
+  virtual bool recompile() { return false; }
+  virtual std::vector<std::filesystem::path> source_dependencies() const { return {}; }
 
   void apply_binding_value(uint64_t binding_id, ShaderValueKind kind, const void *value) const {
     set_typed_value(binding_id, kind, value);
@@ -152,9 +156,9 @@ public:
     return m_descriptor_id;
   }
 
-  static Ref<ShaderDescriptor> create(const ResourceDescriptorID &id, Ref<Path> fragment_path, Ref<Path> vertex_path, Ref<Path> geometry_path = nullptr);
+  static Ref<ShaderDescriptor> create(const ResourceDescriptorID &id, Ref<Path> fragment_path, Ref<Path> vertex_path, Ref<Path> geometry_path = nullptr, Ref<Path> compute_path = nullptr);
 
-  static Ref<ShaderDescriptor> define(const ResourceDescriptorID &id, Ref<Path> fragment_path, Ref<Path> vertex_path, Ref<Path> geometry_path = nullptr);
+  static Ref<ShaderDescriptor> define(const ResourceDescriptorID &id, Ref<Path> fragment_path, Ref<Path> vertex_path, Ref<Path> geometry_path = nullptr, Ref<Path> compute_path = nullptr);
 
   static Ref<Shader> from_descriptor(const ResourceHandle &id, Ref<ShaderDescriptor> descriptor);
 

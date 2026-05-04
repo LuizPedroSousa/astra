@@ -3,11 +3,46 @@
 #include "glad/glad.h"
 #include "guid.hpp"
 #include "log.hpp"
+#include "managers/path-manager.hpp"
+#include "resources/model.hpp"
 #include "resources/descriptors/texture-descriptor.hpp"
 #include "resources/shader.hpp"
+#include "systems/job-system/job-system.hpp"
+#include <array>
+#include <memory>
+#include <utility>
 
 namespace astralix {
-static int count = 0;
+
+namespace {
+
+template <typename F>
+class ScopeExit {
+public:
+  explicit ScopeExit(F &&fn) : m_fn(std::forward<F>(fn)) {}
+  ~ScopeExit() { m_fn(); }
+
+  ScopeExit(const ScopeExit &) = delete;
+  ScopeExit &operator=(const ScopeExit &) = delete;
+
+private:
+  F m_fn;
+};
+
+template <typename F>
+ScopeExit<F> make_scope_exit(F &&fn) {
+  return ScopeExit<F>(std::forward<F>(fn));
+}
+
+struct PendingTexture2DLoad {
+  PreparedTexture2DData prepared;
+};
+
+struct PendingModelLoad {
+  ImportedModelData imported;
+};
+
+} // namespace
 
 Ref<Texture2DDescriptor>
 ResourceManager::register_texture(Ref<Texture2DDescriptor> descriptor) {
@@ -43,6 +78,146 @@ Ref<ShaderDescriptor>
 ResourceManager::register_shader(Ref<ShaderDescriptor> descriptor) {
   return m_shader_descriptor_pool.get(
       m_shader_descriptor_pool.register_or_get(descriptor)
+  );
+}
+
+bool ResourceManager::reload_shader(const ResourceDescriptorID &descriptor_id) {
+  auto shader = get_by_descriptor_id<Shader>(descriptor_id);
+  if (shader == nullptr) return false;
+  return shader->recompile();
+}
+
+void ResourceManager::request_texture_2d_async(
+    RendererBackend backend,
+    const ResourceDescriptorID &descriptor_id
+) {
+  auto descriptor = get_descriptor_by_id<Texture2DDescriptor>(descriptor_id);
+  if (descriptor == nullptr) {
+    return;
+  }
+
+  auto &resource_pool = get_resource_pool_of<Texture2DDescriptor>();
+  if (resource_pool.has_handle_by_id(descriptor_id)) {
+    return;
+  }
+
+  if (!descriptor->image_load.has_value()) {
+    resource_pool.register_or_get(backend, descriptor);
+    return;
+  }
+
+  auto *jobs = JobSystem::get();
+  if (jobs == nullptr) {
+    resource_pool.register_or_get(backend, descriptor);
+    return;
+  }
+
+  {
+    std::lock_guard lock(m_async_resource_mutex);
+    if (!m_pending_texture_2d_loads.insert(descriptor_id).second) {
+      return;
+    }
+  }
+
+  auto pending = std::make_shared<PendingTexture2DLoad>();
+  JobHandle decode_job = jobs->submit(
+      [descriptor, pending]() {
+        pending->prepared = Texture2D::prepare_descriptor(descriptor);
+      },
+      JobQueue::Worker,
+      JobPriority::Normal
+  );
+
+  const std::array<JobHandle, 1> dependencies = {decode_job};
+  jobs->submit_after(
+      dependencies,
+      [this, backend, descriptor_id, descriptor, pending, decode_job]() mutable {
+        auto clear_pending = make_scope_exit([this, descriptor_id]() {
+          std::lock_guard lock(m_async_resource_mutex);
+          m_pending_texture_2d_loads.erase(descriptor_id);
+        });
+
+        JobSystem::get()->wait(decode_job);
+        descriptor->backend = backend;
+        auto &pool = get_resource_pool_of<Texture2DDescriptor>();
+        pool.register_or_get_with_factory(
+            descriptor_id,
+            [&descriptor, &pending](const ResourceHandle &handle) mutable {
+              return Texture2D::from_prepared_descriptor(
+                  handle,
+                  descriptor,
+                  std::move(pending->prepared)
+              );
+            }
+        );
+      },
+      JobQueue::Main,
+      JobPriority::Normal
+  );
+}
+
+void ResourceManager::request_model_async(
+    const ResourceDescriptorID &descriptor_id
+) {
+  auto descriptor = get_descriptor_by_id<ModelDescriptor>(descriptor_id);
+  if (descriptor == nullptr) {
+    return;
+  }
+
+  auto &resource_pool = get_resource_pool_of<ModelDescriptor>();
+  if (resource_pool.has_handle_by_id(descriptor_id)) {
+    return;
+  }
+
+  auto *jobs = JobSystem::get();
+  if (jobs == nullptr) {
+    resource_pool.register_or_get(RendererBackend::None, descriptor);
+    return;
+  }
+
+  {
+    std::lock_guard lock(m_async_resource_mutex);
+    if (!m_pending_model_loads.insert(descriptor_id).second) {
+      return;
+    }
+  }
+
+  auto pending = std::make_shared<PendingModelLoad>();
+  JobHandle import_job = jobs->submit(
+      [descriptor, pending]() {
+        pending->imported = import_model_file(
+            path_manager()->resolve(descriptor->source_path),
+            descriptor->import_settings
+        );
+      },
+      JobQueue::Worker,
+      JobPriority::Normal
+  );
+
+  const std::array<JobHandle, 1> dependencies = {import_job};
+  jobs->submit_after(
+      dependencies,
+      [this, descriptor_id, descriptor, pending, import_job]() mutable {
+        auto clear_pending = make_scope_exit([this, descriptor_id]() {
+          std::lock_guard lock(m_async_resource_mutex);
+          m_pending_model_loads.erase(descriptor_id);
+        });
+
+        JobSystem::get()->wait(import_job);
+        auto &pool = get_resource_pool_of<ModelDescriptor>();
+        pool.register_or_get_with_factory(
+            descriptor_id,
+            [&descriptor, &pending](const ResourceHandle &handle) mutable {
+              return Model::from_imported_data(
+                  handle,
+                  descriptor,
+                  std::move(pending->imported)
+              );
+            }
+        );
+      },
+      JobQueue::Main,
+      JobPriority::Normal
   );
 }
 

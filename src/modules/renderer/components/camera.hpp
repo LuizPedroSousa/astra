@@ -44,6 +44,8 @@ struct Camera {
   float far_plane = 100.0f;
   float orthographic_scale = 10.0f;
   bool orthographic = false;
+  std::optional<float> runtime_near_plane_override;
+  std::optional<float> runtime_far_plane_override;
 };
 
 } // namespace astralix::rendering

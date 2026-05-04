@@ -18,7 +18,12 @@ Material::Material(RESOURCE_INIT_PARAMS, Ref<MaterialDescriptor> descriptor)
       roughness_factor(descriptor->roughness_factor),
       occlusion_strength(descriptor->occlusion_strength),
       normal_scale(descriptor->normal_scale),
-      bloom_intensity(descriptor->bloom_intensity) {}
+      height_scale(descriptor->height_scale),
+      bloom_intensity(descriptor->bloom_intensity),
+      alpha_mask(descriptor->alpha_mask),
+      alpha_blend(descriptor->alpha_blend),
+      alpha_cutoff(descriptor->alpha_cutoff),
+      double_sided(descriptor->double_sided) {}
 
 Ref<MaterialDescriptor> Material::create(
     const ResourceDescriptorID &id,
@@ -36,7 +41,12 @@ Ref<MaterialDescriptor> Material::create(
     float roughness_factor,
     float occlusion_strength,
     float normal_scale,
-    float bloom_intensity) {
+    float height_scale,
+    float bloom_intensity,
+    bool alpha_mask,
+    bool alpha_blend,
+    float alpha_cutoff,
+    bool double_sided) {
   return resource_manager()->register_material(MaterialDescriptor::create(
       id,
       std::move(base_color),
@@ -53,7 +63,12 @@ Ref<MaterialDescriptor> Material::create(
       roughness_factor,
       occlusion_strength,
       normal_scale,
-      bloom_intensity));
+      height_scale,
+      bloom_intensity,
+      alpha_mask,
+      alpha_blend,
+      alpha_cutoff,
+      double_sided));
 }
 
 Ref<MaterialDescriptor> Material::define(
@@ -72,7 +87,12 @@ Ref<MaterialDescriptor> Material::define(
     float roughness_factor,
     float occlusion_strength,
     float normal_scale,
-    float bloom_intensity) {
+    float height_scale,
+    float bloom_intensity,
+    bool alpha_mask,
+    bool alpha_blend,
+    float alpha_cutoff,
+    bool double_sided) {
   return MaterialDescriptor::create(
       id,
       std::move(base_color),
@@ -89,7 +109,12 @@ Ref<MaterialDescriptor> Material::define(
       roughness_factor,
       occlusion_strength,
       normal_scale,
-      bloom_intensity);
+      height_scale,
+      bloom_intensity,
+      alpha_mask,
+      alpha_blend,
+      alpha_cutoff,
+      double_sided);
 }
 
 Ref<Material> Material::from_descriptor(const ResourceHandle &id,
