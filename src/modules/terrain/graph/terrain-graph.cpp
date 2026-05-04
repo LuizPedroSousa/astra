@@ -1,10 +1,41 @@
 #include "terrain-graph.hpp"
 #include "assert.hpp"
+#include "log.hpp"
 #include "trace.hpp"
 #include <unordered_map>
 #include <unordered_set>
 
 namespace astralix::terrain {
+
+namespace {
+
+const char *queue_hint_name(QueueHint queue_hint) {
+  switch (queue_hint) {
+    case QueueHint::Main:
+      return "Main";
+    case QueueHint::AsyncCompute:
+      return "AsyncCompute";
+    case QueueHint::Background:
+      return "Background";
+  }
+
+  return "Unknown";
+}
+
+const char *trigger_name(ExecutionTrigger trigger) {
+  switch (trigger) {
+    case ExecutionTrigger::OneShot:
+      return "OneShot";
+    case ExecutionTrigger::PerFrame:
+      return "PerFrame";
+    case ExecutionTrigger::OnDemand:
+      return "OnDemand";
+  }
+
+  return "Unknown";
+}
+
+} // namespace
 
 void TerrainGraph::add_subgraph(Scope<TerrainSubgraph> subgraph) {
   m_subgraphs.push_back(std::move(subgraph));
@@ -13,6 +44,14 @@ void TerrainGraph::add_subgraph(Scope<TerrainSubgraph> subgraph) {
 
 void TerrainGraph::compile() {
   ASTRA_PROFILE_N("TerrainGraph::compile");
+
+  if (auto *jobs = JobSystem::get(); jobs != nullptr) {
+    for (const auto &[index, handle] : m_running_jobs) {
+      (void)index;
+      jobs->wait(handle);
+    }
+  }
+  m_running_jobs.clear();
 
   size_t count = m_subgraphs.size();
 
@@ -37,6 +76,7 @@ void TerrainGraph::compile() {
     }
   }
 
+  m_dependencies.assign(count, {});
   m_execution_order.clear();
   m_execution_order.reserve(count);
   std::vector<bool> visited(count, false);
@@ -64,10 +104,15 @@ void TerrainGraph::compile() {
   };
 
   for (size_t index = 0; index < count; ++index) {
+    m_dependencies[index].assign(
+        dependencies[index].begin(), dependencies[index].end()
+    );
     topological_visit(topological_visit, index);
   }
 
+  m_one_shot_executed.assign(count, false);
   m_compiled = true;
+  LOG_DEBUG("[TerrainGraph] compiled", "subgraphs=", count);
 }
 
 void TerrainGraph::process() {
@@ -76,11 +121,62 @@ void TerrainGraph::process() {
   ASTRA_ENSURE(!m_compiled, "TerrainGraph::process called before compile()");
 
   std::unordered_map<std::string, const SubgraphOutputData *> available_outputs;
+  auto *jobs = JobSystem::get();
+
+  auto register_outputs = [&](size_t index) {
+    auto &subgraph = m_subgraphs[index];
+    for (const auto &port : subgraph->output_ports()) {
+      const auto *output = subgraph->get_output(port.name);
+      if (output == nullptr) {
+        continue;
+      }
+
+      available_outputs[std::string(subgraph->name()) + "." + port.name] =
+          output;
+    }
+  };
+
+  auto wait_for_subgraph = [&](size_t index) {
+    auto running_it = m_running_jobs.find(index);
+    if (running_it == m_running_jobs.end()) {
+      return;
+    }
+
+    if (jobs != nullptr) {
+      LOG_DEBUG(
+          "[TerrainGraph] waiting for async subgraph",
+          m_subgraphs[index]->name(),
+          "job_id=", running_it->second.id
+      );
+      jobs->wait(running_it->second);
+    }
+
+    LOG_DEBUG("[TerrainGraph] async subgraph complete", m_subgraphs[index]->name());
+    m_running_jobs.erase(running_it);
+    register_outputs(index);
+  };
 
   for (size_t index : m_execution_order) {
+    wait_for_subgraph(index);
+
     auto &subgraph = m_subgraphs[index];
     if (!subgraph->enabled) {
       continue;
+    }
+
+    const ExecutionPolicy policy = subgraph->execution_policy();
+    if (policy.trigger == ExecutionTrigger::OneShot &&
+        index < m_one_shot_executed.size() && m_one_shot_executed[index]) {
+      continue;
+    }
+
+    if (policy.trigger == ExecutionTrigger::OnDemand &&
+        !subgraph->consume_process_request()) {
+      continue;
+    }
+
+    for (size_t dependency_index : m_dependencies[index]) {
+      wait_for_subgraph(dependency_index);
     }
 
     std::unordered_map<std::string, const SubgraphOutputData *> resolved_inputs;
@@ -91,15 +187,48 @@ void TerrainGraph::process() {
       }
     }
 
-    subgraph->process(resolved_inputs);
+    JobQueue queue = JobQueue::Main;
+    switch (policy.queue_hint) {
+      case QueueHint::Main:
+        queue = JobQueue::Main;
+        break;
+      case QueueHint::AsyncCompute:
+        queue = JobQueue::Worker;
+        break;
+      case QueueHint::Background:
+        queue = JobQueue::Background;
+        break;
+    }
 
-    for (const auto &port : subgraph->output_ports()) {
-      std::string qualified_name =
-          std::string(subgraph->name()) + "." + port.name;
-      const auto *output = subgraph->get_output(port.name);
-      if (output != nullptr) {
-        available_outputs[qualified_name] = output;
-      }
+    if (queue == JobQueue::Main || jobs == nullptr) {
+      LOG_DEBUG(
+          "[TerrainGraph] processing subgraph on main thread",
+          subgraph->name(),
+          "trigger=", trigger_name(policy.trigger),
+          "queue=", queue_hint_name(policy.queue_hint)
+      );
+      subgraph->process(resolved_inputs);
+      register_outputs(index);
+    } else {
+      auto *subgraph_ptr = subgraph.get();
+      m_running_jobs[index] = jobs->submit(
+          [subgraph_ptr, inputs = std::move(resolved_inputs)]() mutable {
+            subgraph_ptr->process(inputs);
+          },
+          queue
+      );
+      LOG_DEBUG(
+          "[TerrainGraph] dispatched async subgraph",
+          subgraph->name(),
+          "trigger=", trigger_name(policy.trigger),
+          "queue=", queue_hint_name(policy.queue_hint),
+          "job_id=", m_running_jobs[index].id
+      );
+    }
+
+    if (policy.trigger == ExecutionTrigger::OneShot &&
+        index < m_one_shot_executed.size()) {
+      m_one_shot_executed[index] = true;
     }
   }
 }

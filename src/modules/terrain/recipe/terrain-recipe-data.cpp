@@ -1,5 +1,6 @@
 #include "terrain-recipe-data.hpp"
 #include "adapters/file/file-stream-reader.hpp"
+#include "assert.hpp"
 #include "context-proxy.hpp"
 #include "log.hpp"
 #include "serialization-context.hpp"
@@ -30,10 +31,28 @@ TerrainRecipeData parse_terrain_recipe(const std::string &recipe_path) {
   auto context = SerializationContext::create(SerializationFormat::Json,
                                               stream.get_buffer());
 
-  data.resolution = static_cast<uint32_t>(
-      read_number((*context)["resolution"], 1025.0f));
+  auto root = (*context)["terrain"];
+  const bool legacy_wrapped = root.kind() == SerializationTypeKind::Object;
+  auto field = [&](const char *key) {
+    return legacy_wrapped ? root[key] : (*context)[key];
+  };
 
-  auto noise = (*context)["noise"];
+  if (field("version").kind() != SerializationTypeKind::Unknown) {
+    ASTRA_ENSURE(
+        field("version").kind() != SerializationTypeKind::Int,
+        "Terrain recipe version must be an integer"
+    );
+    ASTRA_ENSURE(
+        field("version").as<int>() != 1,
+        "Unsupported terrain recipe version: ",
+        field("version").as<int>()
+    );
+  }
+
+  data.resolution = static_cast<uint32_t>(
+      read_number(field("resolution"), 1025.0f));
+
+  auto noise = field("noise");
   if (noise.kind() == SerializationTypeKind::Object) {
     if (noise["type"].kind() == SerializationTypeKind::String)
       data.noise.type = noise["type"].as<std::string>();
@@ -45,7 +64,7 @@ TerrainRecipeData parse_terrain_recipe(const std::string &recipe_path) {
     data.noise.amplitude = read_number(noise["amplitude"], 1.0f);
   }
 
-  auto erosion = (*context)["erosion"];
+  auto erosion = field("erosion");
   if (erosion.kind() == SerializationTypeKind::Object) {
     data.erosion.iterations = static_cast<uint32_t>(
         read_number(erosion["iterations"], 50000.0f));
@@ -65,7 +84,7 @@ TerrainRecipeData parse_terrain_recipe(const std::string &recipe_path) {
         read_number(erosion["erode_radius"], 3.0f));
   }
 
-  auto splat = (*context)["splat"];
+  auto splat = field("splat");
   if (splat.kind() == SerializationTypeKind::Object) {
     auto layers = splat["layers"];
     auto layer_count = layers.size();
