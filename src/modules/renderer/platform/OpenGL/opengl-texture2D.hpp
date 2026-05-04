@@ -8,6 +8,11 @@ namespace astralix {
 class OpenGLTexture2D : public Texture2D {
 public:
   OpenGLTexture2D(const ResourceHandle &id, Ref<Texture2DDescriptor> descriptor);
+  OpenGLTexture2D(
+      const ResourceHandle &id,
+      Ref<Texture2DDescriptor> descriptor,
+      PreparedTexture2DData prepared
+  );
 
   static Ref<Texture2D> create(const ResourceHandle &resource_id);
 

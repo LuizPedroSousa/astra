@@ -480,6 +480,23 @@ void OpenGLExecutor::dispatch(const BindPipelineCmd &cmd) {
   m_bound_pipeline = &pipeline;
 }
 
+void OpenGLExecutor::dispatch(const BindComputePipelineCmd &cmd) {
+  const auto &pipeline = require_pipeline(cmd.pipeline);
+  ASTRA_ENSURE(
+      pipeline.shader == nullptr,
+      "Compiled compute pipeline is missing a shader"
+  );
+
+  if (m_state.shader != pipeline.shader.get()) {
+    pipeline.shader->bind();
+    m_state.shader = pipeline.shader.get();
+    m_state.next_texture_unit = 0;
+    m_state.texture_unit_by_binding_id.clear();
+  }
+
+  m_bound_pipeline = &pipeline;
+}
+
 void OpenGLExecutor::dispatch(const BindBindingsCmd &cmd) {
   ASTRA_ENSURE(m_bound_pipeline == nullptr || m_bound_pipeline->shader == nullptr,
                "BindBindingsCmd requires a bound pipeline");
@@ -532,6 +549,14 @@ void OpenGLExecutor::dispatch(const BindBindingsCmd &cmd) {
                  "binding id 0");
     shader.apply_binding_value(image.binding_id, ShaderValueKind::Int, &unit);
   }
+
+  for (const auto &buffer : binding_group.storage_buffers) {
+    glBindBufferBase(
+        GL_SHADER_STORAGE_BUFFER,
+        buffer.binding_point,
+        buffer.buffer_renderer_id
+    );
+  }
 }
 
 void OpenGLExecutor::dispatch(const BindVertexBufferCmd &cmd) {
@@ -572,6 +597,26 @@ void OpenGLExecutor::dispatch(const DrawIndexedCmd &cmd) {
   m_api.draw_indexed(m_state.vertex_array,
                      RendererAPI::DrawPrimitive::TRIANGLES,
                      cmd.args.index_count);
+}
+
+void OpenGLExecutor::dispatch(const DispatchComputeCmd &cmd) {
+  glDispatchCompute(
+      cmd.group_count_x, cmd.group_count_y, cmd.group_count_z
+  );
+}
+
+void OpenGLExecutor::dispatch(const MemoryBarrierCmd &cmd) {
+  GLbitfield barriers = 0;
+
+  if (has_memory_barrier_bit(
+          cmd.barriers, MemoryBarrierBit::ShaderStorage
+      )) {
+    barriers |= GL_SHADER_STORAGE_BARRIER_BIT;
+  }
+
+  if (barriers != 0) {
+    glMemoryBarrier(barriers);
+  }
 }
 
 void OpenGLExecutor::dispatch(const CopyImageCmd &cmd) {
@@ -1050,6 +1095,14 @@ void OpenGLExecutor::dispatch(const DrawVerticesCmd &cmd) {
                "DrawVerticesCmd requires a bound vertex array");
 
   m_api.draw_triangles(m_state.vertex_array, cmd.vertex_count);
+}
+
+void OpenGLExecutor::dispatch(const SetViewportCmd &cmd) {
+  const uint32_t bottom_y =
+      m_active_render_extent.height > cmd.y + cmd.height
+          ? m_active_render_extent.height - (cmd.y + cmd.height)
+          : 0u;
+  m_api.set_viewport(cmd.x, bottom_y, cmd.width, cmd.height);
 }
 
 void OpenGLExecutor::ensure_transient_buffer_uploaded(

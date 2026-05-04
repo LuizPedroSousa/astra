@@ -2,6 +2,7 @@
 
 #include "assert.hpp"
 #include "resources/descriptors/texture-descriptor.hpp"
+#include "resources/equirectangular-converter.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -64,6 +65,47 @@ std::vector<uint8_t> copy_loaded_image_pixels(const Image &image) {
 VirtualTexture3D::VirtualTexture3D(const ResourceHandle &id,
                                    Ref<Texture3DDescriptor> descriptor)
     : Texture3D(id) {
+  if (descriptor->is_from_buffer) {
+    m_format = TextureFormat::RGBA;
+    m_width = descriptor->buffer_face_width;
+    m_height = descriptor->buffer_face_height;
+
+    const size_t face_byte_count =
+        static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * 4u;
+    m_faces.reserve(descriptor->buffer_faces.size());
+    for (const auto *face_data : descriptor->buffer_faces) {
+      std::vector<uint8_t> pixels(face_byte_count, 0);
+      if (face_data != nullptr) {
+        std::memcpy(pixels.data(), face_data, face_byte_count);
+      }
+      m_faces.push_back(std::move(pixels));
+    }
+    return;
+  }
+
+  if (descriptor->is_equirectangular) {
+    auto hdr_image = load_hdr_image(descriptor->equirectangular_path, false);
+    auto conversion = convert_equirectangular_to_cubemap(
+        hdr_image.data,
+        hdr_image.width,
+        hdr_image.height,
+        hdr_image.nr_channels,
+        descriptor->equirectangular_face_resolution
+    );
+    free_hdr_image(hdr_image.data);
+
+    m_is_hdr = true;
+    m_format = TextureFormat::RGBA16F;
+    m_width = descriptor->equirectangular_face_resolution;
+    m_height = descriptor->equirectangular_face_resolution;
+
+    m_hdr_faces.reserve(6);
+    for (int face_index = 0; face_index < 6; ++face_index) {
+      m_hdr_faces.push_back(std::move(conversion.faces[face_index].pixels));
+    }
+    return;
+  }
+
   ASTRA_ENSURE(descriptor->face_paths.size() != 6u,
                "[Vulkan] Cubemap textures require exactly 6 faces");
 

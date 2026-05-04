@@ -19,18 +19,24 @@ public:
   uint32_t height() const override { return m_height; }
 
   TextureFormat format() const noexcept { return m_format; }
+  bool is_hdr() const noexcept { return m_is_hdr; }
   uint32_t face_count() const noexcept {
     return static_cast<uint32_t>(m_faces.size());
   }
   const std::vector<std::vector<uint8_t>> &faces() const noexcept {
     return m_faces;
   }
+  const std::vector<std::vector<float>> &hdr_faces() const noexcept {
+    return m_hdr_faces;
+  }
 
 private:
   TextureFormat m_format = TextureFormat::RGBA;
+  bool m_is_hdr = false;
   uint32_t m_width = 1;
   uint32_t m_height = 1;
   std::vector<std::vector<uint8_t>> m_faces;
+  std::vector<std::vector<float>> m_hdr_faces;
 };
 
 } // namespace astralix

@@ -10,6 +10,11 @@ namespace astralix {
 class VirtualTexture2D : public Texture2D {
 public:
   VirtualTexture2D(const ResourceHandle &id, Ref<Texture2DDescriptor> descriptor);
+  VirtualTexture2D(
+      const ResourceHandle &id,
+      Ref<Texture2DDescriptor> descriptor,
+      PreparedTexture2DData prepared
+  );
   ~VirtualTexture2D() = default;
 
   void bind() const override;
