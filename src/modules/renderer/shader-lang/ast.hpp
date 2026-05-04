@@ -1,5 +1,6 @@
 #pragma once
 #include "shader-lang/token.hpp"
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -62,7 +63,8 @@ inline std::string_view attribute_kind_name(AttributeKind kind) {
   return "@<unknown>";
 }
 
-using AttributeValue = std::variant<std::monostate, StageKind, int32_t>;
+using AttributeValue =
+    std::variant<std::monostate, StageKind, int32_t, std::array<int32_t, 3>>;
 
 struct Attribute {
   AttributeKind kind;
@@ -425,6 +427,7 @@ struct FuncDecl {
   NodeID body;
 
   std::optional<StageKind> stage_kind;
+  std::array<uint32_t, 3> local_size = {1u, 1u, 1u};
 
   void visit_offset(NodeID off) {
     for (auto &param : params) {

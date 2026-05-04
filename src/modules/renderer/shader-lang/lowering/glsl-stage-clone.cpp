@@ -215,6 +215,8 @@ GLSLDecl clone_decl(const GLSLDecl &decl) {
 GLSLStage clone_glsl_stage(const GLSLStage &stage) {
   GLSLStage cloned;
   cloned.version = stage.version;
+  cloned.stage = stage.stage;
+  cloned.local_size = stage.local_size;
   cloned.declarations.reserve(stage.declarations.size());
   for (const auto &decl : stage.declarations) {
     cloned.declarations.push_back(clone_decl(decl));

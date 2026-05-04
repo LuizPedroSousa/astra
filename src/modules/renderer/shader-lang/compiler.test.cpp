@@ -3336,4 +3336,27 @@ fn main() -> FragmentOutput {
       << fragment;
 }
 
+TEST(Compiler, ComputeStageEmitsLocalSizeLayout) {
+  static constexpr std::string_view source = R"axsl(
+@version 450;
+
+@compute(8, 4, 2)
+fn main() -> void {
+  barrier();
+}
+)axsl";
+
+  Compiler compiler;
+  auto result = compiler.compile(source, "", "compute-local-size.axsl");
+  ASSERT_TRUE(result.ok()) << errors_str(result);
+
+  const auto &compute = result.stages.at(StageKind::Compute);
+  EXPECT_TRUE(
+      contains(
+          compute,
+          "layout(local_size_x = 8, local_size_y = 4, local_size_z = 2) in;"
+      )
+  ) << compute;
+}
+
 } // namespace astralix
