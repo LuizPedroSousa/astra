@@ -115,7 +115,7 @@ jobs:
       - name: Install test dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y spirv-tools
+          sudo apt-get install -y spirv-tools libassimp-dev
 
       - name: Add permission to test binary
         run: chmod +x builds/tests/astralix_tests

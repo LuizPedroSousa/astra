@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "textures": {
+    "base_color": "../textures/texture_07.axtexture",
+    "normal": "../textures/texture_03.axtexture",
+    "metallic_roughness": "../textures/texture_05.axtexture"
+  },
+  "base_color_factor": {
+    "x": 1.0,
+    "y": 1.0,
+    "z": 1.0,
+    "w": 1.0
+  },
+  "metallic_factor": 1.0,
+  "roughness_factor": 1.0,
+  "normal_scale": 1.0,
+  "double_sided": true
+}

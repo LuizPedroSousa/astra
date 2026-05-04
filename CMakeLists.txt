@@ -439,7 +439,6 @@ if(NOT ASTRA_ENABLE_TESTS)
           events
           ecs
           streams
-          jobs
           project
           window
           shader-lang

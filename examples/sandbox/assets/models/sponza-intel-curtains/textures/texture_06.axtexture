@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "source": "../source/glTF/textures/curtain_fabric_blue_BaseColor.png",
+  "flip": true,
+  "parameters": {
+    "wrap_s": "repeat",
+    "wrap_t": "repeat",
+    "min_filter": "linear_mip_map",
+    "mag_filter": "linear"
+  }
+}

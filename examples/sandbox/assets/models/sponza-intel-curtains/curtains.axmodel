@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "source": "source/glTF/NewSponza_Curtains_glTF.gltf",
+  "import": {
+    "triangulate": true,
+    "flip_uvs": true,
+    "generate_normals": false,
+    "calculate_tangents": true,
+    "pre_transform_vertices": true
+  },
+  "materials": [
+    "materials/material_00.axmaterial",
+    "materials/material_01.axmaterial",
+    "materials/material_02.axmaterial",
+    "materials/material_03.axmaterial",
+    "materials/material_04.axmaterial"
+  ]
+}

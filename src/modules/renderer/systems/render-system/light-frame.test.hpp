@@ -49,7 +49,7 @@ TEST(LightFrameTest, CollectsDirectionalPointAndSpotLightData) {
 
   EXPECT_TRUE(frame.directional.valid);
   EXPECT_EQ(frame.directional.position, glm::vec3(-4.0f, 8.0f, -3.0f));
-  EXPECT_EQ(frame.directional.direction, glm::vec3(0.0f, 0.0f, -1.0f));
+  EXPECT_EQ(frame.directional.direction, glm::vec3(0.0f, -1.0f, 0.0f));
   EXPECT_FLOAT_EQ(frame.directional.near_plane, 0.5f);
   EXPECT_FLOAT_EQ(frame.directional.far_plane, 150.0f);
   EXPECT_NE(frame.directional.light_space_matrix, glm::mat4(1.0f));
@@ -105,8 +105,8 @@ TEST(LightFrameTest, CollectsDirectionalLightDirectionFromTransformRotation) {
 
   EXPECT_TRUE(frame.directional.valid);
   EXPECT_NEAR(frame.directional.direction.x, 0.0f, 1.0e-5f);
-  EXPECT_NEAR(frame.directional.direction.y, 0.0f, 1.0e-5f);
-  EXPECT_NEAR(frame.directional.direction.z, 1.0f, 1.0e-5f);
+  EXPECT_NEAR(frame.directional.direction.y, -1.0f, 1.0e-5f);
+  EXPECT_NEAR(frame.directional.direction.z, 0.0f, 1.0e-5f);
 }
 
 #ifdef ASTRALIX_HAS_ENGINE_BINDINGS
@@ -160,7 +160,7 @@ TEST(LightFrameTest, BuildsForwardLightParamsFromMaterialBindingsAndPreparedLigh
   EXPECT_FLOAT_EQ(material_params.materials[0].bloom_intensity, 1.5f);
   EXPECT_EQ(scene_params.bloom_layer, k_default_bloom_render_layer);
   EXPECT_EQ(scene_params.directional.position, glm::vec3(-4.0f, 8.0f, -3.0f));
-  EXPECT_EQ(scene_params.directional.direction, glm::vec3(0.0f, 0.0f, -1.0f));
+  EXPECT_EQ(scene_params.directional.direction, glm::vec3(0.0f, -1.0f, 0.0f));
   EXPECT_EQ(scene_params.point_lights[0].position, glm::vec3(5.0f, 1.0f, -2.0f));
   EXPECT_EQ(scene_params.spot_light.position, glm::vec3(1.0f, 2.0f, 3.0f));
   EXPECT_EQ(scene_params.spot_light.direction, glm::vec3(0.0f, 0.0f, -1.0f));

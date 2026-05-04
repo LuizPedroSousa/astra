@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(astralix_tests CXX)
+project(astralix_tests C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -25,6 +25,7 @@ set(ASTRALIX_TEST_SERIALIZATION_FORMATS Json Yaml Toml Xml)
 find_package(GTest CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
 find_package(unofficial-shaderc CONFIG REQUIRED)
+find_package(assimp REQUIRED)
 
 file(GLOB_RECURSE SHADER_LANG_SRC
   "${SHADER_LANG_DIR}/*.cpp"
@@ -40,11 +41,31 @@ set(SERIALIZATION_SRC
   "${MODULES_DIR}/streams/context-proxy.cpp"
   "${MODULES_DIR}/streams/serialization-context.cpp"
   "${MODULES_DIR}/streams/adapters/file/file-stream-reader.cpp"
+  "${MODULES_DIR}/streams/adapters/file/file-stream-writer.cpp"
+  "${MODULES_DIR}/streams/adapters/json/json-serialization-context.cpp"
+  "${MODULES_DIR}/streams/adapters/yaml/yaml-serialization-context.cpp"
+  "${MODULES_DIR}/streams/adapters/toml/toml-serialization-context.cpp"
+  "${MODULES_DIR}/streams/adapters/xml/xml-serialization-context.cpp"
   "${SHARED_DIR}/foundation/exceptions/base-exception.cpp")
+
+set(PROJECT_ASSET_SRC
+  "${MODULES_DIR}/project/assets/asset_graph.cpp"
+  "${MODULES_DIR}/project/assets/asset_cooker.cpp"
+  "${MODULES_DIR}/project/assets/pack_manifest.cpp")
+
+set(RENDERER_ASSET_SUPPORT_SRC
+  "${MODULES_DIR}/renderer/entities/serializers/axmesh-serializer.cpp"
+  "${MODULES_DIR}/renderer/resources/mesh.cpp"
+  "${MODULES_DIR}/renderer/importers/model-importer.cpp"
+  "${MODULES_DIR}/terrain/recipe/terrain-recipe-data.cpp"
+  "${CMAKE_SOURCE_DIR}/../external/mikktspace/mikktspace.c")
 
 file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/shader-lang/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/resources/*.test.cpp"
+  "${CMAKE_SOURCE_DIR}/../src/modules/renderer/entities/serializers/*.test.cpp"
+  "${CMAKE_SOURCE_DIR}/../src/modules/project/assets/*.test.cpp"
+  "${CMAKE_SOURCE_DIR}/../src/modules/terrain/recipe/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/systems/render-system/core/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/shared/allocators/*.test.cpp"
   "${CMAKE_SOURCE_DIR}/../src/shared/containers/*.test.cpp"
@@ -55,6 +76,8 @@ file(GLOB_RECURSE TEST_SRC CONFIGURE_DEPENDS
 add_executable(astralix_tests
   main.cpp
   ${TEST_SRC}
+  "${CMAKE_SOURCE_DIR}/../src/modules/ui/vector/path-builder.cpp"
+  "${CMAKE_SOURCE_DIR}/../src/modules/ui/vector/path-tessellator.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/platform/OpenGL/opengl-executor.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/virtual-index-buffer.cpp"
   "${CMAKE_SOURCE_DIR}/../src/modules/renderer/virtual-vertex-buffer.cpp"
@@ -69,6 +92,9 @@ add_executable(astralix_tests
   "${AXGEN_SRC_DIR}/project-bootstrap.cpp"
   "${AXGEN_SRC_DIR}/project-serializer.cpp"
   "${AXGEN_SRC_DIR}/sync.cpp"
+  "${AXGEN_SRC_DIR}/cook.cpp"
+  ${PROJECT_ASSET_SRC}
+  ${RENDERER_ASSET_SUPPORT_SRC}
   ${SERIALIZATION_SRC})
 
 target_include_directories(astralix_tests PRIVATE
@@ -89,13 +115,15 @@ target_include_directories(astralix_tests PRIVATE
   "${SHARED_DIR}/foundation"
   "${SHARED_DIR}/ecs"
   "${VCPKG_INSTALLED_ROOT}/include"
+  "${CMAKE_SOURCE_DIR}/../external/mikktspace"
   "${AXSLC_DIR}"
   "${AXGEN_SRC_DIR}")
 
 target_link_libraries(astralix_tests PRIVATE
   GTest::gtest
   GTest::gtest_main
-  glad::glad)
+  glad::glad
+  assimp)
 
 target_compile_definitions(astralix_tests PRIVATE
   ASTRALIX_ENGINE_ASSETS_DIR="${CMAKE_SOURCE_DIR}/../src/assets"

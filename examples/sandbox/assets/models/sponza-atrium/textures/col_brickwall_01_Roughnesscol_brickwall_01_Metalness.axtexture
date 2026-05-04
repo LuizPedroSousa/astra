@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "kind": "texture2d",
+  "source": "../source/glTF/textures/col_brickwall_01_Roughnesscol_brickwall_01_Metalness.png",
+  "flip": false,
+  "parameters": {
+    "wrap_s": "repeat",
+    "wrap_t": "repeat",
+    "min_filter": "linear_mip_map",
+    "mag_filter": "linear"
+  }
+}

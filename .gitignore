@@ -32,3 +32,9 @@ install
 builds
 .astralix
 __pycache__
+
+# Fonts
+*.ttf
+
+# Windows junk
+desktop.ini
