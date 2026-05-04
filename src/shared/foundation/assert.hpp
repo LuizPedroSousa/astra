@@ -76,6 +76,10 @@ static size_t levenshtein_distance(const std::string &str_value,
   throw BaseException(__FILE__, __FUNCTION__, __LINE__,                        \
                       build_exception_message(__VA_ARGS__));
 
+#define ASTRA_EXCEPTION_META(metadata, ...)                                    \
+  throw BaseException(__FILE__, __FUNCTION__, __LINE__,                        \
+                      build_exception_message(__VA_ARGS__), metadata);
+
 #define ASTRA_ENSURE(EXPRESSION, ...)                                          \
   if (EXPRESSION) {                                                            \
     throw BaseException(__FILE__, __FUNCTION__, __LINE__,                      \
