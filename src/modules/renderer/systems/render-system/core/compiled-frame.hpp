@@ -68,6 +68,12 @@ struct CompiledSampledImageBinding {
   CompiledSampledImageTarget target = CompiledSampledImageTarget::Texture2D;
 };
 
+struct CompiledStorageBufferBinding {
+  uint64_t binding_id = 0;
+  uint32_t binding_point = 0;
+  uint32_t buffer_renderer_id = 0;
+};
+
 struct BindingGroupDesc {
   std::string debug_name;
   std::string owner_pass;
@@ -88,6 +94,7 @@ struct CompiledBindingGroup {
   RenderBindingStability stability = RenderBindingStability::FrameLocal;
   std::vector<CompiledValueBinding> values;
   std::vector<CompiledSampledImageBinding> sampled_images;
+  std::vector<CompiledStorageBufferBinding> storage_buffers;
 };
 
 inline BindingGroupDesc make_binding_group_desc(
@@ -327,6 +334,34 @@ struct CompiledFrame {
         .binding_id = binding_id,
         .view = view,
         .target = target,
+    });
+  }
+
+  void add_storage_buffer_binding(
+      RenderBindingGroupHandle handle,
+      uint64_t binding_id,
+      uint32_t binding_point,
+      uint32_t buffer_renderer_id
+  ) {
+    auto *binding_group = find_binding_group_mutable(handle);
+    ASTRA_ENSURE(
+        binding_group == nullptr,
+        "Unknown binding group handle in compiled frame: ",
+        handle.id
+    );
+    ASTRA_ENSURE(
+        binding_id == 0,
+        "Cannot record a storage buffer binding with binding id 0"
+    );
+    ASTRA_ENSURE(
+        buffer_renderer_id == 0,
+        "Cannot record a storage buffer binding with renderer id 0"
+    );
+
+    binding_group->storage_buffers.push_back(CompiledStorageBufferBinding{
+        .binding_id = binding_id,
+        .binding_point = binding_point,
+        .buffer_renderer_id = buffer_renderer_id,
     });
   }
 

@@ -1,0 +1,137 @@
+const float VOLUMETRIC_PI = 3.14159265359;
+
+fn henyey_greenstein(float cos_theta, float g) -> float {
+  float g2 = g * g;
+  float denominator = 1.0 + g2 - 2.0 * g * cos_theta;
+  return (1.0 - g2) / (4.0 * VOLUMETRIC_PI * pow(max(denominator, 0.0001), 1.5));
+}
+
+fn beer_lambert(float density, float distance) -> float {
+  return exp(-density * distance);
+}
+
+fn interleaved_gradient_noise(vec2 screen_position, int frame_index) -> float {
+  vec2 position = screen_position + float(frame_index % 64) * vec2(5.588238, 5.588238);
+  return fract(52.9829189 * fract(0.06711056 * position.x + 0.00583715 * position.y));
+}
+
+fn height_fog_density(float y, float base_height, float falloff_rate) -> float {
+  return exp(-falloff_rate * max(y - base_height, 0.0));
+}
+
+fn hash_3d(vec3 position) -> float {
+  vec3 p = fract(position * vec3(443.8975, 397.2973, 491.1871));
+  p += dot(p, p.yzx + 19.19);
+  return fract((p.x + p.y) * p.z);
+}
+
+fn value_noise_3d(vec3 position) -> float {
+  vec3 integer_part = floor(position);
+  vec3 fractional_part = fract(position);
+  vec3 smooth_step = fractional_part * fractional_part * (3.0 - 2.0 * fractional_part);
+
+  float n000 = hash_3d(integer_part);
+  float n100 = hash_3d(integer_part + vec3(1.0, 0.0, 0.0));
+  float n010 = hash_3d(integer_part + vec3(0.0, 1.0, 0.0));
+  float n110 = hash_3d(integer_part + vec3(1.0, 1.0, 0.0));
+  float n001 = hash_3d(integer_part + vec3(0.0, 0.0, 1.0));
+  float n101 = hash_3d(integer_part + vec3(1.0, 0.0, 1.0));
+  float n011 = hash_3d(integer_part + vec3(0.0, 1.0, 1.0));
+  float n111 = hash_3d(integer_part + vec3(1.0, 1.0, 1.0));
+
+  float x00 = mix(n000, n100, smooth_step.x);
+  float x10 = mix(n010, n110, smooth_step.x);
+  float x01 = mix(n001, n101, smooth_step.x);
+  float x11 = mix(n011, n111, smooth_step.x);
+
+  float xy0 = mix(x00, x10, smooth_step.y);
+  float xy1 = mix(x01, x11, smooth_step.y);
+
+  return mix(xy0, xy1, smooth_step.z);
+}
+
+fn fbm_3d(vec3 position, int octaves) -> float {
+  float value = 0.0;
+  float amplitude = 0.5;
+  float frequency = 1.0;
+
+  for (int i = 0; i < octaves; ++i) {
+    value += amplitude * value_noise_3d(position * frequency);
+    frequency *= 2.0;
+    amplitude *= 0.5;
+  }
+
+  return value;
+}
+
+fn sample_volumetric_density(
+    vec3 world_position,
+    float base_density,
+    float fog_base_height,
+    float height_falloff_rate,
+    float noise_scale,
+    float noise_weight,
+    vec3 wind_direction,
+    float wind_speed,
+    float time
+) -> float {
+  float height_factor = height_fog_density(
+      world_position.y, fog_base_height, height_falloff_rate
+  );
+
+  float noise_modulation = 1.0;
+  if (noise_weight > 0.001) {
+    vec3 noise_position = world_position * noise_scale
+        + wind_direction * wind_speed * time;
+    float noise_value = fbm_3d(noise_position, 3);
+    noise_modulation = mix(1.0, noise_value, noise_weight);
+  }
+
+  return base_density * height_factor * max(noise_modulation, 0.0);
+}
+
+fn evaluate_point_light_scattering(
+    vec3 sample_position,
+    vec3 ray_direction,
+    vec3 light_position,
+    vec3 light_color,
+    LightAttenuation attenuation,
+    float density,
+    float transmittance,
+    float g
+) -> vec3 {
+  vec3 light_vector = light_position - sample_position;
+  float distance = length(light_vector);
+  vec3 light_direction = light_vector / max(distance, 0.0001);
+  float falloff = 1.0 / (attenuation.constant
+      + attenuation.linear * distance
+      + attenuation.quadratic * distance * distance);
+  float cos_theta = dot(ray_direction, light_direction);
+  float phase = henyey_greenstein(cos_theta, g);
+  return light_color * falloff * phase * density * transmittance;
+}
+
+fn evaluate_spot_light_scattering(
+    vec3 sample_position,
+    vec3 ray_direction,
+    SpotLight light,
+    float density,
+    float transmittance,
+    float g
+) -> vec3 {
+  vec3 light_vector = light.position - sample_position;
+  float distance = length(light_vector);
+  vec3 light_direction = light_vector / max(distance, 0.0001);
+  float falloff = 1.0 / (light.attenuation.constant
+      + light.attenuation.linear * distance
+      + light.attenuation.quadratic * distance * distance);
+
+  vec3 light_to_sample = normalize(sample_position - light.position);
+  float theta = dot(normalize(light.direction), light_to_sample);
+  float epsilon = max(light.inner_cut_off - light.outer_cut_off, 0.0001);
+  float cone = clamp((theta - light.outer_cut_off) / epsilon, 0.0, 1.0);
+
+  float cos_theta = dot(ray_direction, light_direction);
+  float phase = henyey_greenstein(cos_theta, g);
+  return light.exposure.diffuse * falloff * cone * phase * density * transmittance;
+}

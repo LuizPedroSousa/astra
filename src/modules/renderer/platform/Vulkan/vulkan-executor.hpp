@@ -132,15 +132,19 @@ private:
   void dispatch(VkCommandBuffer command_buffer, const BeginRenderingCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const EndRenderingCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const BindPipelineCmd &command);
+  void dispatch(VkCommandBuffer command_buffer, const BindComputePipelineCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const BindBindingsCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const BindVertexBufferCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const BindIndexBufferCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const DrawIndexedCmd &command);
+  void dispatch(VkCommandBuffer command_buffer, const DispatchComputeCmd &command);
+  void dispatch(VkCommandBuffer command_buffer, const MemoryBarrierCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const DrawVerticesCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const CopyImageCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const ResolveImageCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const ReadbackImageCmd &command);
   void dispatch(VkCommandBuffer command_buffer, const SetScissorCmd &command);
+  void dispatch(VkCommandBuffer command_buffer, const SetViewportCmd &command);
   bool should_cache_binding_group(const CompiledBindingGroup &binding_group) const;
 
   Scope<VulkanInstance> m_instance;

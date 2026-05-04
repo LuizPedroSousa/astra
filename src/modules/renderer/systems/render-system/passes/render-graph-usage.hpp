@@ -182,6 +182,127 @@ constexpr RenderImageExport make_ssao_blur_render_image_export(
   );
 }
 
+constexpr RenderImageExport make_ssgi_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::SSGI);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_ssgi_blur_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::SSGIBlur);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_ssgi_temporal_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key =
+      make_render_image_export_key(RenderImageResource::SSGITemporal);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_ssgi_history_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key =
+      make_render_image_export_key(RenderImageResource::SSGIHistory);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_ssr_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::SSR);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_ssr_blur_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::SSRBlur);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_velocity_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::Velocity);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
 constexpr RenderImageExport make_bloom_render_image_export(
     uint32_t resource_index,
     ImageAspect aspect = ImageAspect::Color0,
@@ -189,6 +310,144 @@ constexpr RenderImageExport make_bloom_render_image_export(
     uint32_t layer = 0
 ) {
   auto key = make_render_image_export_key(RenderImageResource::Bloom);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_motion_blur_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::MotionBlur);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_chromatic_aberration_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key =
+      make_render_image_export_key(RenderImageResource::ChromaticAberration);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_vignette_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::Vignette);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_film_grain_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::FilmGrain);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_depth_of_field_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key =
+      make_render_image_export_key(RenderImageResource::DepthOfField);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_god_rays_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::GodRays);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_cas_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::CAS);
+
+  return make_render_image_export(
+      key,
+      resource_index,
+      aspect,
+      mip,
+      layer
+  );
+}
+
+constexpr RenderImageExport make_taa_output_render_image_export(
+    uint32_t resource_index,
+    ImageAspect aspect = ImageAspect::Color0,
+    uint32_t mip = 0,
+    uint32_t layer = 0
+) {
+  auto key = make_render_image_export_key(RenderImageResource::TAAOutput);
 
   return make_render_image_export(
       key,

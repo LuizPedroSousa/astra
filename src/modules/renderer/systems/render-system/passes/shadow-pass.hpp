@@ -41,12 +41,14 @@ public:
 
     const auto *shadow_map_resource = ctx.find_graph_image("shadow_map");
     if (shadow_map_resource == nullptr) {
+      LOG_WARN("[ShadowPass] shadow_map resource not found");
       return;
     }
 
     const auto *scene_frame = ctx.scene();
     if (scene_frame == nullptr || scene_frame->shadow_draws.empty() ||
         !scene_frame->light_frame.directional.valid || m_shader == nullptr) {
+      LOG_WARN("[ShadowPass] early exit: scene=", scene_frame != nullptr, " draws=", scene_frame ? scene_frame->shadow_draws.size() : 0, " light_valid=", scene_frame ? scene_frame->light_frame.directional.valid : false, " shader=", m_shader != nullptr);
       return;
     }
 
@@ -87,45 +89,37 @@ public:
     recorder.begin_rendering(info);
     recorder.bind_pipeline(pipeline);
 
-    const auto light_space_matrix =
-        scene_frame->light_frame.directional.light_space_matrix;
-    const auto scene_bindings = frame.register_binding_group(
-        make_binding_group_desc(
-            "shadow-pass.scene",
-            "shadow-pass",
-            m_shader,
-            0,
-            "shadow-pass.scene",
-            RenderBindingScope::Pass,
-            RenderBindingCachePolicy::Reuse,
-            RenderBindingSharing::LocalOnly,
-            0,
-            RenderBindingStability::FrameLocal
-        )
-    );
-    rendering::record_shader_params(
-        frame,
-        scene_bindings,
-        shader_bindings::engine_shaders_shadow_map_axsl::ShadowPassParams{
-            .light_space_matrix = light_space_matrix,
-        }
-    );
-    recorder.bind_binding_group(scene_bindings);
+    const auto &directional = scene_frame->light_frame.directional;
+    const bool use_cascades = directional.cascades_valid;
+    const size_t cascade_count = use_cascades ? rendering::k_shadow_cascade_count : 1u;
 
-    for (const auto &shadow_draw : scene_frame->shadow_draws) {
-      if (shadow_draw.mesh.vertex_array == nullptr ||
-          shadow_draw.mesh.index_count == 0) {
-        continue;
+    uint32_t cascade_width = extent.width;
+    uint32_t cascade_height = extent.height;
+    if (use_cascades) {
+      cascade_width = extent.width / 2;
+      cascade_height = extent.height / 2;
+    }
+
+    for (size_t cascade_index = 0; cascade_index < cascade_count; ++cascade_index) {
+      glm::mat4 light_space_matrix = use_cascades
+                                         ? directional.cascade_matrices[cascade_index]
+                                         : directional.light_space_matrix;
+
+      if (use_cascades) {
+        uint32_t offset_x = static_cast<uint32_t>(cascade_index % 2) * cascade_width;
+        uint32_t offset_y = static_cast<uint32_t>(cascade_index / 2) * cascade_height;
+        recorder.set_viewport(offset_x, offset_y, cascade_width, cascade_height);
+        recorder.set_scissor(true, offset_x, offset_y, cascade_width, cascade_height);
       }
 
-      const auto bindings = frame.register_binding_group(
+      const auto scene_bindings = frame.register_binding_group(
           make_binding_group_desc(
-              "shadow-pass.draw",
+              "shadow-pass.scene",
               "shadow-pass",
               m_shader,
-              1,
-              "shadow-pass.draw",
-              RenderBindingScope::Draw,
+              0,
+              "shadow-pass.scene." + std::to_string(cascade_index),
+              RenderBindingScope::Pass,
               RenderBindingCachePolicy::Ephemeral,
               RenderBindingSharing::LocalOnly,
               0,
@@ -134,31 +128,70 @@ public:
       );
       rendering::record_shader_params(
           frame,
-          bindings,
-          shader_bindings::engine_shaders_shadow_map_axsl::ShadowDrawParams{
-              .g_model = shadow_draw.model,
+          scene_bindings,
+          shader_bindings::engine_shaders_shadow_map_axsl::ShadowPassParams{
+              .light_space_matrix = light_space_matrix,
           }
       );
+      recorder.bind_binding_group(scene_bindings);
 
-      const auto mesh_buffer = frame.register_vertex_array(
-          "shadow-pass.mesh", shadow_draw.mesh.vertex_array
-      );
+      for (const auto &shadow_draw : scene_frame->shadow_draws) {
+        if (shadow_draw.mesh.vertex_array == nullptr ||
+            shadow_draw.mesh.index_count == 0) {
+          continue;
+        }
 
-      recorder.bind_binding_group(bindings);
-      recorder.bind_vertex_buffer(mesh_buffer);
-      recorder.bind_index_buffer(mesh_buffer, IndexType::Uint32);
-      recorder.draw_indexed(DrawIndexedArgs{
-          .index_count = shadow_draw.mesh.index_count,
-      });
+        const auto bindings = frame.register_binding_group(
+            make_binding_group_desc(
+                "shadow-pass.draw",
+                "shadow-pass",
+                m_shader,
+                1,
+                "shadow-pass.draw",
+                RenderBindingScope::Draw,
+                RenderBindingCachePolicy::Ephemeral,
+                RenderBindingSharing::LocalOnly,
+                0,
+                RenderBindingStability::Transient
+            )
+        );
+        rendering::record_shader_params(
+            frame,
+            bindings,
+            shader_bindings::engine_shaders_shadow_map_axsl::ShadowDrawParams{
+                .g_model = shadow_draw.model,
+            }
+        );
+
+        const auto mesh_buffer = frame.register_vertex_array(
+            "shadow-pass.mesh", shadow_draw.mesh.vertex_array
+        );
+
+        recorder.bind_binding_group(bindings);
+        recorder.bind_vertex_buffer(mesh_buffer);
+        recorder.bind_index_buffer(mesh_buffer, IndexType::Uint32);
+        recorder.draw_indexed(DrawIndexedArgs{
+            .index_count = shadow_draw.mesh.index_count,
+        });
+      }
+    }
+
+    if (use_cascades) {
+      recorder.set_scissor(false);
     }
 
     recorder.end_rendering();
+
+    if (m_debug_frame_counter++ % 300 == 0) {
+      LOG_DEBUG("[ShadowPass] rendered: cascades=", use_cascades, " cascade_count=", cascade_count, " shadow_draws=", scene_frame->shadow_draws.size(), " extent=", extent.width, "x", extent.height);
+    }
   }
 
   std::string name() const override { return "ShadowPass"; }
 
 private:
   Ref<Shader> m_shader = nullptr;
+  uint32_t m_debug_frame_counter = 0;
 };
 
 } // namespace astralix

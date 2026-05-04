@@ -4,6 +4,7 @@
 
 #include "components/ui.hpp"
 #include "document/document.hpp"
+#include "vector/path-builder.hpp"
 #include <gtest/gtest.h>
 
 namespace astralix::rendering {
@@ -45,6 +46,19 @@ TEST(SceneSelectionExtractionTest, ExtractsCopiedCameraSkyboxTextAndUiData) {
   front_doc->draw_list().commands.push_back(ui::UIDrawCommand{
       .type = ui::DrawCommandType::Rect,
       .rect = {.x = 4.0f, .y = 5.0f, .width = 6.0f, .height = 7.0f},
+  });
+  front_doc->draw_list().commands.push_back(ui::UIDrawCommand{
+      .type = ui::DrawCommandType::Path,
+      .path_commands = {ui::UIPathBuilder(ui::UIPathStyle{
+                           .fill = false,
+                           .stroke = true,
+                           .stroke_color = glm::vec4(0.9f, 0.4f, 0.2f, 1.0f),
+                           .stroke_width = 3.0f,
+                       })
+                            .move_to(glm::vec2(20.0f, 20.0f))
+                            .line_to(glm::vec2(40.0f, 20.0f))
+                            .line_to(glm::vec2(40.0f, 36.0f))
+                            .build()},
   });
 
   auto back_doc = create_ref<ui::UIDocument>();
@@ -91,11 +105,26 @@ TEST(SceneSelectionExtractionTest, ExtractsCopiedCameraSkyboxTextAndUiData) {
   ASSERT_EQ(ui_roots.size(), 2u);
   EXPECT_EQ(ui_roots[0].entity_id, back_root.id());
   EXPECT_EQ(ui_roots[1].entity_id, front_root.id());
-  ASSERT_EQ(ui_roots[1].commands.size(), 1u);
+  ASSERT_EQ(ui_roots[1].commands.size(), 2u);
   EXPECT_EQ(ui_roots[1].commands[0].rect.x, 4.0f);
+  ASSERT_EQ(ui_roots[1].commands[1].path_commands.size(), 1u);
+  ASSERT_EQ(
+      ui_roots[1].commands[1].path_commands[0].elements.size(),
+      3u
+  );
+  EXPECT_EQ(
+      ui_roots[1].commands[1].path_commands[0].elements[0].p0,
+      glm::vec2(20.0f, 20.0f)
+  );
 
   front_doc->draw_list().commands[0].rect.x = 99.0f;
+  front_doc->draw_list().commands[1].path_commands[0].elements[0].p0.x =
+      999.0f;
   EXPECT_EQ(ui_roots[1].commands[0].rect.x, 4.0f);
+  EXPECT_EQ(
+      ui_roots[1].commands[1].path_commands[0].elements[0].p0.x,
+      20.0f
+  );
 }
 
 TEST(SceneResidencyRequestsTest, CollectsUiResourcesAndFontSizes) {
@@ -114,16 +143,24 @@ TEST(SceneResidencyRequestsTest, CollectsUiResourcesAndFontSizes) {
       .font_id = "fonts::ui",
       .font_size = 17.6f,
   };
+  ui::UIDrawCommand path_command{
+      .type = ui::DrawCommandType::Path,
+      .path_commands = {ui::UIPathBuilder().move_to(glm::vec2(0.0f)).line_to(
+          glm::vec2(16.0f, 16.0f)
+      ).build()},
+  };
 
   request_ui_command_resources(requests, image_command);
   request_ui_command_resources(requests, svg_command);
   request_ui_command_resources(requests, text_command);
+  request_ui_command_resources(requests, path_command);
 
   EXPECT_TRUE(requests.textures_2d.contains("textures::panel"));
   EXPECT_TRUE(requests.svgs.contains("svgs::logo"));
   EXPECT_TRUE(requests.fonts.contains("fonts::ui"));
   ASSERT_TRUE(requests.font_sizes.contains("fonts::ui"));
   EXPECT_TRUE(requests.font_sizes.at("fonts::ui").contains(18u));
+  EXPECT_FALSE(requests.textures_2d.contains("textures::path"));
 }
 
 TEST(MaterialBindingTest, ResolvesFallbackModelMaterialSlots) {

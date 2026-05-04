@@ -1,0 +1,43 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface VignetteCompositeResources {
+  sampler2D effect_input;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    VignetteCompositeResources resources
+) -> FragmentOutput {
+  return FragmentOutput(texture(resources.effect_input, vertex.texture_coordinates));
+}

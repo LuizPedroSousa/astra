@@ -90,6 +90,7 @@ VirtualShader::VirtualShader(const ResourceHandle &id,
   load_reflection_from_path(descriptor->vertex_path);
   load_reflection_from_path(descriptor->fragment_path);
   load_reflection_from_path(descriptor->geometry_path);
+  load_reflection_from_path(descriptor->compute_path);
 }
 
 void VirtualShader::bind() const {}

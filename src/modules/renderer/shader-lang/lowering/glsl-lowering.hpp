@@ -194,6 +194,8 @@ namespace astralix {
 
   struct GLSLStage {
     int version = 450;
+    StageKind stage = StageKind::Vertex;
+    std::array<uint32_t, 3> local_size = {1u, 1u, 1u};
     std::vector<GLSLDecl> declarations;
   };
 

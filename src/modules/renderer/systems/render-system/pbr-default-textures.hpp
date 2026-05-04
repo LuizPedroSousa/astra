@@ -20,7 +20,7 @@ inline const ResourceDescriptorID &default_pbr_normal_texture_id() {
 }
 
 inline const ResourceDescriptorID &default_pbr_metallic_texture_id() {
-  static const ResourceDescriptorID id = "textures::defaults::pbr_metallic_white";
+  static const ResourceDescriptorID id = "textures::defaults::pbr_metallic_black";
   return id;
 }
 
@@ -31,7 +31,7 @@ inline const ResourceDescriptorID &default_pbr_roughness_texture_id() {
 
 inline const ResourceDescriptorID &default_pbr_metallic_roughness_texture_id() {
   static const ResourceDescriptorID id =
-      "textures::defaults::pbr_metallic_roughness_default";
+      "textures::defaults::pbr_metallic_roughness_neutral";
   return id;
 }
 
@@ -95,14 +95,16 @@ inline void ensure_pbr_default_textures() {
   static const std::array<unsigned char, 4> k_metallic_roughness = {
       255,
       255,
-      255,
+      0,
       255,
   };
   static const std::array<unsigned char, 4> k_black = {0, 0, 0, 255};
 
   ensure_default_pbr_texture(default_pbr_base_color_texture_id(), k_white);
   ensure_default_pbr_texture(default_pbr_normal_texture_id(), k_flat_normal);
-  ensure_default_pbr_texture(default_pbr_metallic_texture_id(), k_white);
+  // Neutral metallic fallback must be black so materials without a metallic
+  // map stay dielectric instead of becoming chrome.
+  ensure_default_pbr_texture(default_pbr_metallic_texture_id(), k_black);
   ensure_default_pbr_texture(default_pbr_roughness_texture_id(), k_white);
   ensure_default_pbr_texture(
       default_pbr_metallic_roughness_texture_id(), k_metallic_roughness
@@ -112,6 +114,30 @@ inline void ensure_pbr_default_textures() {
   // materials omit optional textures.
   ensure_default_pbr_texture(default_pbr_emissive_texture_id(), k_white);
   ensure_default_pbr_texture(default_pbr_displacement_texture_id(), k_black);
+}
+
+inline const ResourceDescriptorID &default_ibl_black_cubemap_id() {
+  static const ResourceDescriptorID id =
+      "textures::defaults::ibl_black_cubemap";
+  return id;
+}
+
+inline Ref<Texture3DDescriptor> ensure_default_ibl_cubemap() {
+  auto descriptor = resource_manager()->get_descriptor_by_id<Texture3DDescriptor>(
+      default_ibl_black_cubemap_id()
+  );
+  if (descriptor != nullptr) {
+    return descriptor;
+  }
+
+  static const std::array<unsigned char, 4> k_black_pixel = {0, 0, 0, 255};
+  static const std::vector<const unsigned char *> face_buffers(
+      6, k_black_pixel.data()
+  );
+
+  return Texture3D::create_from_buffer(
+      default_ibl_black_cubemap_id(), 1, 1, face_buffers
+  );
 }
 
 } // namespace astralix::rendering

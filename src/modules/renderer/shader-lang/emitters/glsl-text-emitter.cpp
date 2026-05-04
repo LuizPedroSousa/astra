@@ -44,6 +44,15 @@ std::string GLSLTextEmitter::emit(const GLSLStage &stage) {
   writeln("#version " + std::to_string(stage.version) + " core");
   writeln();
 
+  if (stage.stage == StageKind::Compute) {
+    writeln(
+        "layout(local_size_x = " + std::to_string(stage.local_size[0]) +
+        ", local_size_y = " + std::to_string(stage.local_size[1]) +
+        ", local_size_z = " + std::to_string(stage.local_size[2]) + ") in;"
+    );
+    writeln();
+  }
+
   for (const auto &decl : stage.declarations) {
     emit_decl(decl);
   }

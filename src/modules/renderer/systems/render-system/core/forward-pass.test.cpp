@@ -570,6 +570,9 @@ TEST(ForwardPassTest, RecordsMaterialScalarUniformValues) {
               .occlusion_strength = 0.55f,
               .normal_scale = 0.35f,
               .bloom_intensity = 1.25f,
+              .alpha_mask = true,
+              .alpha_cutoff = 0.42f,
+              .double_sided = true,
           },
       .mesh =
           rendering::ResolvedMeshDraw{
@@ -582,6 +585,8 @@ TEST(ForwardPassTest, RecordsMaterialScalarUniformValues) {
   CompiledFrame frame;
   graph_pass.record(0.0, frame, resources, &scene_frame);
 
+  ASSERT_EQ(frame.pipelines.size(), 1u);
+  EXPECT_EQ(frame.pipelines[0].desc.raster.cull_mode, CullMode::None);
   ASSERT_EQ(frame.binding_groups.size(), 3u);
   const auto &material_group = frame.binding_groups[1];
 
@@ -672,6 +677,24 @@ TEST(ForwardPassTest, RecordsMaterialScalarUniformValues) {
   ASSERT_NE(bloom_intensity, nullptr);
   EXPECT_EQ(bloom_intensity->kind, ShaderValueKind::Float);
   EXPECT_FLOAT_EQ(decode_binding_value<float>(*bloom_intensity), 1.25f);
+
+  const auto *alpha_mask_enabled = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__alpha_mask_enabled.binding_ids[0]
+  );
+  ASSERT_NE(alpha_mask_enabled, nullptr);
+  EXPECT_EQ(alpha_mask_enabled->kind, ShaderValueKind::Int);
+  EXPECT_EQ(decode_binding_value<int>(*alpha_mask_enabled), 1);
+
+  const auto *alpha_cutoff = find_value_binding(
+      material_group,
+      shader_bindings::engine_shaders_lighting_forward_axsl::MaterialUniform::
+          materials__alpha_cutoff.binding_ids[0]
+  );
+  ASSERT_NE(alpha_cutoff, nullptr);
+  EXPECT_EQ(alpha_cutoff->kind, ShaderValueKind::Float);
+  EXPECT_FLOAT_EQ(decode_binding_value<float>(*alpha_cutoff), 0.42f);
 }
 
 } // namespace

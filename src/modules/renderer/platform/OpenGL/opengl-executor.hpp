@@ -92,15 +92,19 @@ private:
   void dispatch(const BeginRenderingCmd &cmd);
   void dispatch(const EndRenderingCmd &cmd);
   void dispatch(const BindPipelineCmd &cmd);
+  void dispatch(const BindComputePipelineCmd &cmd);
   void dispatch(const BindBindingsCmd &cmd);
   void dispatch(const BindVertexBufferCmd &cmd);
   void dispatch(const BindIndexBufferCmd &cmd);
   void dispatch(const DrawIndexedCmd &cmd);
+  void dispatch(const DispatchComputeCmd &cmd);
+  void dispatch(const MemoryBarrierCmd &cmd);
   void dispatch(const CopyImageCmd &cmd);
   void dispatch(const ResolveImageCmd &cmd);
   void dispatch(const ReadbackImageCmd &cmd) const;
   void dispatch(const SetScissorCmd &cmd);
   void dispatch(const DrawVerticesCmd &cmd);
+  void dispatch(const SetViewportCmd &cmd);
 
   const CompiledImage &require_image(ImageHandle handle) const;
   const CompiledPipeline &require_pipeline(RenderPipelineHandle handle) const;

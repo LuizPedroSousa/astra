@@ -12,6 +12,8 @@
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include "trace.hpp"
 
+#include <array>
+
 #include ASTRALIX_ENGINE_BINDINGS_HEADER
 
 namespace astralix {
@@ -108,7 +110,7 @@ public:
     ImageHandle entity_id{};
     ImageHandle scene_depth{};
     ImageHandle shadow_depth{};
-    RenderPipelineHandle pipeline{};
+    std::array<RenderPipelineHandle, 3> pipelines{};
     RenderBindingGroupHandle scene_bindings{};
     std::unordered_map<
         rendering::MaterialGroupKey,
@@ -182,15 +184,18 @@ public:
       rendering_started = true;
     };
 
-    const auto ensure_pipeline_and_scene_bindings = [&] {
+    const auto ensure_pipeline_and_scene_bindings = [&](
+                                                    CullMode cull_mode) -> RenderPipelineHandle {
       ensure_rendering_started();
 
-      if (!pipeline.valid()) {
-        pipeline = frame.register_pipeline(pipeline_desc, m_shader);
+      const size_t pipeline_index = static_cast<size_t>(cull_mode);
+      if (!pipelines[pipeline_index].valid()) {
+        pipeline_desc.raster.cull_mode = cull_mode;
+        pipelines[pipeline_index] = frame.register_pipeline(pipeline_desc, m_shader);
       }
 
       if (scene_bindings.valid()) {
-        return;
+        return pipelines[pipeline_index];
       }
 
       scene_bindings = frame.register_binding_group(
@@ -225,6 +230,8 @@ public:
           scene_bindings,
           rendering::build_forward_scene_params(scene_frame->light_frame)
       );
+
+      return pipelines[pipeline_index];
     };
 
     for (const auto &surface : scene_frame->opaque_surfaces) {
@@ -233,7 +240,10 @@ public:
         continue;
       }
 
-      ensure_pipeline_and_scene_bindings();
+      const CullMode cull_mode =
+          surface.material.double_sided ? CullMode::None : CullMode::Back;
+      const auto pipeline =
+          ensure_pipeline_and_scene_bindings(cull_mode);
 
       const auto material_key =
           rendering::make_material_group_key(surface.material);

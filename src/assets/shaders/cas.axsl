@@ -1,0 +1,93 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface CASResources {
+  sampler2D screen_texture;
+}
+
+@uniform
+interface CASParams {
+  float sharpness;
+  float contrast;
+  float sharpening_limit;
+  vec2 texel_size;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    CASResources resources,
+    CASParams params
+) -> FragmentOutput {
+  vec2 uv = vertex.texture_coordinates;
+  vec2 ts = params.texel_size;
+
+  vec3 center     = texture(resources.screen_texture, uv).rgb;
+  vec3 north      = texture(resources.screen_texture, uv + vec2( 0.0, -ts.y)).rgb;
+  vec3 south      = texture(resources.screen_texture, uv + vec2( 0.0,  ts.y)).rgb;
+  vec3 west       = texture(resources.screen_texture, uv + vec2(-ts.x,  0.0)).rgb;
+  vec3 east       = texture(resources.screen_texture, uv + vec2( ts.x,  0.0)).rgb;
+  vec3 north_west = texture(resources.screen_texture, uv + vec2(-ts.x, -ts.y)).rgb;
+  vec3 north_east = texture(resources.screen_texture, uv + vec2( ts.x, -ts.y)).rgb;
+  vec3 south_west = texture(resources.screen_texture, uv + vec2(-ts.x,  ts.y)).rgb;
+  vec3 south_east = texture(resources.screen_texture, uv + vec2( ts.x,  ts.y)).rgb;
+
+  vec3 cross_min = min(center, min(min(north, south), min(west, east)));
+  vec3 cross_max = max(center, max(max(north, south), max(west, east)));
+
+  vec3 diag_min = min(min(north_west, north_east), min(south_west, south_east));
+  vec3 diag_max = max(max(north_west, north_east), max(south_west, south_east));
+
+  vec3 local_min = min(cross_min, diag_min);
+  vec3 local_max = max(cross_max, diag_max);
+
+  vec3 rcp_max = vec3(1.0) / max(local_max, vec3(1e-5));
+
+  vec3 amplitude = clamp(
+      sqrt(min(local_min * rcp_max, (vec3(1.0) - local_max) * rcp_max)),
+      vec3(0.0),
+      vec3(1.0)
+  );
+
+  amplitude = amplitude * (1.0 + params.contrast);
+
+  float peak = 8.0 - 3.0 * params.sharpness;
+  vec3 weight = amplitude * (-1.0 / peak);
+  weight = max(weight, vec3(-params.sharpening_limit));
+
+  vec3 result = (center + (north + south + west + east) * weight)
+              / (vec3(1.0) + 4.0 * weight);
+
+  result = max(result, vec3(0.0));
+
+  return FragmentOutput(vec4(result, 1.0));
+}

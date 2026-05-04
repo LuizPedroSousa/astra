@@ -1,0 +1,86 @@
+@version 450;
+
+uniform float min_log_luminance;
+uniform float max_log_luminance;
+uniform float adaptation_speed_up;
+uniform float adaptation_speed_down;
+uniform float key_value;
+uniform float low_percentile;
+uniform float high_percentile;
+uniform float delta_time;
+
+@std430
+@binding(0)
+in HistogramBuffer {
+  uint bins[256];
+} histogram;
+
+@std430
+@binding(1)
+in ExposureBuffer {
+  float average_luminance;
+  float exposure;
+} exposure_data;
+
+@compute(1, 1, 1)
+fn main() -> void {
+  float total_count = 0.0;
+  for (int index = 0; index < 256; ++index) {
+    total_count += float(histogram.bins[index]);
+  }
+
+  if (total_count <= 0.0) {
+    return;
+  }
+
+  float low_cutoff = clamp(low_percentile, 0.0, 1.0) * total_count;
+  float high_cutoff = clamp(high_percentile, 0.0, 1.0) * total_count;
+  if (high_cutoff <= low_cutoff) {
+    high_cutoff = total_count;
+  }
+
+  float cumulative = 0.0;
+  float weighted_sum = 0.0;
+  float included_count = 0.0;
+
+  for (int index = 0; index < 256; ++index) {
+    float bin_count = float(histogram.bins[index]);
+    if (bin_count <= 0.0) {
+      continue;
+    }
+
+    float bin_begin = cumulative;
+    float bin_end = cumulative + bin_count;
+    float include_begin = max(bin_begin, low_cutoff);
+    float include_end = min(bin_end, high_cutoff);
+    float sample_count = max(include_end - include_begin, 0.0);
+
+    if (sample_count > 0.0) {
+      float t = float(index) / 255.0;
+      float log_luminance =
+          min_log_luminance + t * (max_log_luminance - min_log_luminance);
+      weighted_sum += log_luminance * sample_count;
+      included_count += sample_count;
+    }
+
+    cumulative = bin_end;
+  }
+
+  if (included_count <= 0.0) {
+    return;
+  }
+
+  float target_luminance = exp2(weighted_sum / included_count);
+  float target_exposure = key_value / max(target_luminance, 0.0001);
+  float speed =
+      target_exposure < exposure_data.exposure ? adaptation_speed_up
+                                               : adaptation_speed_down;
+  float blend = 1.0 - exp(-max(delta_time, 0.0) * max(speed, 0.0));
+
+  exposure_data.average_luminance = mix(
+      exposure_data.average_luminance, target_luminance, blend
+  );
+  exposure_data.exposure = mix(
+      exposure_data.exposure, target_exposure, blend
+  );
+}

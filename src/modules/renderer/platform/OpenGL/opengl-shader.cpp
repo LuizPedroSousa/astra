@@ -17,15 +17,26 @@
 namespace astralix {
 OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
                            Ref<ShaderDescriptor> descriptor)
-    : Shader(resource_id, descriptor->id) {
+    : Shader(resource_id, descriptor->id), m_descriptor(descriptor) {
   static constexpr int k_axsl_glsl_cache_version = 2;
+  static constexpr uint32_t k_invalid_shader = static_cast<uint32_t>(-1);
 
   Compiler compiler;
 
-  auto vertex_path = PathManager::get()->resolve(descriptor->vertex_path);
-  auto fragment_path = PathManager::get()->resolve(descriptor->fragment_path);
+  auto resolve_path = [](const Ref<Path> &path) {
+    return path != nullptr ? PathManager::get()->resolve(path)
+                           : std::filesystem::path{};
+  };
+
+  auto vertex_path = resolve_path(descriptor->vertex_path);
+  auto fragment_path = resolve_path(descriptor->fragment_path);
+  auto compute_path = resolve_path(descriptor->compute_path);
 
   auto validate_extension = [](const std::filesystem::path &resolved) {
+    if (resolved.empty()) {
+      return;
+    }
+
     auto extension = resolved.extension().string();
 
     ASTRA_ENSURE(extension != ".axsl" && extension != ".glsl",
@@ -35,6 +46,7 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
 
   validate_extension(vertex_path);
   validate_extension(fragment_path);
+  validate_extension(compute_path);
 
   std::filesystem::path geometry_path;
 
@@ -59,10 +71,18 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
     return resolved.parent_path() /
            (resolved.stem().string() + ".glsl.cache.version");
   };
+  auto deps_sidecar_path = [&](const std::filesystem::path &resolved) {
+    return resolved.parent_path() /
+           (resolved.stem().string() + ".deps");
+  };
 
   std::map<std::string, CompileResult> axsl_results;
 
   auto ensure_compiled = [&](const std::filesystem::path &resolved) {
+    if (resolved.empty()) {
+      return;
+    }
+
     if (resolved.extension() != ".axsl") {
       return;
     }
@@ -128,6 +148,16 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
       if (cached_reflection.has_value() &&
           cached_reflection->version == k_shader_reflection_version) {
         cached_result.reflection = std::move(*cached_reflection);
+        auto deps_path = deps_sidecar_path(resolved);
+        if (std::filesystem::exists(deps_path)) {
+          std::ifstream deps_file(deps_path);
+          std::string line;
+          while (std::getline(deps_file, line)) {
+            if (!line.empty()) {
+              cached_result.dependencies.emplace_back(line);
+            }
+          }
+        }
         axsl_results[key] = std::move(cached_result);
         return;
       }
@@ -177,6 +207,13 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
       ASTRA_ENSURE(!version_out.good(),
                    "cannot write shader cache version sidecar '" +
                        version_path.string() + "'");
+
+      if (!result.dependencies.empty()) {
+        std::ofstream deps_out(deps_sidecar_path(resolved), std::ios::trunc);
+        for (const auto &dep : result.dependencies) {
+          deps_out << dep.string() << '\n';
+        }
+      }
     }
 
     axsl_results[key] = std::move(result);
@@ -184,6 +221,7 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
 
   ensure_compiled(vertex_path);
   ensure_compiled(fragment_path);
+  ensure_compiled(compute_path);
 
   if (!geometry_path.empty()) {
     ensure_compiled(geometry_path);
@@ -200,18 +238,28 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
     }
   }
 
+  for (const auto &[key, result] : axsl_results) {
+    for (const auto &dependency : result.dependencies) {
+      m_source_dependencies.push_back(dependency);
+    }
+  }
+
   auto load_stage = [&](const std::filesystem::path &resolved, StageKind kind,
                         uint32_t gl_type) -> uint32_t {
+    if (resolved.empty()) {
+      return k_invalid_shader;
+    }
+
     if (resolved.extension() == ".axsl") {
       auto &stages = axsl_results.at(resolved.string()).stages;
       auto it = stages.find(kind);
-      return it != stages.end() ? compile_glsl(it->second, gl_type)
-                                : static_cast<uint32_t>(-1);
+      return it != stages.end() ? compile_glsl(it->second, gl_type, resolved.string())
+                                : k_invalid_shader;
     }
     std::ifstream file(resolved);
     std::ostringstream buffer;
     buffer << file.rdbuf();
-    return compile_glsl(buffer.str(), gl_type);
+    return compile_glsl(buffer.str(), gl_type, resolved.string());
   };
 
   m_renderer_id = glCreateProgram();
@@ -219,9 +267,14 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
   m_fragment_id =
       load_stage(fragment_path, StageKind::Fragment, GL_FRAGMENT_SHADER);
 
-  if (!geometry_path.empty())
+  if (!geometry_path.empty()) {
     m_geometry_id =
         load_stage(geometry_path, StageKind::Geometry, GL_GEOMETRY_SHADER);
+  }
+  if (!compute_path.empty()) {
+    m_compute_id =
+        load_stage(compute_path, StageKind::Compute, GL_COMPUTE_SHADER);
+  }
 
   attach();
 
@@ -277,11 +330,182 @@ OpenGLShader::OpenGLShader(const ResourceHandle &resource_id,
   if (!geometry_path.empty()) {
     try_load_stage_reflection(geometry_path);
   }
+  if (!compute_path.empty()) {
+    try_load_stage_reflection(compute_path);
+  }
 
   initialize_reflection_bindings(m_reflection);
 }
 
 OpenGLShader::~OpenGLShader() { glDeleteProgram(m_renderer_id); }
+
+bool OpenGLShader::recompile() {
+  if (m_descriptor == nullptr) return false;
+
+  static constexpr uint32_t k_invalid_shader = static_cast<uint32_t>(-1);
+
+  auto resolve_source_path = [](const Ref<Path> &path) {
+    return path != nullptr ? PathManager::get()->resolve_source(path)
+                           : std::filesystem::path{};
+  };
+
+  auto vertex_path = resolve_source_path(m_descriptor->vertex_path);
+  auto fragment_path = resolve_source_path(m_descriptor->fragment_path);
+  auto compute_path = resolve_source_path(m_descriptor->compute_path);
+
+  std::filesystem::path geometry_path;
+  if (m_descriptor->geometry_path) {
+    geometry_path = PathManager::get()->resolve_source(m_descriptor->geometry_path);
+  }
+
+  Compiler compiler;
+
+  auto compile_axsl = [&](const std::filesystem::path &resolved)
+      -> std::optional<CompileResult> {
+    if (resolved.extension() != ".axsl") return std::nullopt;
+    std::ifstream file(resolved);
+    if (!file.is_open()) return std::nullopt;
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    auto result = compiler.compile(
+        buffer.str(), resolved.parent_path().string(), resolved.string(),
+        {
+            .emit_reflection_ir = true,
+            .reflection_ir_format = SerializationFormat::Json,
+        });
+    return result;
+  };
+
+  std::map<std::string, CompileResult> axsl_results;
+
+  for (const auto &path :
+       {vertex_path, fragment_path, geometry_path, compute_path}) {
+    if (path.empty()) continue;
+    if (path.extension() != ".axsl") continue;
+    auto key = path.string();
+    if (axsl_results.count(key)) continue;
+    auto result = compile_axsl(path);
+    if (!result.has_value()) {
+      LOG_ERROR("ShaderRecompile: failed to read", key);
+      return false;
+    }
+    if (!result->ok()) {
+      for (auto &error : result->errors) {
+        LOG_ERROR("ShaderRecompile:", error);
+      }
+      return false;
+    }
+    axsl_results[key] = std::move(*result);
+  }
+
+  auto load_stage = [&](const std::filesystem::path &resolved, StageKind kind,
+                        uint32_t gl_type) -> uint32_t {
+    if (resolved.empty()) {
+      return k_invalid_shader;
+    }
+
+    if (resolved.extension() == ".axsl") {
+      auto &stages = axsl_results.at(resolved.string()).stages;
+      auto it = stages.find(kind);
+      return it != stages.end() ? compile_glsl(it->second, gl_type, resolved.string())
+                                : k_invalid_shader;
+    }
+    std::ifstream file(resolved);
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    return compile_glsl(buffer.str(), gl_type, resolved.string());
+  };
+
+  uint32_t new_program = glCreateProgram();
+  uint32_t new_vertex = load_stage(vertex_path, StageKind::Vertex, GL_VERTEX_SHADER);
+  uint32_t new_fragment =
+      load_stage(fragment_path, StageKind::Fragment, GL_FRAGMENT_SHADER);
+  uint32_t new_geometry = k_invalid_shader;
+  uint32_t new_compute = k_invalid_shader;
+  if (!geometry_path.empty()) {
+    new_geometry =
+        load_stage(geometry_path, StageKind::Geometry, GL_GEOMETRY_SHADER);
+  }
+  if (!compute_path.empty()) {
+    new_compute =
+        load_stage(compute_path, StageKind::Compute, GL_COMPUTE_SHADER);
+  }
+
+  if (new_vertex != k_invalid_shader) {
+    glAttachShader(new_program, new_vertex);
+  }
+  if (new_fragment != k_invalid_shader) {
+    glAttachShader(new_program, new_fragment);
+  }
+  if (new_geometry != k_invalid_shader) {
+    glAttachShader(new_program, new_geometry);
+  }
+  if (new_compute != k_invalid_shader) {
+    glAttachShader(new_program, new_compute);
+  }
+
+  glLinkProgram(new_program);
+
+  int success = 0;
+  glGetProgramiv(new_program, GL_LINK_STATUS, &success);
+
+  if (new_vertex != k_invalid_shader) {
+    glDeleteShader(new_vertex);
+  }
+  if (new_fragment != k_invalid_shader) {
+    glDeleteShader(new_fragment);
+  }
+  if (new_geometry != k_invalid_shader) {
+    glDeleteShader(new_geometry);
+  }
+  if (new_compute != k_invalid_shader) {
+    glDeleteShader(new_compute);
+  }
+
+  if (!success) {
+    char info_log[512];
+    glGetProgramInfoLog(new_program, sizeof(info_log), nullptr, info_log);
+    LOG_ERROR("ShaderRecompile: link failed:", info_log);
+    glDeleteProgram(new_program);
+    return false;
+  }
+
+  glDeleteProgram(m_renderer_id);
+  m_renderer_id = new_program;
+
+  ShaderReflection new_reflection;
+  auto merge_reflection = [&](const ShaderReflection &reflection) {
+    for (const auto &[stage, stage_reflection] : reflection.stages) {
+      new_reflection.stages[stage] = stage_reflection;
+    }
+  };
+
+  for (const auto &path : {vertex_path, fragment_path, geometry_path, compute_path}) {
+    if (path.empty()) continue;
+    if (path.extension() == ".axsl") {
+      auto it = axsl_results.find(path.string());
+      if (it != axsl_results.end()) {
+        merge_reflection(it->second.reflection);
+      }
+    }
+  }
+
+  m_reflection = std::move(new_reflection);
+  initialize_reflection_bindings(m_reflection);
+
+  m_source_dependencies.clear();
+  for (const auto &[key, result] : axsl_results) {
+    for (const auto &dependency : result.dependencies) {
+      m_source_dependencies.push_back(dependency);
+    }
+  }
+
+  return true;
+}
+
+std::vector<std::filesystem::path> OpenGLShader::source_dependencies() const {
+  return m_source_dependencies;
+}
 
 void OpenGLShader::bind() const { glUseProgram(m_renderer_id); }
 void OpenGLShader::unbind() const { glUseProgram(0); }
@@ -289,11 +513,18 @@ void OpenGLShader::unbind() const { glUseProgram(0); }
 void OpenGLShader::attach() const {
   ASTRA_ENSURE(m_renderer_id == 0, "Shader not found");
 
-  glAttachShader(m_renderer_id, m_vertex_id);
-  glAttachShader(m_renderer_id, m_fragment_id);
+  if (m_vertex_id != static_cast<uint32_t>(-1)) {
+    glAttachShader(m_renderer_id, m_vertex_id);
+  }
+  if (m_fragment_id != static_cast<uint32_t>(-1)) {
+    glAttachShader(m_renderer_id, m_fragment_id);
+  }
 
-  if (m_geometry_id != -1) {
+  if (m_geometry_id != static_cast<uint32_t>(-1)) {
     glAttachShader(m_renderer_id, m_geometry_id);
+  }
+  if (m_compute_id != static_cast<uint32_t>(-1)) {
+    glAttachShader(m_renderer_id, m_compute_id);
   }
 
   int success;
@@ -310,10 +541,14 @@ void OpenGLShader::attach() const {
     ASTRA_EXCEPTION(infoLog);
   };
 
-  glDeleteShader(m_vertex_id);
-  glDeleteShader(m_fragment_id);
-  if (m_geometry_id != -1)
+  if (m_vertex_id != static_cast<uint32_t>(-1))
+    glDeleteShader(m_vertex_id);
+  if (m_fragment_id != static_cast<uint32_t>(-1))
+    glDeleteShader(m_fragment_id);
+  if (m_geometry_id != static_cast<uint32_t>(-1))
     glDeleteShader(m_geometry_id);
+  if (m_compute_id != static_cast<uint32_t>(-1))
+    glDeleteShader(m_compute_id);
 }
 
 void OpenGLShader::build_reflection_bindings(
@@ -599,7 +834,7 @@ static std::string get_file_content_str(Ref<Path> filename) {
   return buffer.str();
 }
 
-uint32_t OpenGLShader::compile_glsl(const std::string &source, uint32_t type) {
+uint32_t OpenGLShader::compile_glsl(const std::string &source, uint32_t type, const std::string &source_path) {
   uint32_t shader_id = glCreateShader(type);
 
   const char *shader_source = source.c_str();
@@ -613,14 +848,26 @@ uint32_t OpenGLShader::compile_glsl(const std::string &source, uint32_t type) {
     std::vector<char> shader_error(1024);
     glGetShaderInfoLog(shader_id, shader_error.size(), nullptr,
                        shader_error.data());
-    ASTRA_EXCEPTION(std::string(shader_error.begin(), shader_error.end()));
+
+    ExceptionMetadata metadata;
+    if (!source_path.empty()) {
+      metadata.push_back({"Shader", source_path});
+    }
+    const char *stage_name = type == GL_VERTEX_SHADER ? "vertex"
+                           : type == GL_FRAGMENT_SHADER ? "fragment"
+                           : type == GL_GEOMETRY_SHADER ? "geometry"
+                           : type == GL_COMPUTE_SHADER ? "compute"
+                           : "unknown";
+    metadata.push_back({"Stage", stage_name});
+
+    ASTRA_EXCEPTION_META(metadata, std::string(shader_error.begin(), shader_error.end()));
   }
 
   return shader_id;
 }
 
 uint32_t OpenGLShader::compile(Ref<Path> path, uint32_t type) {
-  return compile_glsl(get_file_content_str(path), type);
+  return compile_glsl(get_file_content_str(path), type, PathManager::get()->resolve(path));
 }
 
 } // namespace astralix

@@ -4,43 +4,48 @@
 
 namespace astralix {
 
+namespace {
+
+void sanitize_parameters(
+    std::unordered_map<TextureParameter, TextureValue> &parameters,
+    int format
+) {
+  for (auto &[param, value] : parameters) {
+    if (param == TextureParameter::WrapS || param == TextureParameter::WrapT) {
+      const bool valid_wrap_value =
+          value == TextureValue::Repeat ||
+          value == TextureValue::ClampToEdge ||
+          value == TextureValue::ClampToBorder;
+      if (!valid_wrap_value) {
+        value = format == GL_RGBA ? TextureValue::Repeat
+                                  : TextureValue::ClampToEdge;
+      }
+    } else if (param == TextureParameter::MagFilter &&
+               value == TextureValue::LinearMipMap) {
+      value = TextureValue::Linear;
+    }
+  }
+}
+
+} // namespace
+
 OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id, Ref<Texture2DDescriptor> descriptor)
     : Texture2D(resource_id), m_format(formatToGl(descriptor->format)),
       m_buffer(descriptor->buffer), m_width(descriptor->width),
       m_height(descriptor->height), m_parameters(descriptor->parameters) {
 
   if (descriptor->image_load.has_value()) {
-    auto image_load = descriptor->image_load;
-    auto image =
-        load_image(image_load->path, image_load->flip_image_on_loading);
-
-    m_format = get_image_format(image.nr_channels);
-
-    for (const auto &[param, value] : m_parameters) {
-      if (param == TextureParameter::WrapS ||
-          param == TextureParameter::WrapT) {
-
-        if (m_format == 4) {
-          m_parameters[param] = TextureValue::Repeat;
-        } else {
-          m_parameters[param] = TextureValue::ClampToEdge;
-        }
-      }
-    }
-
-    m_width = image.width;
-    m_height = image.height;
-
-    m_buffer = image.data;
+    auto prepared = Texture2D::prepare_descriptor(descriptor);
+    m_format = get_image_format(prepared.nr_channels);
+    sanitize_parameters(m_parameters, m_format);
+    m_width = prepared.width;
+    m_height = prepared.height;
+    m_buffer = prepared.bytes.empty() ? nullptr : prepared.bytes.data();
   }
 
   glGenTextures(1, &m_renderer_id);
 
   bind();
-
-  if (descriptor->bitmap) {
-    glGenerateMipmap(GL_TEXTURE_2D);
-  }
 
   for (const auto &[param, value] : m_parameters) {
     glTexParameteri(GL_TEXTURE_2D, textureParameterToGL(param), textureParameterValueToGL(value));
@@ -48,9 +53,53 @@ OpenGLTexture2D::OpenGLTexture2D(const ResourceHandle &resource_id, Ref<Texture2
 
   glTexImage2D(GL_TEXTURE_2D, 0, m_format, m_width, m_height, 0, m_format, GL_UNSIGNED_BYTE, m_buffer);
 
-  if (m_buffer != nullptr && descriptor->image_load.has_value()) {
-    free_image(m_buffer);
+  if (descriptor->bitmap) {
+    glGenerateMipmap(GL_TEXTURE_2D);
   }
+
+  m_buffer = nullptr;
+}
+
+OpenGLTexture2D::OpenGLTexture2D(
+    const ResourceHandle &resource_id,
+    Ref<Texture2DDescriptor> descriptor,
+    PreparedTexture2DData prepared
+) : Texture2D(resource_id),
+    m_format(get_image_format(prepared.nr_channels)),
+    m_buffer(prepared.bytes.empty() ? nullptr : prepared.bytes.data()),
+    m_width(prepared.width),
+    m_height(prepared.height),
+    m_parameters(descriptor->parameters) {
+  sanitize_parameters(m_parameters, m_format);
+
+  glGenTextures(1, &m_renderer_id);
+  bind();
+
+  for (const auto &[param, value] : m_parameters) {
+    glTexParameteri(
+        GL_TEXTURE_2D,
+        textureParameterToGL(param),
+        textureParameterValueToGL(value)
+    );
+  }
+
+  glTexImage2D(
+      GL_TEXTURE_2D,
+      0,
+      m_format,
+      m_width,
+      m_height,
+      0,
+      m_format,
+      GL_UNSIGNED_BYTE,
+      m_buffer
+  );
+
+  if (descriptor->bitmap) {
+    glGenerateMipmap(GL_TEXTURE_2D);
+  }
+
+  m_buffer = nullptr;
 }
 
 GLenum OpenGLTexture2D::textureParameterToGL(TextureParameter param) {
@@ -94,6 +143,7 @@ int OpenGLTexture2D::formatToGl(TextureFormat format) {
       return GL_RGB;
 
     case TextureFormat::RGBA:
+    case TextureFormat::RGBA16F:
       return GL_RGBA;
   }
 

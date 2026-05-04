@@ -2272,6 +2272,15 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindPipeline
   }
 }
 
+void VulkanExecutor::dispatch(
+    VkCommandBuffer command_buffer,
+    const BindComputePipelineCmd &command
+) {
+  (void)command_buffer;
+  (void)command;
+  ASTRA_EXCEPTION("Vulkan compute pipelines are not implemented yet");
+}
+
 void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const BindBindingsCmd &command) {
   if (!m_bound_program) {
     LOG_WARN("[Vulkan] BindBindings: no pipeline bound");
@@ -2713,6 +2722,23 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const DrawIndexedC
   vkCmdDrawIndexed(command_buffer, command.args.index_count, command.args.instance_count, command.args.first_index, command.args.vertex_offset, command.args.first_instance);
 }
 
+void VulkanExecutor::dispatch(
+    VkCommandBuffer command_buffer,
+    const DispatchComputeCmd &command
+) {
+  (void)command_buffer;
+  (void)command;
+  ASTRA_EXCEPTION("Vulkan compute dispatch is not implemented yet");
+}
+
+void VulkanExecutor::dispatch(
+    VkCommandBuffer command_buffer,
+    const MemoryBarrierCmd &command
+) {
+  (void)command_buffer;
+  (void)command;
+}
+
 void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const DrawVerticesCmd &command) {
   if (m_bound_pipeline == VK_NULL_HANDLE &&
       !try_bind_current_pipeline(command_buffer)) {
@@ -2904,6 +2930,22 @@ void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const SetScissorCm
     vkCmdSetScissor(command_buffer, 0, 1, &full_scissor);
     return;
   }
+
+  VkRect2D scissor{};
+  scissor.offset = {static_cast<int32_t>(command.x), static_cast<int32_t>(command.y)};
+  scissor.extent = {command.width, command.height};
+  vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+}
+
+void VulkanExecutor::dispatch(VkCommandBuffer command_buffer, const SetViewportCmd &command) {
+  VkViewport viewport{};
+  viewport.x = static_cast<float>(command.x);
+  viewport.y = static_cast<float>(command.y);
+  viewport.width = static_cast<float>(command.width);
+  viewport.height = static_cast<float>(command.height);
+  viewport.minDepth = 0.0f;
+  viewport.maxDepth = 1.0f;
+  vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
   VkRect2D scissor{};
   scissor.offset = {static_cast<int32_t>(command.x), static_cast<int32_t>(command.y)};

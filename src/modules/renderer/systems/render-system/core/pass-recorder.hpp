@@ -50,6 +50,10 @@ public:
     m_commands.emplace_back(BindPipelineCmd{pipeline});
   }
 
+  void bind_compute_pipeline(RenderPipelineHandle pipeline) {
+    m_commands.emplace_back(BindComputePipelineCmd{pipeline});
+  }
+
   void bind_binding_group(RenderBindingGroupHandle binding_group) {
     m_commands.emplace_back(BindBindingsCmd{binding_group});
   }
@@ -72,6 +76,22 @@ public:
 
   void draw_indexed(const DrawIndexedArgs &args) {
     m_commands.emplace_back(DrawIndexedCmd{args});
+  }
+
+  void dispatch_compute(
+      uint32_t group_count_x,
+      uint32_t group_count_y = 1,
+      uint32_t group_count_z = 1
+  ) {
+    m_commands.emplace_back(DispatchComputeCmd{
+        .group_count_x = group_count_x,
+        .group_count_y = group_count_y,
+        .group_count_z = group_count_z,
+    });
+  }
+
+  void memory_barrier(MemoryBarrierBit barriers) {
+    m_commands.emplace_back(MemoryBarrierCmd{.barriers = barriers});
   }
 
   void copy_image(ImageHandle src, ImageHandle dst, const CopyRegion &region) {
@@ -115,6 +135,15 @@ public:
     m_commands.emplace_back(DrawVerticesCmd{
         .vertex_count = vertex_count,
         .first_vertex = first_vertex,
+    });
+  }
+
+  void set_viewport(uint32_t x, uint32_t y, uint32_t width, uint32_t height) {
+    m_commands.emplace_back(SetViewportCmd{
+        .x = x,
+        .y = y,
+        .width = width,
+        .height = height,
     });
   }
 

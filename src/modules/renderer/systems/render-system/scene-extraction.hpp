@@ -5,6 +5,7 @@
 #include "components/model.hpp"
 #include "components/tags.hpp"
 #include "components/transform.hpp"
+#include "frustum-culling.hpp"
 #include "light-frame.hpp"
 #include "material-binding.hpp"
 #include "mesh-resolution.hpp"
@@ -108,6 +109,22 @@ inline void gather_material_residency_requests(ecs::World &world, SceneResidency
         auto *mesh_set = entity.get<MeshSet>();
         if (model_ref == nullptr && mesh_set == nullptr) {
           return;
+        }
+
+        if (model_ref != nullptr) {
+          for (const auto &resource_id : model_ref->resource_ids) {
+            auto descriptor =
+                resource_manager()->get_descriptor_by_id<ModelDescriptor>(
+                    resource_id
+                );
+            if (descriptor == nullptr) {
+              continue;
+            }
+
+            for (const auto &material_id : descriptor->material_ids) {
+              request_material_descriptor_textures(requests, material_id);
+            }
+          }
         }
 
         const Model *model = resolve_primary_model(model_ref);
@@ -220,6 +237,12 @@ inline void resolve_ui_resources(SceneFrame &frame) {
           break;
         }
 
+        case ui::DrawCommandType::Rect:
+        case ui::DrawCommandType::RenderImageView:
+        case ui::DrawCommandType::Polyline:
+        case ui::DrawCommandType::Path:
+          break;
+
         default:
           break;
       }
@@ -227,12 +250,34 @@ inline void resolve_ui_resources(SceneFrame &frame) {
   }
 }
 
-inline SceneFrame build_scene_frame(ecs::World &world, Ref<RenderTarget> render_target, RenderRuntimeStore &render_runtime_store) {
+inline SceneFrame build_scene_frame(
+    ecs::World &world,
+    Ref<RenderTarget> render_target,
+    RenderRuntimeStore &render_runtime_store,
+    const CameraHistoryState &camera_history = {}
+) {
   render_runtime_store.prune(world);
 
   SceneFrame frame;
   frame.main_camera = extract_main_camera_frame(world);
+  if (frame.main_camera.has_value()) {
+    if (camera_history.valid &&
+        camera_history.entity_id == frame.main_camera->entity_id) {
+      frame.main_camera->previous_view = camera_history.previous_view;
+      frame.main_camera->previous_projection =
+          camera_history.previous_projection;
+      frame.main_camera->has_history = true;
+    } else {
+      frame.main_camera->previous_view = frame.main_camera->view;
+      frame.main_camera->previous_projection =
+          frame.main_camera->projection;
+      frame.main_camera->has_history = false;
+    }
+  }
   frame.light_frame = collect_light_frame(world);
+  if (frame.main_camera.has_value() && frame.light_frame.directional.valid) {
+    compute_cascades(frame.light_frame.directional, *frame.main_camera);
+  }
   frame.skybox = extract_skybox_frame(world);
   frame.text_items = extract_text_items(world);
   frame.ui_roots = extract_ui_roots(world);
@@ -243,11 +288,11 @@ inline SceneFrame build_scene_frame(ecs::World &world, Ref<RenderTarget> render_
 
   SceneResidencyRequests initial_requests;
   gather_initial_scene_residency_requests(world, frame.skybox, frame.text_items, frame.ui_roots, initial_requests);
-  resolve_scene_residency(initial_requests, render_target);
+  resolve_scene_residency_async(initial_requests, render_target);
 
   SceneResidencyRequests material_requests;
   gather_material_residency_requests(world, material_requests);
-  resolve_scene_residency(material_requests, render_target);
+  resolve_scene_residency_async(material_requests, render_target);
 
   prepare_requested_font_glyphs(initial_requests);
 
@@ -266,6 +311,13 @@ inline SceneFrame build_scene_frame(ecs::World &world, Ref<RenderTarget> render_
   }
 
   resolve_ui_resources(frame);
+
+  std::optional<Frustum> camera_frustum;
+  if (frame.main_camera.has_value()) {
+    camera_frustum = extract_frustum(
+        frame.main_camera->projection * frame.main_camera->view
+    );
+  }
 
   std::unordered_map<EntityID, uint32_t> pick_ids_by_entity;
   const bool use_shadow_caster_tags = world.count<ShadowCaster>() > 0u;
@@ -296,9 +348,6 @@ inline SceneFrame build_scene_frame(ecs::World &world, Ref<RenderTarget> render_
             !use_shadow_caster_tags || entity.get<ShadowCaster>() != nullptr;
 
         const Model *model = resolve_primary_model(model_ref);
-        const auto material = resolve_material_data(
-            model, entity.get<MaterialSlots>(), entity.get<TextureBindings>()
-        );
         const auto bloom_settings =
             resolve_bloom_settings(entity.get<BloomSettings>());
         const auto shader =
@@ -307,14 +356,44 @@ inline SceneFrame build_scene_frame(ecs::World &world, Ref<RenderTarget> render_
             );
 
         for (const auto &mesh : resolved_meshes) {
+          const bool visible_to_camera =
+              !camera_frustum.has_value() ||
+              is_aabb_visible(*camera_frustum, mesh.local_bounds, transform.matrix);
+
+          if (casts_shadow) {
+            frame.shadow_draws.push_back(ShadowDrawItem{
+                .entity_id = entity_id,
+                .model = transform.matrix,
+                .mesh = mesh,
+                .sort_key = 0,
+            });
+          }
+
+          if (!visible_to_camera) {
+            continue;
+          }
+
+          const auto material = resolve_material_data(
+              model,
+              entity.get<MaterialSlots>(),
+              entity.get<TextureBindings>(),
+              mesh.submesh_index
+          );
           const uint64_t sort_key = compute_surface_sort_key(
               shader_binding.shader, material.material_id, mesh.mesh_id
           );
           auto &runtime_state = render_runtime_store.entity_states[entity_id];
+          const bool has_previous_model = runtime_state.has_previous_model;
+          const glm::mat4 previous_model =
+              has_previous_model ? runtime_state.previous_model
+                                 : transform.matrix;
           runtime_state.surface_sort_key = sort_key;
           runtime_state.initialized = true;
 
-          frame.opaque_surfaces.push_back(SurfaceDrawItem{
+          auto &target_list = material.alpha_blend
+                                   ? frame.blend_surfaces
+                                   : frame.opaque_surfaces;
+          target_list.push_back(SurfaceDrawItem{
               .entity_id = entity_id,
               .pick_id = pick_id,
               .shader_id = shader_binding.shader,
@@ -322,20 +401,13 @@ inline SceneFrame build_scene_frame(ecs::World &world, Ref<RenderTarget> render_
               .material = material,
               .mesh = mesh,
               .model = transform.matrix,
+              .previous_model = previous_model,
+              .has_previous_model = has_previous_model,
               .bloom_enabled = bloom_settings.enabled,
               .bloom_layer = bloom_settings.render_layer,
               .casts_shadow = casts_shadow,
               .sort_key = sort_key,
           });
-
-          if (casts_shadow) {
-            frame.shadow_draws.push_back(ShadowDrawItem{
-                .entity_id = entity_id,
-                .model = transform.matrix,
-                .mesh = mesh,
-                .sort_key = sort_key,
-            });
-          }
         }
       }
   );

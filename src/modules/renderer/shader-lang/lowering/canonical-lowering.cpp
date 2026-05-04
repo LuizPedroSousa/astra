@@ -746,6 +746,7 @@ public:
       result.errors.push_back("missing stage entry");
       return result;
     }
+    result.stage.local_size = entry->local_size;
 
     EntryContext entry_ctx = build_entry_context(*entry);
     std::unordered_set<NodeID> stage_function_ids =

@@ -11,6 +11,7 @@
 #include "systems/render-system/core/shader-param-recorder.hpp"
 #include "systems/render-system/passes/render-graph-resource.hpp"
 #include "systems/render-system/render-frame.hpp"
+#include "vector/path-tessellator.hpp"
 #include "targets/render-target.hpp"
 #include "trace.hpp"
 #include "vertex-buffer.hpp"
@@ -29,6 +30,7 @@ void UIPass::setup(PassSetupContext &ctx) {
   m_shaders.image = ctx.find_shader("ui_image");
   m_shaders.text = ctx.find_shader("ui_text");
   m_shaders.polyline = ctx.find_shader("ui_polyline");
+  m_shaders.vector = ctx.find_shader("ui_vector");
   m_render_image_sample_flip_y = ui_pass_detail::render_image_sample_flip_y(
       ctx.target() != nullptr ? ctx.target()->backend() : RendererBackend::None
   );
@@ -59,6 +61,12 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
   const auto rect_to_vec4 = [](const ui::UIRect &rect) {
     return glm::vec4(rect.x, rect.y, rect.width, rect.height);
   };
+  const auto colored_vertex_layout = [] {
+    return BufferLayout(
+        {BufferElement(ShaderDataType::Float2, "a_position").at_location(0),
+         BufferElement(ShaderDataType::Float4, "a_color").at_location(1)}
+    );
+  };
 
   const auto present_color =
       ctx.register_graph_image("ui.present", *present_target);
@@ -86,11 +94,15 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
   RenderPipelineDesc polyline_pipeline_desc = solid_pipeline_desc;
   polyline_pipeline_desc.debug_name = "ui.polyline";
 
+  RenderPipelineDesc vector_pipeline_desc = solid_pipeline_desc;
+  vector_pipeline_desc.debug_name = "ui.vector";
+
   RenderPipelineHandle solid_pipeline{};
   RenderPipelineHandle image_pipeline{};
   RenderPipelineHandle render_image_pipeline{};
   RenderPipelineHandle text_pipeline{};
   RenderPipelineHandle polyline_pipeline{};
+  RenderPipelineHandle vector_pipeline{};
 
   if (m_shaders.solid != nullptr) {
     solid_pipeline = frame.register_pipeline(solid_pipeline_desc, m_shaders.solid);
@@ -104,6 +116,9 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
   }
   if (m_shaders.polyline != nullptr) {
     polyline_pipeline = frame.register_pipeline(polyline_pipeline_desc, m_shaders.polyline);
+  }
+  if (m_shaders.vector != nullptr) {
+    vector_pipeline = frame.register_pipeline(vector_pipeline_desc, m_shaders.vector);
   }
 
   RenderingInfo info;
@@ -131,6 +146,7 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
   RenderBindingGroupHandle image_scene_bindings{};
   RenderBindingGroupHandle text_scene_bindings{};
   RenderBindingGroupHandle polyline_scene_bindings{};
+  RenderBindingGroupHandle vector_scene_bindings{};
 
   const auto record_quad_draw_params = [&](RenderBindingGroupHandle bindings,
                                            const glm::vec4 &rect) {
@@ -192,6 +208,34 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
         frame,
         polyline_scene_bindings,
         engine_shaders_ui_polyline_axsl::CameraParams{
+            .projection = projection,
+        }
+    );
+  };
+
+  const auto ensure_vector_scene_bindings = [&] {
+    if (vector_scene_bindings.valid()) {
+      return;
+    }
+
+    vector_scene_bindings = frame.register_binding_group(
+        make_binding_group_desc(
+            "ui.vector-scene",
+            "ui-pass",
+            m_shaders.vector,
+            0,
+            "ui.vector-scene",
+            RenderBindingScope::Pass,
+            RenderBindingCachePolicy::Reuse,
+            RenderBindingSharing::LocalOnly,
+            0,
+            RenderBindingStability::FrameLocal
+        )
+    );
+    rendering::record_shader_params(
+        frame,
+        vector_scene_bindings,
+        engine_shaders_ui_vector_axsl::CameraParams{
             .projection = projection,
         }
     );
@@ -421,12 +465,8 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
             break;
           }
 
-          BufferLayout polyline_layout(
-              {BufferElement(ShaderDataType::Float2, "a_position").at_location(0),
-               BufferElement(ShaderDataType::Float4, "a_color").at_location(1)}
-          );
           const auto transient_buffer = frame.register_transient_vertices(
-              "ui.svg-triangles", triangle_vertices.data(), static_cast<uint32_t>(triangle_vertices.size() * sizeof(ui::UIPolylineVertex)), static_cast<uint32_t>(triangle_vertices.size()), polyline_layout
+              "ui.svg-triangles", triangle_vertices.data(), static_cast<uint32_t>(triangle_vertices.size() * sizeof(ui::UIPolylineVertex)), static_cast<uint32_t>(triangle_vertices.size()), colored_vertex_layout()
           );
 
           ensure_polyline_scene_bindings();
@@ -668,17 +708,56 @@ void UIPass::record(PassRecordContext &ctx, PassRecorder &recorder) {
             break;
           }
 
-          BufferLayout polyline_layout(
-              {BufferElement(ShaderDataType::Float2, "a_position").at_location(0),
-               BufferElement(ShaderDataType::Float4, "a_color").at_location(1)}
-          );
           const auto transient_buffer = frame.register_transient_vertices(
-              "ui.polyline-triangles", triangle_vertices.data(), static_cast<uint32_t>(triangle_vertices.size() * sizeof(ui::UIPolylineVertex)), static_cast<uint32_t>(triangle_vertices.size()), polyline_layout
+              "ui.polyline-triangles", triangle_vertices.data(), static_cast<uint32_t>(triangle_vertices.size() * sizeof(ui::UIPolylineVertex)), static_cast<uint32_t>(triangle_vertices.size()), colored_vertex_layout()
           );
 
           ensure_polyline_scene_bindings();
           bind_pipeline(polyline_pipeline);
           recorder.bind_binding_group(polyline_scene_bindings);
+          bind_vertex_buffer(transient_buffer);
+          recorder.draw_vertices(
+              static_cast<uint32_t>(triangle_vertices.size())
+          );
+          break;
+        }
+
+        case ui::DrawCommandType::Path: {
+          if (!vector_pipeline.valid() || command.path_commands.empty()) {
+            break;
+          }
+
+          std::vector<ui::UIPolylineVertex> triangle_vertices;
+          for (const auto &path_command : command.path_commands) {
+            ui::UIPathCommand effective_command = path_command;
+            effective_command.style.fill_color.a *= command.color.a;
+            effective_command.style.stroke_color.a *= command.color.a;
+
+            const auto tessellated = ui::tessellate_path(effective_command);
+            triangle_vertices.insert(
+                triangle_vertices.end(),
+                tessellated.triangle_vertices.begin(),
+                tessellated.triangle_vertices.end()
+            );
+          }
+
+          if (triangle_vertices.empty()) {
+            break;
+          }
+
+          const auto transient_buffer = frame.register_transient_vertices(
+              "ui.path-triangles",
+              triangle_vertices.data(),
+              static_cast<uint32_t>(
+                  triangle_vertices.size() * sizeof(ui::UIPolylineVertex)
+              ),
+              static_cast<uint32_t>(triangle_vertices.size()),
+              colored_vertex_layout()
+          );
+
+          ensure_vector_scene_bindings();
+          bind_pipeline(vector_pipeline);
+          recorder.bind_binding_group(vector_scene_bindings);
           bind_vertex_buffer(transient_buffer);
           recorder.draw_vertices(
               static_cast<uint32_t>(triangle_vertices.size())

@@ -1,0 +1,182 @@
+@version 450;
+
+@include "helpers/light.axsl";
+@include "helpers/shadow.axsl";
+@include "helpers/volumetric.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Camera {
+  vec3 position;
+}
+
+@uniform
+interface VolumetricFogResources {
+  sampler2D g_position;
+  sampler2D shadow_map;
+}
+
+@uniform
+interface VolumetricFogParams {
+  DirectionalLight directional;
+  mat4 light_space_matrix;
+  mat4 cascade_matrices[4];
+  float cascade_split_depths[4];
+  mat4 view_matrix;
+  int cascades_enabled = 0;
+  PointLight point_lights[4];
+  SpotLight spot_light;
+  int point_light_count = 0;
+  bool spot_light_active = false;
+  int max_steps = 32;
+  float density = 0.02;
+  float scattering = 0.7;
+  float max_distance = 50.0;
+  float intensity = 1.0;
+  int frame_index = 0;
+  float fog_base_height = 0.0;
+  float height_falloff_rate = 0.5;
+  float noise_scale = 0.02;
+  float noise_weight = 0.3;
+  vec3 wind_direction = vec3(1.0, 0.0, 0.0);
+  float wind_speed = 0.5;
+  float time = 0.0;
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 volumetric;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    Camera camera,
+    VolumetricFogResources resources,
+    VolumetricFogParams params
+) -> FragmentOutput {
+  vec3 fragment_world = texture(resources.g_position, vertex.texture).rgb;
+  vec3 ray_origin = camera.position;
+  vec3 ray_vector = fragment_world - ray_origin;
+  float ray_length = length(ray_vector);
+
+  if (ray_length < 0.001) {
+    return FragmentOutput(vec4(0.0, 0.0, 0.0, 1.0));
+  }
+
+  float march_distance = min(ray_length, params.max_distance);
+  vec3 ray_direction = ray_vector / ray_length;
+  float step_length = march_distance / float(params.max_steps);
+
+  float dither = interleaved_gradient_noise(gl_FragCoord.xy, params.frame_index);
+  float ray_offset = dither * step_length;
+
+  vec3 luminance = vec3(0.0);
+  float transmittance = 1.0;
+
+  vec3 directional_direction = normalize(-params.directional.direction);
+  float directional_cos_theta = dot(ray_direction, directional_direction);
+  float directional_phase = henyey_greenstein(directional_cos_theta, params.scattering);
+
+  for (int i = 0; i < params.max_steps; ++i) {
+    float t = ray_offset + float(i) * step_length;
+    if (t > march_distance) {
+      break;
+    }
+
+    vec3 sample_position = ray_origin + ray_direction * t;
+
+    float local_density = sample_volumetric_density(
+        sample_position,
+        params.density,
+        params.fog_base_height,
+        params.height_falloff_rate,
+        params.noise_scale,
+        params.noise_weight,
+        params.wind_direction,
+        params.wind_speed,
+        params.time
+    );
+
+    if (local_density < 0.00001) {
+      continue;
+    }
+
+    float shadow_visibility;
+    if (params.cascades_enabled != 0) {
+      shadow_visibility = get_volumetric_cascade_shadow(
+          resources.shadow_map,
+          sample_position,
+          params.cascade_matrices,
+          params.cascade_split_depths,
+          params.view_matrix
+      );
+    } else {
+      vec4 fragment_light_space = params.light_space_matrix * vec4(sample_position, 1.0);
+      shadow_visibility = get_volumetric_shadow(
+          resources.shadow_map,
+          directional_direction,
+          fragment_light_space
+      );
+    }
+
+    vec3 directional_scatter = params.directional.exposure.diffuse
+        * directional_phase * shadow_visibility * local_density * transmittance * step_length;
+    luminance += directional_scatter;
+
+    for (int j = 0; j < params.point_light_count; ++j) {
+      luminance += evaluate_point_light_scattering(
+          sample_position,
+          ray_direction,
+          params.point_lights[j].position,
+          params.point_lights[j].exposure.diffuse,
+          params.point_lights[j].attenuation,
+          local_density,
+          transmittance,
+          params.scattering
+      ) * shadow_visibility * step_length;
+    }
+
+    if (params.spot_light_active) {
+      luminance += evaluate_spot_light_scattering(
+          sample_position,
+          ray_direction,
+          params.spot_light,
+          local_density,
+          transmittance,
+          params.scattering
+      ) * shadow_visibility * step_length;
+    }
+
+    transmittance *= beer_lambert(local_density, step_length);
+
+    if (transmittance < 0.01) {
+      break;
+    }
+  }
+
+  return FragmentOutput(vec4(luminance * params.intensity, transmittance));
+}

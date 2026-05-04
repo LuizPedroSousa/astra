@@ -18,6 +18,10 @@ struct BindPipelineCmd {
   RenderPipelineHandle pipeline{};
 };
 
+struct BindComputePipelineCmd {
+  RenderPipelineHandle pipeline{};
+};
+
 struct BindBindingsCmd {
   RenderBindingGroupHandle binding_group{};
 };
@@ -44,6 +48,35 @@ struct DrawIndexedArgs {
 
 struct DrawIndexedCmd {
   DrawIndexedArgs args{};
+};
+
+enum class MemoryBarrierBit : uint32_t {
+  None = 0,
+  ShaderStorage = 1u << 0u,
+};
+
+inline constexpr MemoryBarrierBit
+operator|(MemoryBarrierBit lhs, MemoryBarrierBit rhs) {
+  return static_cast<MemoryBarrierBit>(
+      static_cast<uint32_t>(lhs) | static_cast<uint32_t>(rhs)
+  );
+}
+
+inline constexpr bool has_memory_barrier_bit(
+    MemoryBarrierBit mask,
+    MemoryBarrierBit bit
+) {
+  return (static_cast<uint32_t>(mask) & static_cast<uint32_t>(bit)) != 0u;
+}
+
+struct DispatchComputeCmd {
+  uint32_t group_count_x = 1;
+  uint32_t group_count_y = 1;
+  uint32_t group_count_z = 1;
+};
+
+struct MemoryBarrierCmd {
+  MemoryBarrierBit barriers = MemoryBarrierBit::None;
 };
 
 struct CopyImageCmd {
@@ -78,19 +111,30 @@ struct DrawVerticesCmd {
   uint32_t first_vertex = 0;
 };
 
+struct SetViewportCmd {
+  uint32_t x = 0;
+  uint32_t y = 0;
+  uint32_t width = 0;
+  uint32_t height = 0;
+};
+
 using RenderCommand = std::variant<
     BeginRenderingCmd,
     EndRenderingCmd,
     BindPipelineCmd,
+    BindComputePipelineCmd,
     BindBindingsCmd,
     BindVertexBufferCmd,
     BindIndexBufferCmd,
     DrawIndexedCmd,
+    DispatchComputeCmd,
+    MemoryBarrierCmd,
     CopyImageCmd,
     ResolveImageCmd,
     ReadbackImageCmd,
     SetScissorCmd,
-    DrawVerticesCmd>;
+    DrawVerticesCmd,
+    SetViewportCmd>;
 
 using RenderCommandBuffer = std::vector<RenderCommand>;
 

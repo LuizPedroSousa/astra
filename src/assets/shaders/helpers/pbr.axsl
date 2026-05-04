@@ -1,29 +1,31 @@
 const float PI = 3.14159265359;
 const float PBR_EPSILON = 0.0001;
 const float PBR_MIN_ROUGHNESS = 0.045;
-const float PBR_HEIGHT_SCALE = 0.02;
+const float PBR_DEFAULT_HEIGHT_SCALE = 0.02;
 
 struct PBRSurface {
   vec3 base_color;
   vec3 emissive;
   vec3 normal_ws;
+  vec3 geometric_normal;
   float metallic;
   float roughness;
   float occlusion;
   float bloom_intensity;
+  float alpha;
 };
 
 fn srgb_to_linear(vec3 value) -> vec3 {
   return pow(max(value, vec3(0.0)), vec3(2.2));
 }
 
-fn distribution_ggx(vec3 N, vec3 H, float roughness) -> float {
+fn distribution_ggx(vec3 surface_normal, vec3 H, float roughness) -> float {
   float a = roughness * roughness;
   float a2 = a * a;
-  float NdotH = max(dot(N, H), 0.0);
+  float NdotH = max(dot(surface_normal, H), 0.0);
   float NdotH2 = NdotH * NdotH;
-  float denom = NdotH2 * (a2 - 1.0) + 1.0;
-  return a2 / max(PI * denom * denom, PBR_EPSILON);
+  float denominator = NdotH2 * (a2 - 1.0) + 1.0;
+  return a2 / max(PI * denominator * denominator, PBR_EPSILON);
 }
 
 fn geometry_schlick_ggx(float NdotX, float roughness) -> float {
@@ -32,9 +34,9 @@ fn geometry_schlick_ggx(float NdotX, float roughness) -> float {
   return NdotX / max(NdotX * (1.0 - k) + k, PBR_EPSILON);
 }
 
-fn geometry_smith(vec3 N, vec3 V, vec3 L, float roughness) -> float {
-  float NdotV = max(dot(N, V), 0.0);
-  float NdotL = max(dot(N, L), 0.0);
+fn geometry_smith(vec3 surface_normal, vec3 view_direction, vec3 light_direction, float roughness) -> float {
+  float NdotV = max(dot(surface_normal, view_direction), 0.0);
+  float NdotL = max(dot(surface_normal, light_direction), 0.0);
   float ggx_v = geometry_schlick_ggx(NdotV, roughness);
   float ggx_l = geometry_schlick_ggx(NdotL, roughness);
   return ggx_v * ggx_l;
@@ -87,18 +89,31 @@ fn sample_pbr_surface(
     vec3 emissive_factor,
     int metallic_channel,
     int roughness_channel,
+    int alpha_mask_enabled,
+    float alpha_cutoff,
     float metallic_factor,
     float roughness_factor,
     float occlusion_strength,
     float normal_scale,
+    float height_scale,
     float bloom_intensity) -> PBRSurface {
-  vec2 uv = parallax_mapping(
-      displacement_tex,
-      base_uv,
-      view_direction_ts,
-      PBR_HEIGHT_SCALE);
+  vec2 uv = base_uv;
+  if (height_scale > 0.0) {
+    uv =
+       parallax_mapping(
+         displacement_tex,
+         base_uv,
+         view_direction_ts,
+         height_scale);
+  }
 
-  vec3 base_sample = srgb_to_linear(texture(base_color_tex, uv).rgb);
+  vec4 base_color_sample = texture(base_color_tex, uv);
+  float base_alpha = clamp(base_color_sample.a * base_color_factor.a, 0.0, 1.0);
+  if (alpha_mask_enabled != 0 && base_alpha < alpha_cutoff) {
+    discard;
+  }
+
+  vec3 base_sample = srgb_to_linear(base_color_sample.rgb);
   vec3 emissive_sample = srgb_to_linear(texture(emissive_tex, uv).rgb);
   float ao_sample = texture(occlusion_tex, uv).r;
   float metallic_sample = sample_texture_channel(metallic_tex, uv, metallic_channel);
@@ -119,32 +134,34 @@ fn sample_pbr_surface(
   surface.occlusion = clamp(ao_sample * occlusion_strength, 0.0, 1.0);
   surface.normal_ws = normalize(tangent_to_world * tangent_normal);
   surface.bloom_intensity = max(bloom_intensity, 0.0);
+  surface.alpha = base_alpha;
   return surface;
 }
 
-fn evaluate_pbr_direct(
+fn evaluate_pbr_outgoing_radiance(
     PBRSurface surface,
-    vec3 N,
-    vec3 V,
-    vec3 L,
-    vec3 radiance) -> vec3 {
-  vec3 H = normalize(V + L);
+    vec3 view_direction,
+    vec3 light_direction,
+    vec3 radiant_flux) -> vec3 {
+  vec3 surface_normal = surface.normal_ws;
 
-  float NdotL = max(dot(N, L), 0.0);
-  float NdotV = max(dot(N, V), 0.0);
-  float NdotH = max(dot(N, H), 0.0);
-  float VdotH = max(dot(V, H), 0.0);
-
-  if (NdotL <= 0.0 || NdotV <= 0.0 || NdotH <= 0.0 || VdotH <= 0.0) {
+  float NdotL = dot(surface_normal, light_direction);
+  if (NdotL <= 0.0) {
     return vec3(0.0);
   }
 
+  float NdotV = max(dot(surface_normal, view_direction), PBR_EPSILON);
+
+  vec3 H = normalize(view_direction + light_direction);
+  float NdotH = max(dot(surface_normal, H), 0.0);
+  float VdotH = max(dot(view_direction, H), 0.0);
+
   vec3 F0 = mix(vec3(0.04), surface.base_color, surface.metallic);
   vec3 F = fresnel_schlick(VdotH, F0);
-  float NDF = distribution_ggx(N, H, surface.roughness);
-  float G = geometry_smith(N, V, L, surface.roughness);
+  float NDF = distribution_ggx(surface_normal, H, surface.roughness);
+  float G = geometry_smith(surface_normal, view_direction, light_direction, surface.roughness);
 
-  vec3 numerator = NDF * G * F;
+  vec3 numerator = NDF * F * G;
   float denominator = max(4.0 * NdotV * NdotL, PBR_EPSILON);
   vec3 specular = numerator / denominator;
 
@@ -152,47 +169,68 @@ fn evaluate_pbr_direct(
   vec3 kD = (vec3(1.0) - kS) * (1.0 - surface.metallic);
   vec3 diffuse = kD * surface.base_color / PI;
 
-  return (diffuse + specular) * radiance * NdotL;
+  vec3 radiance = (diffuse + specular) * radiant_flux * NdotL;
+  return radiance;
 }
 
 fn evaluate_pbr_directional(
     PBRSurface surface,
     DirectionalLight light,
     vec3 fragment_world,
-    vec3 N,
-    vec3 V,
+    vec3 view_direction,
     sampler2D shadow_map,
-    mat4 light_space_matrix) -> vec3 {
-  vec3 L = normalize(-light.direction);
+    mat4 light_space_matrix,
+    float shadow_intensity) -> vec3 {
+  vec3 light_direction = normalize(-light.direction);
   vec4 fragment_light_space = light_space_matrix * vec4(fragment_world, 1.0);
-  float shadow_visibility = get_shadow(shadow_map, L, N, fragment_light_space);
-  vec3 radiance = light.exposure.diffuse;
-  return shadow_visibility * evaluate_pbr_direct(surface, N, V, L, radiance);
+  float shadow_visibility = get_shadow(shadow_map, light_direction, surface.normal_ws, fragment_light_space);
+  shadow_visibility = mix(1.0, shadow_visibility, shadow_intensity);
+  vec3 radiant_flux = light.exposure.diffuse;
+  return shadow_visibility * evaluate_pbr_outgoing_radiance(surface, view_direction, light_direction, radiant_flux);
+}
+
+fn evaluate_pbr_directional_csm(
+    PBRSurface surface,
+    DirectionalLight light,
+    vec3 fragment_world,
+    vec3 view_direction,
+    sampler2D shadow_map,
+    float fragment_view_depth,
+    mat4 cascade_matrices[4],
+    float cascade_split_depths[4],
+    mat4 view_matrix,
+    float shadow_intensity) -> vec3 {
+  vec3 light_direction = normalize(-light.direction);
+  float shadow_visibility = get_cascade_shadow(
+      shadow_map, light_direction, surface.normal_ws,
+      fragment_world, fragment_view_depth,
+      cascade_matrices, cascade_split_depths, view_matrix);
+  shadow_visibility = mix(1.0, shadow_visibility, shadow_intensity);
+  vec3 radiant_flux = light.exposure.diffuse;
+  return shadow_visibility * evaluate_pbr_outgoing_radiance(surface, view_direction, light_direction, radiant_flux);
 }
 
 fn evaluate_pbr_point(
     PBRSurface surface,
     PointLight light,
     vec3 fragment_world,
-    vec3 N,
-    vec3 V) -> vec3 {
+    vec3 view_direction) -> vec3 {
   vec3 light_vector = light.position - fragment_world;
   float distance = length(light_vector);
-  vec3 L = normalize(light_vector);
+  vec3 light_direction = normalize(light_vector);
   float attenuation = get_attenuation(distance, light.attenuation);
-  vec3 radiance = light.exposure.diffuse * attenuation;
-  return evaluate_pbr_direct(surface, N, V, L, radiance);
+  vec3 radiant_flux = light.exposure.diffuse * attenuation;
+  return evaluate_pbr_outgoing_radiance(surface, view_direction, light_direction, radiant_flux);
 }
 
 fn evaluate_pbr_spot(
     PBRSurface surface,
     SpotLight light,
     vec3 fragment_world,
-    vec3 N,
-    vec3 V) -> vec3 {
+    vec3 view_direction) -> vec3 {
   vec3 light_vector = light.position - fragment_world;
   float distance = length(light_vector);
-  vec3 L = normalize(light_vector);
+  vec3 light_direction = normalize(light_vector);
   float attenuation = get_attenuation(distance, light.attenuation);
 
   vec3 light_to_fragment = normalize(fragment_world - light.position);
@@ -200,19 +238,46 @@ fn evaluate_pbr_spot(
   float epsilon = max(light.inner_cut_off - light.outer_cut_off, PBR_EPSILON);
   float cone = clamp((theta - light.outer_cut_off) / epsilon, 0.0, 1.0);
 
-  vec3 radiance = light.exposure.diffuse * attenuation * cone;
-  return evaluate_pbr_direct(surface, N, V, L, radiance);
+  vec3 radiant_flux = light.exposure.diffuse * attenuation * cone;
+  return evaluate_pbr_outgoing_radiance(surface, view_direction, light_direction, radiant_flux);
 }
 
 fn evaluate_pbr_ambient(
     PBRSurface surface,
-    vec3 N,
     vec3 ambient_light,
     float visibility) -> vec3 {
   float hemisphere_factor =
-      clamp(dot(N, vec3(0.0, 1.0, 0.0)) * 0.5 + 0.5, 0.0, 1.0);
+      clamp(dot(surface.normal_ws, vec3(0.0, 1.0, 0.0)) * 0.5 + 0.5, 0.0, 1.0);
   vec3 sky_color = ambient_light;
-  vec3 ground_color = ambient_light * 0.3;
+  vec3 ground_color = ambient_light * 0.5;
   vec3 kD = (vec3(1.0) - surface.metallic) * surface.base_color;
   return mix(ground_color, sky_color, hemisphere_factor) * kD * visibility;
+}
+
+fn evaluate_pbr_ibl(
+    PBRSurface surface,
+    vec3 view_direction,
+    samplerCube irradiance_map,
+    samplerCube prefilter_map,
+    sampler2D brdf_lut,
+    float max_lod,
+    vec3 fallback_ambient,
+    float visibility) -> vec3 {
+  float n_dot_v = max(dot(surface.normal_ws, view_direction), 0.0);
+  vec3 F0 = mix(vec3(0.04), surface.base_color, surface.metallic);
+  vec3 F = fresnel_schlick_roughness(n_dot_v, F0, surface.roughness);
+
+  vec3 kS = F;
+  vec3 kD = (vec3(1.0) - kS) * (1.0 - surface.metallic);
+
+  vec3 irradiance = textureLod(irradiance_map, surface.normal_ws, max_lod).rgb;
+  vec3 env_diffuse = max(irradiance, fallback_ambient) * surface.base_color * kD;
+
+  vec3 reflection = reflect(-view_direction, surface.normal_ws);
+  float lod = surface.roughness * max_lod;
+  vec3 prefiltered_color = textureLod(prefilter_map, reflection, lod).rgb;
+  vec2 env_brdf = texture(brdf_lut, vec2(n_dot_v, surface.roughness)).rg;
+  vec3 specular = prefiltered_color * (F * env_brdf.x + env_brdf.y);
+
+  return (env_diffuse + specular) * visibility;
 }

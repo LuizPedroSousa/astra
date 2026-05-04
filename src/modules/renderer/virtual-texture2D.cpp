@@ -113,19 +113,12 @@ VirtualTexture2D::VirtualTexture2D(const ResourceHandle &id,
                                    Ref<Texture2DDescriptor> descriptor)
     : Texture2D(id) {
   if (descriptor->image_load.has_value()) {
-    const auto image = load_image(descriptor->image_load->path,
-                                  descriptor->image_load->flip_image_on_loading);
-    m_format = format_from_loaded_channels(image.nr_channels);
-    m_width = static_cast<uint32_t>(std::max(image.width, 1));
-    m_height = static_cast<uint32_t>(std::max(image.height, 1));
-    m_bytes = copy_loaded_image_pixels(image);
-    // OpenGL's texture upload path effectively consumes stb rows upside-down
-    // relative to Vulkan buffer-to-image copies. Flip Vulkan-backed texture
-    // rows here so sampled material textures match across backends.
+    auto prepared = Texture2D::prepare_descriptor(descriptor);
+    m_format = format_from_loaded_channels(prepared.nr_channels);
+    m_width = prepared.width;
+    m_height = prepared.height;
+    m_bytes.assign(prepared.bytes.begin(), prepared.bytes.end());
     flip_rows_in_place(m_bytes, m_width, m_height, m_format);
-    if (image.data != nullptr) {
-      free_image(image.data);
-    }
     return;
   }
 
@@ -133,6 +126,19 @@ VirtualTexture2D::VirtualTexture2D(const ResourceHandle &id,
   m_width = std::max(descriptor->width, 1u);
   m_height = std::max(descriptor->height, 1u);
   m_bytes = copy_descriptor_buffer(descriptor, m_width, m_height);
+}
+
+VirtualTexture2D::VirtualTexture2D(
+    const ResourceHandle &id,
+    Ref<Texture2DDescriptor> descriptor,
+    PreparedTexture2DData prepared
+) : Texture2D(id) {
+  (void)descriptor;
+  m_format = format_from_loaded_channels(prepared.nr_channels);
+  m_width = std::max(prepared.width, 1u);
+  m_height = std::max(prepared.height, 1u);
+  m_bytes.assign(prepared.bytes.begin(), prepared.bytes.end());
+  flip_rows_in_place(m_bytes, m_width, m_height, m_format);
 }
 
 void VirtualTexture2D::bind() const {}

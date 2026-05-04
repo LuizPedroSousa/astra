@@ -1,0 +1,246 @@
+@version 450;
+
+@include "helpers/ssgi.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface Camera {
+  mat4 view;
+  mat4 projection;
+  vec3 position;
+}
+
+@uniform
+interface GBuffer {
+  sampler2D g_position;
+  sampler2D g_normal;
+  isampler2D g_entity_id;
+  sampler2D scene_color;
+}
+
+@uniform
+interface SSR {
+  sampler2D noise_texture;
+  bool enabled = true;
+  float intensity = 1.0;
+  float max_distance = 50.0;
+  float thickness = 0.1;
+  int max_steps = 64;
+  float stride = 1.0;
+  float roughness_cutoff = 0.7;
+  vec2 noise_scale = vec2(1.0);
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+fn trace_screen_space_ray(
+    vec3 ray_origin_view,
+    vec3 ray_direction_view,
+    mat4 projection,
+    mat4 view,
+    sampler2D g_position_sampler,
+    isampler2D g_entity_id_sampler,
+    float ray_max_distance,
+    float ray_thickness,
+    int ray_max_steps,
+    float ray_stride
+) -> vec4 {
+  const int k_refinement_steps = 6;
+
+  vec3 ray_end_view = ray_origin_view + ray_direction_view * ray_max_distance;
+
+  vec4 start_clip = projection * vec4(ray_origin_view, 1.0);
+  vec4 end_clip = projection * vec4(ray_end_view, 1.0);
+
+  if (abs(start_clip.w) < 0.0001 || abs(end_clip.w) < 0.0001) {
+    return vec4(0.0);
+  }
+
+  vec2 start_uv = (start_clip.xy / start_clip.w) * 0.5 + 0.5;
+  vec2 end_uv = (end_clip.xy / end_clip.w) * 0.5 + 0.5;
+
+  vec2 delta_uv = end_uv - start_uv;
+  float uv_distance = length(delta_uv);
+  if (uv_distance < 0.0001) {
+    return vec4(0.0);
+  }
+
+  float step_count = min(float(ray_max_steps), uv_distance / max(ray_stride * 0.001, 0.0001));
+  step_count = max(step_count, 1.0);
+
+  vec2 step_uv = delta_uv / step_count;
+  float step_depth = (ray_end_view.z - ray_origin_view.z) / step_count;
+
+  vec2 current_uv = start_uv + step_uv;
+  float current_depth = ray_origin_view.z + step_depth;
+
+  vec2 hit_uv = vec2(0.0);
+  bool found_hit = false;
+
+  for (int i = 0; i < 128; ++i) {
+    if (i >= int(step_count)) {
+      break;
+    }
+
+    if (current_uv.x < 0.0 || current_uv.x > 1.0 ||
+        current_uv.y < 0.0 || current_uv.y > 1.0) {
+      break;
+    }
+
+    int sample_entity = texture(g_entity_id_sampler, current_uv).r;
+    if (sample_entity == 0) {
+      current_uv += step_uv;
+      current_depth += step_depth;
+      continue;
+    }
+
+    vec3 sample_world = texture(g_position_sampler, current_uv).rgb;
+    vec4 sample_view_pos = view * vec4(sample_world, 1.0);
+    float sample_view_z = sample_view_pos.z;
+
+    float depth_delta = current_depth - sample_view_z;
+
+    if (depth_delta > 0.0 && depth_delta < ray_thickness) {
+      hit_uv = current_uv;
+      found_hit = true;
+      break;
+    }
+
+    current_uv += step_uv;
+    current_depth += step_depth;
+  }
+
+  if (!found_hit) {
+    return vec4(0.0);
+  }
+
+  float refine_step_depth = step_depth * 0.5;
+  vec2 refine_step_uv = step_uv * 0.5;
+  vec2 refine_uv = hit_uv - refine_step_uv;
+  float refine_depth = current_depth - step_depth + refine_step_depth * 0.5;
+
+  for (int j = 0; j < k_refinement_steps; ++j) {
+    refine_step_uv *= 0.5;
+    refine_step_depth *= 0.5;
+
+    vec3 refine_world = texture(g_position_sampler, refine_uv).rgb;
+    vec4 refine_view_pos = view * vec4(refine_world, 1.0);
+    float refine_view_z = refine_view_pos.z;
+    float refine_delta = refine_depth - refine_view_z;
+
+    if (refine_delta > 0.0 && refine_delta < ray_thickness) {
+      refine_uv -= refine_step_uv;
+      refine_depth -= refine_step_depth;
+    } else {
+      refine_uv += refine_step_uv;
+      refine_depth += refine_step_depth;
+    }
+  }
+
+  hit_uv = refine_uv;
+
+  float confidence = 1.0;
+  confidence *= compute_edge_fade(hit_uv, 0.05);
+
+  return vec4(hit_uv, 0.0, confidence);
+}
+
+@fragment
+fn main(VertexOutput vertex, Camera camera, GBuffer g_buffer, SSR ssr) -> FragmentOutput {
+  const float k_edge_fade_width = 0.05;
+
+  if (!ssr.enabled) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  int entity_id = texture(g_buffer.g_entity_id, vertex.texture).r;
+  if (entity_id == 0) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  vec4 position_sample = texture(g_buffer.g_position, vertex.texture);
+  vec4 normal_sample = texture(g_buffer.g_normal, vertex.texture);
+
+  vec3 fragment_world = position_sample.rgb;
+  vec3 surface_normal = normalize(normal_sample.rgb);
+  float roughness = position_sample.a;
+
+  if (length(surface_normal) < 0.001) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  vec3 view_dir = normalize(camera.position - fragment_world);
+  float n_dot_v = dot(surface_normal, view_dir);
+  if (n_dot_v < 0.0) {
+    surface_normal = normalize(surface_normal + view_dir * (-n_dot_v + 0.001));
+  }
+
+  if (roughness > ssr.roughness_cutoff) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  vec4 view_position_h = camera.view * vec4(fragment_world, 1.0);
+  vec3 view_position = view_position_h.xyz;
+  vec3 view_normal = normalize(mat3(camera.view) * surface_normal);
+  vec3 view_direction = normalize(view_position);
+  vec3 reflection_direction = reflect(view_direction, view_normal);
+
+  vec3 noise = texture(ssr.noise_texture, vertex.texture * ssr.noise_scale).xyz * 2.0 - 1.0;
+  vec3 jittered_direction = normalize(reflection_direction + noise * roughness * 0.1);
+
+  if (dot(jittered_direction, view_normal) < 0.0) {
+    jittered_direction = reflection_direction;
+  }
+
+  vec4 hit_result = trace_screen_space_ray(
+      view_position,
+      jittered_direction,
+      camera.projection,
+      camera.view,
+      g_buffer.g_position,
+      g_buffer.g_entity_id,
+      ssr.max_distance,
+      ssr.thickness,
+      ssr.max_steps,
+      ssr.stride
+  );
+
+  if (hit_result.w < 0.001) {
+    return FragmentOutput(vec4(0.0));
+  }
+
+  vec2 hit_uv = hit_result.xy;
+  vec3 reflected_color = texture(g_buffer.scene_color, hit_uv).rgb;
+
+  float roughness_fade = 1.0 - clamp(roughness / ssr.roughness_cutoff, 0.0, 1.0);
+  float origin_edge_fade = compute_edge_fade(vertex.texture, k_edge_fade_width);
+  float confidence = hit_result.w * roughness_fade * origin_edge_fade;
+
+  return FragmentOutput(vec4(reflected_color, confidence));
+}

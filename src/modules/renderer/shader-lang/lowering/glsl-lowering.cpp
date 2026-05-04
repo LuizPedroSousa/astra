@@ -47,6 +47,8 @@ public:
   GlslLoweringResult lower() const {
     GlslLoweringResult result;
     result.stage.version = m_stage.version;
+    result.stage.stage = m_stage.stage;
+    result.stage.local_size = m_stage.local_size;
 
     EntryContext entry_ctx = build_entry_context();
 

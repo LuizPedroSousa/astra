@@ -1,0 +1,146 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface LensFlareResources {
+  sampler2D scene_input;
+}
+
+@uniform
+interface LensFlareParams {
+  float intensity;
+  float threshold;
+  int ghost_count;
+  float ghost_dispersal;
+  float ghost_weight;
+  float halo_radius;
+  float halo_weight;
+  float halo_thickness;
+  float chromatic_aberration;
+  vec2 texel_size;
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+fn luminance(vec3 color) -> float {
+  return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+fn soft_threshold(vec3 color, float threshold_value) -> vec3 {
+  float brightness = luminance(color);
+  float knee = threshold_value * 0.7;
+  float soft = brightness - threshold_value + knee;
+  soft = clamp(soft, 0.0, 2.0 * knee);
+  soft = soft * soft / (4.0 * knee + 0.0001);
+  float contribution = max(soft, brightness - threshold_value);
+  return color * (contribution / max(brightness, 0.0001));
+}
+
+fn blur_sample(sampler2D source, vec2 uv, vec2 texel, float threshold_value) -> vec3 {
+  vec3 accumulator = vec3(0.0);
+  float total_weight = 0.0;
+
+  float kernel_weights[5] = float[5](0.0625, 0.25, 0.375, 0.25, 0.0625);
+
+  for (int y = -2; y <= 2; y++) {
+    for (int x = -2; x <= 2; x++) {
+      vec2 offset = vec2(float(x), float(y)) * texel * 4.0;
+      vec3 sample_color = texture(source, uv + offset).rgb;
+      sample_color = soft_threshold(sample_color, threshold_value);
+      float weight = kernel_weights[x + 2] * kernel_weights[y + 2];
+      accumulator += sample_color * weight;
+      total_weight += weight;
+    }
+  }
+
+  return accumulator / total_weight;
+}
+
+fn chromatic_blur_sample(
+    sampler2D source, vec2 uv, vec2 direction,
+    float offset, vec2 texel, float threshold_value
+) -> vec3 {
+  return vec3(
+    blur_sample(source, uv + direction * offset, texel, threshold_value).r,
+    blur_sample(source, uv, texel, threshold_value).g,
+    blur_sample(source, uv - direction * offset, texel, threshold_value).b
+  );
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    LensFlareResources resources,
+    LensFlareParams params
+) -> FragmentOutput {
+  vec2 uv = vertex.texture;
+  vec2 ghost_vector = (vec2(0.5) - uv) * params.ghost_dispersal;
+  vec2 chromatic_direction = normalize(ghost_vector) * params.chromatic_aberration;
+
+  vec3 result = vec3(0.0);
+
+  for (int i = 0; i < params.ghost_count; i++) {
+    vec2 sample_uv = uv + ghost_vector * float(i);
+
+    if (sample_uv.x < 0.0 || sample_uv.x > 1.0 || sample_uv.y < 0.0 || sample_uv.y > 1.0) {
+      continue;
+    }
+
+    vec3 sample_color = chromatic_blur_sample(
+      resources.scene_input, sample_uv, chromatic_direction,
+      params.chromatic_aberration, params.texel_size, params.threshold
+    );
+
+    float distance_to_center = length(sample_uv - vec2(0.5));
+    float ghost_falloff = 1.0 - smoothstep(0.0, 0.75, distance_to_center);
+    result += sample_color * ghost_falloff * params.ghost_weight;
+  }
+
+  vec2 halo_vector = normalize(ghost_vector) * params.halo_radius;
+  vec2 halo_uv = uv + halo_vector;
+
+  if (halo_uv.x >= 0.0 && halo_uv.x <= 1.0 && halo_uv.y >= 0.0 && halo_uv.y <= 1.0) {
+    float halo_distance = length(vec2(0.5) - halo_uv) / length(vec2(0.5));
+    float halo_mask = 1.0 - smoothstep(
+      1.0 - params.halo_thickness,
+      1.0 + params.halo_thickness,
+      halo_distance
+    );
+
+    vec3 halo_color = chromatic_blur_sample(
+      resources.scene_input, halo_uv, chromatic_direction,
+      params.chromatic_aberration * 1.5, params.texel_size, params.threshold
+    );
+    result += halo_color * halo_mask * params.halo_weight;
+  }
+
+  result *= params.intensity;
+
+  return FragmentOutput(vec4(result, 1.0));
+}

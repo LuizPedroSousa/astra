@@ -29,20 +29,53 @@ inline void recalculate_camera_view_matrix(rendering::Camera &camera, const Tran
   );
 }
 
+inline float effective_camera_near_plane(const rendering::Camera &camera) {
+  return std::max(
+      camera.runtime_near_plane_override.value_or(camera.near_plane),
+      0.001f
+  );
+}
+
+inline float effective_camera_far_plane(
+    const rendering::Camera &camera,
+    float near_plane
+) {
+  return std::max(
+      camera.runtime_far_plane_override.value_or(camera.far_plane),
+      near_plane + 0.001f
+  );
+}
+
 inline void recalculate_camera_projection_matrix(rendering::Camera &camera, const Transform &transform, float aspect_ratio) {
   const float clamped_aspect = std::max(aspect_ratio, 0.001f);
+  const float near_plane = effective_camera_near_plane(camera);
+  const float far_plane = effective_camera_far_plane(camera, near_plane);
 
   camera.projection_matrix =
-      glm::perspective(glm::radians(camera.fov_degrees), clamped_aspect, camera.near_plane, camera.far_plane);
+      glm::perspective(
+          glm::radians(camera.fov_degrees),
+          clamped_aspect,
+          near_plane,
+          far_plane
+      );
 }
 
 inline void recalculate_camera_orthographic_matrix(rendering::Camera &camera, const Transform &transform, float aspect_ratio) {
   const float clamped_aspect = std::max(aspect_ratio, 0.001f);
+  const float near_plane = effective_camera_near_plane(camera);
+  const float far_plane = effective_camera_far_plane(camera, near_plane);
 
   const float half_width = camera.orthographic_scale * clamped_aspect;
   const float half_height = camera.orthographic_scale;
   camera.projection_matrix =
-      glm::ortho(-half_width, half_width, -half_height, half_height, camera.near_plane, camera.far_plane);
+      glm::ortho(
+          -half_width,
+          half_width,
+          -half_height,
+          half_height,
+          near_plane,
+          far_plane
+      );
 }
 
 inline void update_camera_controller(ecs::World &world, EntityID entity_id, Transform &transform, rendering::Camera &camera, CameraController &controller, const CameraControllerInput &input) {

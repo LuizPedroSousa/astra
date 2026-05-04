@@ -73,6 +73,22 @@ TEST(PassRecorderTest, RejectsUnbalancedRenderingScopes) {
   EXPECT_THROW({ recorder.take_commands(); }, BaseException);
 }
 
+TEST(PassRecorderTest, EmitsComputeCommandsInAuthoringOrder) {
+  PassRecorder recorder;
+
+  recorder.bind_compute_pipeline(RenderPipelineHandle{9});
+  recorder.bind_binding_group(RenderBindingGroupHandle{4});
+  recorder.dispatch_compute(8, 4, 2);
+  recorder.memory_barrier(MemoryBarrierBit::ShaderStorage);
+
+  const auto commands = recorder.take_commands();
+  ASSERT_EQ(commands.size(), 4u);
+  EXPECT_TRUE(std::holds_alternative<BindComputePipelineCmd>(commands[0]));
+  EXPECT_TRUE(std::holds_alternative<BindBindingsCmd>(commands[1]));
+  EXPECT_TRUE(std::holds_alternative<DispatchComputeCmd>(commands[2]));
+  EXPECT_TRUE(std::holds_alternative<MemoryBarrierCmd>(commands[3]));
+}
+
 TEST(RenderGraphPassTest, RecordedPassAppendsCompiledPassToFrame) {
   auto frame_pass = create_scope<DummyFramePass>();
   auto *frame_pass_ptr = frame_pass.get();

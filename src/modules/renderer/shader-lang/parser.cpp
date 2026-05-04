@@ -518,6 +518,7 @@ NodeID Parser::parse_function_decl(AttributeList attributes) {
   Token name = expect_name("expected name");
 
   std::optional<StageKind> stage_kind;
+  std::array<uint32_t, 3> local_size = {1u, 1u, 1u};
 
   for (const auto &attribute : attributes) {
     switch (attribute.kind) {
@@ -532,6 +533,14 @@ NodeID Parser::parse_function_decl(AttributeList attributes) {
         break;
       case AttributeKind::ComputeStage:
         stage_kind = StageKind::Compute;
+        if (const auto *sizes =
+                std::get_if<std::array<int32_t, 3>>(&attribute.value)) {
+          local_size = {
+              static_cast<uint32_t>((*sizes)[0]),
+              static_cast<uint32_t>((*sizes)[1]),
+              static_cast<uint32_t>((*sizes)[2]),
+          };
+        }
         break;
       default:
         PUSH_INVALID_ATTRIBUTE(
@@ -564,8 +573,14 @@ NodeID Parser::parse_function_decl(AttributeList attributes) {
 
   NodeID body = parse_block_stmt();
 
-  return push_node(FuncDecl{ret, std::move(name.lexeme), std::move(params),
-                            body, std::move(stage_kind)},
+  return push_node(FuncDecl{
+                       ret,
+                       std::move(name.lexeme),
+                       std::move(params),
+                       body,
+                       std::move(stage_kind),
+                       local_size,
+                   },
                    location);
 }
 
@@ -1517,7 +1532,20 @@ AttributeList Parser::parse_attributes() {
     advance();
 
     if (match(TokenKind::LParen)) {
-      if (check(TokenKind::Int)) {
+      if (attribute.kind == AttributeKind::ComputeStage) {
+        std::array<int32_t, 3> local_size = {1, 1, 1};
+
+        for (size_t axis = 0; axis < local_size.size(); ++axis) {
+          Token size_token = expect(TokenKind::Int, "expected integer");
+          local_size[axis] = static_cast<int32_t>(size_token.int_val);
+
+          if (axis + 1 < local_size.size()) {
+            expect(TokenKind::Comma, "expected ','");
+          }
+        }
+
+        attribute.value = local_size;
+      } else if (check(TokenKind::Int)) {
         attribute.value = static_cast<int32_t>(advance().int_val);
       }
 

@@ -1,0 +1,111 @@
+@version 450;
+
+@include "helpers/light.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface GodRaysResources {
+  sampler2D scene_color;
+  sampler2D g_position;
+}
+
+@uniform
+interface GodRaysParams {
+  DirectionalLight directional;
+  mat4 view_matrix;
+  mat4 projection_matrix;
+  vec3 camera_position;
+  float intensity = 1.0;
+  float decay = 0.96;
+  float density = 0.5;
+  float weight = 0.4;
+  float threshold = 0.8;
+  int samples = 64;
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+fn luminance(vec3 color) -> float {
+  return dot(color, vec3(0.2126, 0.7152, 0.0722));
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    GodRaysResources resources,
+    GodRaysParams params
+) -> FragmentOutput {
+  vec3 light_world = params.camera_position - normalize(params.directional.direction) * 1000.0;
+  vec4 light_clip = params.projection_matrix * params.view_matrix * vec4(light_world, 1.0);
+  vec2 light_screen = (light_clip.xy / light_clip.w) * 0.5 + 0.5;
+
+  bool light_behind_camera = light_clip.w < 0.0;
+  if (light_behind_camera) {
+    return FragmentOutput(vec4(0.0, 0.0, 0.0, 1.0));
+  }
+
+  vec2 delta = vertex.texture - light_screen;
+  float distance_to_light = length(delta);
+  vec2 ray_step = delta * (1.0 / float(params.samples)) * params.density;
+
+  vec2 sample_uv = vertex.texture;
+  float illumination_decay = 1.0;
+  vec3 accumulated = vec3(0.0);
+
+  for (int i = 0; i < params.samples; ++i) {
+    sample_uv -= ray_step;
+
+    if (sample_uv.x < 0.0 || sample_uv.x > 1.0 ||
+        sample_uv.y < 0.0 || sample_uv.y > 1.0) {
+      break;
+    }
+
+    vec3 sample_color = texture(resources.scene_color, sample_uv).rgb;
+    float brightness = luminance(sample_color);
+    float contribution = max(brightness - params.threshold, 0.0)
+        / max(brightness, 0.0001);
+    sample_color *= contribution;
+
+    vec3 world_position = texture(resources.g_position, sample_uv).rgb;
+    float depth_weight = 1.0;
+    if (length(world_position) < 0.001) {
+      depth_weight = 1.0;
+    }
+
+    sample_color *= illumination_decay * params.weight * depth_weight;
+    accumulated += sample_color;
+
+    illumination_decay *= params.decay;
+  }
+
+  float edge_falloff = 1.0 - smoothstep(0.0, 1.5, distance_to_light);
+  accumulated *= params.intensity * edge_falloff;
+
+  return FragmentOutput(vec4(accumulated, 1.0));
+}

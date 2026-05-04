@@ -1,0 +1,67 @@
+@version 450;
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface FilmGrainResources {
+  sampler2D screen_texture;
+}
+
+@uniform
+interface FilmGrainParams {
+  float intensity = 0.1;
+  float time = 0.0;
+}
+
+interface VertexOutput {
+  vec2 texture_coordinates;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture_coordinates = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+fn hash(vec2 coords) -> float {
+  vec3 seed = vec3(coords.xy, coords.x + coords.y);
+  seed = fract(seed * vec3(443.8975, 397.2973, 491.1871));
+  seed += dot(seed, seed.yzx + 19.19);
+  return fract((seed.x + seed.y) * seed.z);
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    FilmGrainResources resources,
+    FilmGrainParams params
+) -> FragmentOutput {
+  vec2 uv = vertex.texture_coordinates;
+  vec3 color = texture(resources.screen_texture, uv).rgb;
+
+  float noise = hash(uv * 1000.0 + params.time) * 2.0 - 1.0;
+
+  float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  float grain_strength = params.intensity * (1.0 - luminance * 0.5);
+
+  color += noise * grain_strength;
+
+  return FragmentOutput(vec4(color, 1.0));
+}

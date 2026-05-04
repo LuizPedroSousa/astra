@@ -1,0 +1,76 @@
+@version 450;
+
+@include "helpers/ssgi.axsl";
+
+@in
+interface Mesh {
+  @location(0)
+  vec2 position;
+
+  @location(1)
+  vec3 normal;
+
+  @location(2)
+  vec2 texture_coordinates;
+}
+
+@uniform
+interface CompositeResources {
+  sampler2D ssgi_input;
+  sampler2D g_position;
+  sampler2D g_normal;
+  isampler2D g_entity_id;
+}
+
+@uniform
+interface CompositeParams {
+  bool enabled = true;
+  float intensity = 1.0;
+}
+
+interface VertexOutput {
+  vec2 texture;
+}
+
+@vertex
+fn main(Mesh mesh) -> VertexOutput {
+  VertexOutput vertex_output;
+  vertex_output.texture = mesh.texture_coordinates;
+  gl_Position = vec4(mesh.position, 0.0, 1.0);
+  return vertex_output;
+}
+
+interface FragmentOutput {
+  @location(0)
+  vec4 color;
+}
+
+@fragment
+fn main(
+    VertexOutput vertex,
+    CompositeResources composite,
+    CompositeParams params
+) -> FragmentOutput {
+  if (!params.enabled) {
+    return FragmentOutput(vec4(0.0, 0.0, 0.0, 0.0));
+  }
+
+  int entity_id = texture(composite.g_entity_id, vertex.texture).r;
+  if (entity_id == 0) {
+    return FragmentOutput(vec4(0.0, 0.0, 0.0, 0.0));
+  }
+
+  vec3 center_position = texture(composite.g_position, vertex.texture).rgb;
+  vec3 center_normal = normalize(texture(composite.g_normal, vertex.texture).rgb);
+
+  vec4 indirect = sample_ssgi_bilateral(
+      composite.g_position,
+      composite.g_normal,
+      composite.ssgi_input,
+      vertex.texture,
+      center_position,
+      center_normal
+  );
+
+  return FragmentOutput(vec4(indirect.rgb * params.intensity, 0.0));
+}

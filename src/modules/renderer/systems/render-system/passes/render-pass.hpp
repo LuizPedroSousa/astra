@@ -36,6 +36,19 @@ inline const RenderGraphResource *find_graph_image_resource(
   return nullptr;
 }
 
+inline const RenderGraphResource *find_graph_resource(
+    const std::vector<const RenderGraphResource *> &resources,
+    const std::string &name
+) {
+  for (const auto *resource : resources) {
+    if (resource != nullptr && resource->desc.name == name) {
+      return resource;
+    }
+  }
+
+  return nullptr;
+}
+
 inline const RenderPassDependencyDeclaration *find_declared_dependency(
     const std::vector<RenderPassDependencyDeclaration> &dependencies,
     std::string_view slot
@@ -95,6 +108,10 @@ struct PassSetupContext {
     return resources != nullptr ? *resources : k_empty;
   }
 
+  const RenderGraphResource *find_resource(const std::string &name) const {
+    return find_graph_resource(resource_views(), name);
+  }
+
   const RenderGraphResource *find_graph_image(
       const std::string &name
   ) const {
@@ -140,10 +157,24 @@ struct PassRecordContext {
     return resources != nullptr ? *resources : k_empty;
   }
 
+  const RenderGraphResource *find_resource(const std::string &name) const {
+    return find_graph_resource(resource_views(), name);
+  }
+
   const RenderGraphResource *find_graph_image(
       const std::string &name
   ) const {
     return find_graph_image_resource(resource_views(), name);
+  }
+
+  StorageBuffer *find_storage_buffer(const std::string &name) const {
+    const auto *resource = find_resource(name);
+    if (resource == nullptr ||
+        resource->desc.type != RenderGraphResourceType::StorageBuffer) {
+      return nullptr;
+    }
+
+    return resource->get_storage_buffer();
   }
 
   CompiledFrame &frame() const {
