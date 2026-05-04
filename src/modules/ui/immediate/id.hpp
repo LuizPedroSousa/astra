@@ -71,6 +71,15 @@ inline WidgetId child_id(WidgetId scope, std::string_view local_name) {
   return detail::combine(scope, detail::hash_string(local_name));
 }
 
+inline WidgetId auto_child_id(WidgetId scope, uint64_t ordinal) {
+  uint64_t seed = detail::fnv1a_seed();
+  constexpr std::string_view k_auto_tag = "@auto";
+  const uint64_t tag_hash = detail::hash_string(k_auto_tag);
+  seed = detail::fnv1a_append(seed, &tag_hash, sizeof(tag_hash));
+  seed = detail::fnv1a_append(seed, &ordinal, sizeof(ordinal));
+  return detail::combine(scope, seed);
+}
+
 template <typename Key>
 WidgetId keyed_id(WidgetId scope, std::string_view local_name, const Key &key) {
   uint64_t seed = detail::fnv1a_seed();

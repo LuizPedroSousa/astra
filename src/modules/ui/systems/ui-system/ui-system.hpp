@@ -5,6 +5,7 @@
 #include "events/mouse-event.hpp"
 #include "systems/system.hpp"
 #include "systems/ui-system/core.hpp"
+#include <array>
 #include <optional>
 #include <vector>
 
@@ -49,6 +50,20 @@ public:
   void pre_update(double dt) override;
   void update(double dt) override;
 
+  const std::optional<PanelMoveDrag> &active_panel_move_drag() const {
+    return m_panel_move_drag;
+  }
+  const std::optional<PanelResizeDrag> &active_panel_resize_drag() const {
+    return m_panel_resize_drag;
+  }
+  std::optional<PanelMoveDrag> &active_panel_move_drag_mut() {
+    return m_panel_move_drag;
+  }
+
+  glm::vec2 last_pointer_position() const { return m_last_pointer_position; }
+  bool has_last_pointer_position() const { return m_has_last_pointer_position; }
+  bool keyboard_focus_captures_editor_shortcuts() const;
+
 private:
   struct SecondaryClickPress {
     Target target;
@@ -69,6 +84,19 @@ private:
 
   struct SliderDrag {
     Target target;
+  };
+
+  struct PointerButtonState {
+    std::optional<Target> pressed_target;
+    std::optional<Target> capture_target;
+    std::optional<Target> last_routed_target;
+    ui::UIHitPart pressed_part = ui::UIHitPart::Body;
+    std::optional<size_t> pressed_item_index;
+    std::optional<ui::UICustomHitData> pressed_custom;
+    glm::vec2 press_pointer = glm::vec2(0.0f);
+    glm::vec2 last_pointer = glm::vec2(0.0f);
+    bool drag_active = false;
+    bool view_transform_pan = false;
   };
 
   struct QueuedKeyInput {
@@ -92,6 +120,15 @@ private:
   void validate_targets(const std::vector<ui_system_core::RootEntry> &roots, bool scene_changed, bool pointer_enabled);
   std::optional<ui_system_core::PointerHit>
   hit_test(const std::vector<ui_system_core::RootEntry> &roots, bool pointer_enabled, glm::vec2 &pointer) const;
+  void process_pointer_capture_requests(
+      const std::vector<ui_system_core::RootEntry> &roots
+  );
+  void dispatch_pointer_motion(
+      const std::vector<ui_system_core::RootEntry> &roots,
+      bool pointer_enabled,
+      const std::optional<ui_system_core::PointerHit> &deepest_hit,
+      const glm::vec2 &pointer
+  );
   void
   update_active_drags(const std::vector<ui_system_core::RootEntry> &roots, bool pointer_enabled, const glm::vec2 &pointer, const glm::vec2 &viewport_size);
   void resolve_hot_target(
@@ -137,6 +174,7 @@ private:
   void clear_active_target(bool queue_release);
   void clear_focused_target(bool queue_blur);
   void clear_secondary_click_state();
+  void clear_pointer_button_state(input::MouseButton button);
   void clear_text_selection_drag();
   void clear_scrollbar_drag();
   void clear_slider_drag();
@@ -146,6 +184,15 @@ private:
   void clear_drag_state();
   void clear_pointer_state();
   void set_focused_target(const std::optional<Target> &target);
+  void dispatch_pointer_event(
+      const ui_system_core::PointerHit &hit,
+      ui::UIPointerEventPhase phase,
+      const glm::vec2 &pointer,
+      const glm::vec2 &delta,
+      const glm::vec2 &total_delta,
+      std::optional<input::MouseButton> button,
+      input::KeyModifiers modifiers
+  );
 
   std::optional<Target> m_hot_target;
   std::optional<Target> m_active_target;
@@ -159,10 +206,16 @@ private:
   std::optional<PanelMoveDrag> m_panel_move_drag;
   std::optional<PanelResizeDrag> m_panel_resize_drag;
   std::optional<SplitterResizeDrag> m_splitter_resize_drag;
+  std::array<PointerButtonState, static_cast<size_t>(input::MouseButton::Count)>
+      m_pointer_button_states;
+  std::optional<ui_system_core::PointerHit> m_last_pointer_move_hit;
+  glm::vec2 m_last_pointer_position = glm::vec2(0.0f);
+  bool m_has_last_pointer_position = false;
   std::vector<QueuedKeyInput> m_key_inputs;
   std::vector<QueuedCharacterInput> m_character_inputs;
   std::vector<QueuedMouseWheelInput> m_mouse_wheel_inputs;
   Scene *m_last_scene = nullptr;
+  uint64_t m_last_scene_generation = 0u;
 };
 
 } // namespace astralix

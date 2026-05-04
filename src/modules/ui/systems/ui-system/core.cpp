@@ -79,6 +79,47 @@ std::optional<PointerHit> target_from_hit(const RootEntry &entry, const ui::UIHi
       .target = *target,
       .part = hit.part,
       .item_index = hit.item_index,
+      .custom = hit.custom,
+  };
+}
+
+std::optional<PointerHit> find_pointer_event_target(
+    const RootEntry &entry,
+    ui::UINodeId node_id,
+    ui::UIHitPart part,
+    std::optional<size_t> item_index,
+    std::optional<ui::UICustomHitData> custom
+) {
+  auto target = map_to_ancestor_target(
+      entry,
+      node_id,
+      [](const ui::UIDocument &document, ui::UINodeId current) {
+        while (current != ui::k_invalid_node_id) {
+          const auto *node = document.node(current);
+          if (node == nullptr) {
+            return std::optional<ui::UINodeId>{};
+          }
+
+          if (node->on_pointer_event &&
+              ui::node_chain_allows_interaction(document, current)) {
+            return std::optional<ui::UINodeId>{current};
+          }
+
+          current = node->parent;
+        }
+
+        return std::optional<ui::UINodeId>{};
+      }
+  );
+  if (!target.has_value()) {
+    return std::nullopt;
+  }
+
+  return PointerHit{
+      .target = *target,
+      .part = part,
+      .item_index = item_index,
+      .custom = custom,
   };
 }
 
@@ -93,6 +134,31 @@ std::optional<Target> map_to_ancestor_target(
   auto mapped_node_id = mapper(*entry.document, node_id);
   return mapped_node_id.has_value() ? target_from_node(entry, *mapped_node_id)
                                     : std::nullopt;
+}
+
+std::optional<Target> find_view_transform_target(
+    const RootEntry &entry,
+    ui::UINodeId node_id
+) {
+  return map_to_ancestor_target(
+      entry, node_id, [](const ui::UIDocument &document, ui::UINodeId current) {
+        while (current != ui::k_invalid_node_id) {
+          const auto *node = document.node(current);
+          if (node == nullptr) {
+            return std::optional<ui::UINodeId>{};
+          }
+
+          if (node->view_transform_interaction.enabled &&
+              ui::node_chain_allows_interaction(document, current)) {
+            return std::optional<ui::UINodeId>{current};
+          }
+
+          current = node->parent;
+        }
+
+        return std::optional<ui::UINodeId>{};
+      }
+  );
 }
 
 std::optional<Target> find_drag_handle_target(const RootEntry &entry, ui::UINodeId node_id) {

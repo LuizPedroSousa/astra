@@ -57,122 +57,236 @@ inline glm::vec4 theme_alpha(const glm::vec4 &color, float value) {
   return glm::vec4(color.r, color.g, color.b, value);
 }
 
+inline const glm::vec4 k_editor_shell_background =
+    glm::vec4(0.067f, 0.067f, 0.067f, 0.98f);
+inline const glm::vec4 k_editor_panel_background =
+    glm::vec4(0.102f, 0.102f, 0.102f, 1.0f);
+inline const glm::vec4 k_editor_panel_raised_background =
+    glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+inline const glm::vec4 k_editor_panel_border_rgb =
+    glm::vec4(0.200f, 0.200f, 0.200f, 1.0f);
+inline const glm::vec4 k_editor_panel_border =
+    theme_alpha(k_editor_panel_border_rgb, 0.60f);
+inline const glm::vec4 k_editor_card_background =
+    glm::vec4(0.102f, 0.102f, 0.102f, 1.0f);
+inline const glm::vec4 k_editor_card_border =
+    theme_alpha(k_editor_panel_border_rgb, 0.60f);
+inline const glm::vec4 k_editor_text_primary =
+    glm::vec4(0.980f, 0.980f, 0.980f, 1.0f);
+inline const glm::vec4 k_editor_text_muted =
+    glm::vec4(0.639f, 0.639f, 0.639f, 1.0f);
+inline const glm::vec4 k_editor_accent =
+    glm::vec4(0.961f, 0.620f, 0.043f, 1.0f);
+inline const glm::vec4 k_editor_accent_pressed =
+    glm::vec4(0.875f, 0.396f, 0.027f, 1.0f);
+inline const glm::vec4 k_editor_accent_soft =
+    glm::vec4(0.961f, 0.620f, 0.043f, 0.12f);
+inline const glm::vec4 k_editor_status_bar_background =
+    glm::vec4(0.047f, 0.047f, 0.047f, 0.60f);
+inline const glm::vec4 k_editor_separator =
+    theme_alpha(k_editor_panel_border_rgb, 0.50f);
+inline const glm::vec4 k_editor_handle =
+    glm::vec4(0.122f, 0.122f, 0.122f, 0.96f);
+
 struct WorkspaceShellTheme {
-  glm::vec4 backdrop = k_theme.storm_1050;
-  glm::vec4 bar_background = k_theme.storm_1000;
-  glm::vec4 panel_background = k_theme.storm_950;
-  glm::vec4 panel_raised_background = k_theme.storm_900;
-  glm::vec4 panel_border = k_theme.storm_800;
-  glm::vec4 accent = k_theme.sunset_500;
-  glm::vec4 accent_soft = theme_alpha(k_theme.sunset_600, 0.25f);
-  glm::vec4 text_primary = k_theme.storm_50;
-  glm::vec4 text_muted = k_theme.storm_300;
+  glm::vec4 backdrop = theme_alpha(k_editor_panel_raised_background, 0.72f);
+  glm::vec4 bar_background = k_editor_shell_background;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_raised_background = k_editor_panel_raised_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_soft = k_editor_accent_soft;
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
+};
+
+struct ContextToolboxTheme {
+  glm::vec4 background = theme_alpha(k_editor_shell_background, 0.92f);
+  glm::vec4 panel_border = theme_alpha(k_editor_panel_border_rgb, 0.40f);
+  glm::vec4 button_background = theme_alpha(k_editor_shell_background, 0.92f);
+  glm::vec4 button_border = theme_alpha(k_editor_panel_border_rgb, 0.34f);
+  glm::vec4 button_hover = theme_alpha(k_editor_panel_background, 0.96f);
+  glm::vec4 button_active = theme_alpha(k_editor_panel_background, 0.98f);
+  glm::vec4 button_active_border = k_editor_accent;
+  glm::vec4 group_separator = theme_alpha(k_editor_separator, 0.40f);
+  glm::vec4 icon_tint = k_editor_text_primary;
+  glm::vec4 icon_tint_active = k_editor_accent;
+  glm::vec4 tooltip_background = theme_alpha(k_editor_shell_background, 0.98f);
+  glm::vec4 tooltip_border = k_editor_card_border;
+  glm::vec4 tooltip_text = k_editor_text_primary;
+  glm::vec4 shortcut_background = theme_alpha(k_editor_accent, 0.16f);
+  glm::vec4 shortcut_border = theme_alpha(k_editor_accent, 0.56f);
+  glm::vec4 shortcut_text = k_editor_accent;
 };
 
 struct ViewportPanelTheme {
   glm::vec4 surface = k_theme.storm_1100;
+  glm::vec4 hud_background = theme_alpha(k_editor_shell_background, 0.96f);
+  glm::vec4 hud_border = theme_alpha(k_editor_panel_border_rgb, 0.82f);
+  glm::vec4 hud_text_primary = k_editor_text_primary;
+  glm::vec4 hud_text_muted = k_editor_text_muted;
+  glm::vec4 hud_detail_text = theme_alpha(k_editor_text_primary, 0.86f);
+  glm::vec4 hud_transient_background = theme_alpha(k_editor_accent, 0.14f);
+  glm::vec4 hud_transient_border = theme_alpha(k_editor_accent, 0.54f);
+  glm::vec4 hud_transient_text = k_editor_accent;
+  glm::vec4 hud_chip_background = theme_alpha(k_editor_panel_background, 0.94f);
+  glm::vec4 hud_chip_border = theme_alpha(k_editor_panel_border_rgb, 0.72f);
+  glm::vec4 hud_chip_text = k_editor_text_muted;
+  glm::vec4 hud_chip_accent_background = theme_alpha(k_editor_accent, 0.14f);
+  glm::vec4 hud_chip_accent_border = theme_alpha(k_editor_accent, 0.54f);
+  glm::vec4 hud_chip_accent_text = k_editor_accent;
+  glm::vec4 hud_chip_success_background = theme_alpha(k_theme.success, 0.16f);
+  glm::vec4 hud_chip_success_border = theme_alpha(k_theme.success, 0.52f);
+  glm::vec4 hud_chip_success_text = k_theme.success;
+  ResourceDescriptorID hud_mono_font = "fonts::noto_sans_mono";
 };
 
 struct ConsolePanelTheme {
-  glm::vec4 panel_background = theme_alpha(k_theme.bunker_950, 0.98f);
-  glm::vec4 panel_border = k_theme.bunker_800;
-  glm::vec4 accent = k_theme.sunset_500;
-  glm::vec4 accent_pressed = k_theme.sunset_700;
-  glm::vec4 text_primary = k_theme.bunker_50;
-  glm::vec4 text_muted = k_theme.bunker_300;
-  glm::vec4 handle = k_theme.bunker_900;
-  glm::vec4 prompt_background = theme_alpha(k_theme.sunset_950, 0.96f);
-  glm::vec4 prompt_text = k_theme.sunset_300;
-  glm::vec4 placeholder_text = k_theme.storm_500;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_pressed = k_editor_accent_pressed;
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
+  glm::vec4 handle = k_editor_handle;
+  glm::vec4 prompt_background = theme_alpha(k_editor_accent, 0.16f);
+  glm::vec4 prompt_text = k_editor_accent;
+  glm::vec4 placeholder_text = theme_alpha(k_editor_text_muted, 0.72f);
   ResourceDescriptorID mono_font = "fonts::noto_sans_mono";
 };
 
 struct RuntimePanelTheme {
-  glm::vec4 shell_background = theme_alpha(k_theme.bunker_1000, 0.98f);
-  glm::vec4 panel_background = theme_alpha(k_theme.bunker_950, 0.98f);
-  glm::vec4 panel_border = k_theme.bunker_800;
-  glm::vec4 card_background = theme_alpha(k_theme.bunker_900, 0.92f);
-  glm::vec4 card_border = k_theme.bunker_700;
-  glm::vec4 text_primary = k_theme.bunker_50;
-  glm::vec4 text_muted = k_theme.bunker_300;
-  glm::vec4 accent = k_theme.sunset_500;
-  glm::vec4 accent_soft = theme_alpha(k_theme.sunset_950, 0.94f);
+  glm::vec4 shell_background = k_editor_shell_background;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 card_background = theme_alpha(k_editor_panel_raised_background, 0.88f);
+  glm::vec4 card_border = k_editor_card_border;
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_soft = k_editor_accent_soft;
   glm::vec4 success = k_theme.success;
   glm::vec4 success_soft = k_theme.success_soft;
-  glm::vec4 chart_bar_fill = k_theme.sunset_500;
-  glm::vec4 chart_bar_fill_alt = theme_alpha(k_theme.sunset_600, 0.6f);
-  glm::vec4 chart_bar_background = theme_alpha(k_theme.bunker_900, 0.5f);
-  glm::vec4 chart_grid_line = theme_alpha(k_theme.bunker_700, 0.3f);
-  glm::vec4 gauge_track = theme_alpha(k_theme.bunker_800, 0.7f);
+  glm::vec4 chart_bar_fill = k_editor_accent;
+  glm::vec4 chart_bar_fill_alt = theme_alpha(k_editor_accent, 0.6f);
+  glm::vec4 chart_bar_background =
+      theme_alpha(k_editor_panel_raised_background, 0.5f);
+  glm::vec4 chart_grid_line = theme_alpha(k_editor_panel_border_rgb, 0.3f);
+  glm::vec4 gauge_track = theme_alpha(k_editor_panel_border_rgb, 0.7f);
   glm::vec4 gauge_fill_normal = k_theme.success;
-  glm::vec4 gauge_fill_warning = k_theme.sunset_500;
+  glm::vec4 gauge_fill_warning = k_editor_accent;
   glm::vec4 gauge_fill_critical = k_theme.cabaret_600;
-  glm::vec4 tooltip_background = theme_alpha(k_theme.bunker_1000, 0.96f);
-  glm::vec4 tooltip_border = k_theme.bunker_700;
-  glm::vec4 tooltip_text = k_theme.bunker_50;
-  glm::vec4 line_chart_background = theme_alpha(k_theme.bunker_900, 0.4f);
-  glm::vec4 line_chart_grid = theme_alpha(k_theme.bunker_700, 0.2f);
-  glm::vec4 line_chart_fps_line = k_theme.sunset_500;
+  glm::vec4 tooltip_background = theme_alpha(k_editor_shell_background, 0.96f);
+  glm::vec4 tooltip_border = k_editor_card_border;
+  glm::vec4 tooltip_text = k_editor_text_primary;
+  glm::vec4 line_chart_background =
+      theme_alpha(k_editor_panel_raised_background, 0.4f);
+  glm::vec4 line_chart_grid = theme_alpha(k_editor_panel_border_rgb, 0.2f);
+  glm::vec4 line_chart_fps_line = k_editor_accent;
   glm::vec4 line_chart_frame_time_line = k_theme.cabaret_500;
-  glm::vec4 line_chart_cpu_line = k_theme.sunset_400;
+  glm::vec4 line_chart_cpu_line = k_editor_accent_pressed;
   glm::vec4 line_chart_memory_line = k_theme.cabaret_300;
-  glm::vec4 line_chart_draw_calls_line = k_theme.sunset_600;
+  glm::vec4 line_chart_draw_calls_line = k_editor_accent_pressed;
   glm::vec4 line_chart_gpu_time_line = k_theme.cabaret_600;
-  glm::vec4 line_chart_heap_line = k_theme.sunset_300;
+  glm::vec4 line_chart_heap_line = theme_alpha(k_editor_accent, 0.82f);
+};
+
+struct ShadingPanelTheme {
+  glm::vec4 shell_background = k_editor_shell_background;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 card_background = theme_alpha(k_editor_panel_raised_background, 0.90f);
+  glm::vec4 card_border = k_editor_card_border;
+  glm::vec4 graph_background = theme_alpha(k_theme.storm_1100, 0.96f);
+  glm::vec4 graph_border = theme_alpha(k_editor_panel_border_rgb, 0.78f);
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_soft = k_editor_accent_soft;
+  glm::vec4 read_edge = k_theme.storm_300;
+  glm::vec4 write_edge = k_editor_accent;
+  glm::vec4 resource_port = theme_alpha(k_theme.storm_300, 0.92f);
+  glm::vec4 shader_edge = k_editor_accent;
+  glm::vec4 texture_edge = k_theme.storm_300;
+  glm::vec4 material_edge = k_theme.cabaret_500;
+  glm::vec4 model_edge = k_theme.success;
+  glm::vec4 font_edge = k_theme.sunset_300;
+  glm::vec4 svg_edge = k_theme.sunset_500;
+  glm::vec4 audio_edge = k_theme.cabaret_300;
+  glm::vec4 terrain_edge = k_theme.success_soft;
 };
 
 struct SceneHierarchyPanelTheme {
-  glm::vec4 shell_background = theme_alpha(k_theme.bunker_1000, 0.98f);
-  glm::vec4 panel_background = theme_alpha(k_theme.bunker_950, 0.98f);
-  glm::vec4 panel_border = k_theme.bunker_800;
-  glm::vec4 card_background = theme_alpha(k_theme.bunker_900, 0.92f);
-  glm::vec4 card_border = k_theme.bunker_700;
-  glm::vec4 row_background = theme_alpha(k_theme.bunker_900, 0.84f);
-  glm::vec4 row_border = theme_alpha(k_theme.bunker_700, 0.92f);
-  glm::vec4 row_selected_background = theme_alpha(k_theme.sunset_950, 0.96f);
-  glm::vec4 row_selected_border = k_theme.sunset_500;
-  glm::vec4 text_primary = k_theme.bunker_50;
-  glm::vec4 text_muted = k_theme.bunker_300;
-  glm::vec4 accent = k_theme.sunset_500;
-  glm::vec4 accent_soft = theme_alpha(k_theme.sunset_950, 0.94f);
+  glm::vec4 shell_background = k_editor_shell_background;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 card_background = theme_alpha(k_editor_panel_raised_background, 0.92f);
+  glm::vec4 card_border = k_editor_card_border;
+  glm::vec4 row_background = theme_alpha(k_editor_panel_raised_background, 0.84f);
+  glm::vec4 row_border = theme_alpha(k_editor_panel_border_rgb, 0.92f);
+  glm::vec4 row_selected_background = theme_alpha(k_editor_accent, 0.16f);
+  glm::vec4 row_selected_border = k_editor_accent;
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_soft = k_editor_accent_soft;
   glm::vec4 success = k_theme.success;
   glm::vec4 success_soft = k_theme.success_soft;
-  glm::vec4 subdued = k_theme.bunker_500;
-  glm::vec4 subdued_soft = theme_alpha(k_theme.bunker_900, 0.96f);
+  glm::vec4 subdued = theme_alpha(k_editor_text_muted, 0.72f);
+  glm::vec4 subdued_soft = theme_alpha(k_editor_panel_raised_background, 0.96f);
+};
+
+struct FileBrowserPanelTheme {
+  glm::vec4 shell_background = k_editor_shell_background;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 card_background = theme_alpha(k_editor_panel_raised_background, 0.92f);
+  glm::vec4 card_border = k_editor_card_border;
+  glm::vec4 row_selected_background = theme_alpha(k_editor_accent, 0.16f);
+  glm::vec4 row_selected_border = k_editor_accent;
+  glm::vec4 tile_background = theme_alpha(k_editor_panel_raised_background, 0.84f);
+  glm::vec4 tile_border = theme_alpha(k_editor_panel_border_rgb, 0.92f);
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_soft = k_editor_accent_soft;
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
+  glm::vec4 separator = k_editor_separator;
 };
 
 struct ScenePanelTheme {
-  glm::vec4 shell_background = theme_alpha(k_theme.bunker_1000, 0.98f);
-  glm::vec4 panel_background = theme_alpha(k_theme.bunker_950, 0.98f);
-  glm::vec4 panel_raised_background = theme_alpha(k_theme.bunker_900, 0.96f);
-  glm::vec4 panel_border = k_theme.bunker_800;
-  glm::vec4 card_background = theme_alpha(k_theme.bunker_900, 0.92f);
-  glm::vec4 card_border = k_theme.bunker_700;
-  glm::vec4 accent = k_theme.sunset_500;
-  glm::vec4 accent_soft = theme_alpha(k_theme.sunset_950, 0.94f);
-  glm::vec4 text_primary = k_theme.bunker_50;
-  glm::vec4 text_muted = k_theme.bunker_300;
+  glm::vec4 shell_background = k_editor_shell_background;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_raised_background = k_editor_panel_raised_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 card_background = k_editor_card_background;
+  glm::vec4 card_border = k_editor_card_border;
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_soft = k_editor_accent_soft;
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
   glm::vec4 success = k_theme.success;
   glm::vec4 success_soft = k_theme.success_soft;
+  glm::vec4 separator = k_editor_separator;
+  glm::vec4 status_bar_background = k_editor_status_bar_background;
 };
 
 struct InspectorPanelTheme {
-  glm::vec4 shell_background = theme_alpha(k_theme.bunker_1000, 0.98f);
-  glm::vec4 panel_background = theme_alpha(k_theme.bunker_950, 0.98f);
-  glm::vec4 panel_border = k_theme.bunker_800;
-  glm::vec4 card_background = theme_alpha(k_theme.bunker_900, 0.92f);
-  glm::vec4 card_border = k_theme.bunker_700;
-  glm::vec4 input_background = theme_alpha(k_theme.bunker_1000, 0.74f);
-  glm::vec4 input_border = k_theme.bunker_700;
-  glm::vec4 text_primary = k_theme.bunker_50;
-  glm::vec4 text_muted = k_theme.bunker_300;
-  glm::vec4 accent = k_theme.sunset_500;
-  glm::vec4 accent_soft = theme_alpha(k_theme.sunset_950, 0.94f);
+  glm::vec4 shell_background = k_editor_shell_background;
+  glm::vec4 panel_background = k_editor_panel_background;
+  glm::vec4 panel_border = k_editor_panel_border;
+  glm::vec4 card_background = theme_alpha(k_editor_panel_raised_background, 0.92f);
+  glm::vec4 card_border = k_editor_card_border;
+  glm::vec4 input_background = theme_alpha(k_editor_panel_raised_background, 0.74f);
+  glm::vec4 input_border = theme_alpha(k_editor_panel_border_rgb, 0.92f);
+  glm::vec4 text_primary = k_editor_text_primary;
+  glm::vec4 text_muted = k_editor_text_muted;
+  glm::vec4 accent = k_editor_accent;
+  glm::vec4 accent_soft = k_editor_accent_soft;
   glm::vec4 success = k_theme.success;
   glm::vec4 success_soft = k_theme.success_soft;
-  glm::vec4 subdued = k_theme.bunker_500;
-  glm::vec4 subdued_soft = theme_alpha(k_theme.bunker_900, 0.96f);
-  glm::vec4 separator = theme_alpha(k_theme.bunker_700, 0.4f);
+  glm::vec4 subdued = theme_alpha(k_editor_text_muted, 0.72f);
+  glm::vec4 subdued_soft = theme_alpha(k_editor_panel_raised_background, 0.96f);
+  glm::vec4 separator = theme_alpha(k_editor_panel_border_rgb, 0.4f);
   glm::vec4 remove_background = theme_alpha(k_theme.cabaret_950, 0.94f);
   glm::vec4 remove_border = k_theme.cabaret_700;
 };

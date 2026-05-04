@@ -20,7 +20,8 @@ Frame::Frame(
       m_link_chains(allocator), m_child_ids(allocator),
       m_text_payloads(allocator),
       m_option_payloads(allocator),
-      m_line_chart_payloads(allocator), m_popover_payloads(allocator),
+      m_line_chart_payloads(allocator), m_graph_payloads(allocator),
+      m_popover_payloads(allocator),
       m_callback_payloads(allocator) {
   const size_t node_reserve =
       previous_node_count > 0u
@@ -33,14 +34,19 @@ Frame::Frame(
   m_text_payloads.reserve(std::max<size_t>(128u, node_reserve / 2u));
   m_option_payloads.reserve(32u);
   m_line_chart_payloads.reserve(8u);
+  m_graph_payloads.reserve(8u);
   m_popover_payloads.reserve(8u);
   m_callback_payloads.reserve(std::max<size_t>(32u, node_reserve / 4u));
   m_root_node_id = create_node(dsl::NodeKind::View, root_scope_id);
   m_parent_id = m_root_node_id;
   m_focus_requests.reserve(8u);
+  m_pointer_capture_requests.reserve(4u);
+  m_pointer_capture_release_requests.reserve(4u);
   m_text_selection_requests.reserve(4u);
   m_caret_requests.reserve(4u);
   m_scroll_requests.reserve(4u);
+  m_view_transform_requests.reserve(4u);
+  m_auto_child_counters.reserve(std::max<size_t>(32u, node_reserve / 2u));
 }
 
 VirtualListState Frame::virtual_list_state(WidgetId widget_id) const {
@@ -111,6 +117,24 @@ VirtualListState Runtime::virtual_list_state(WidgetId widget_id) const {
       .viewport_height = node->layout.scroll.viewport_size.y,
       .viewport_width = node->layout.scroll.viewport_size.x,
   };
+}
+
+std::optional<UIViewTransform2D>
+Runtime::view_transform(WidgetId widget_id) const {
+  const UINodeId node_id = node_id_for(widget_id);
+  return m_document != nullptr ? m_document->view_transform(node_id)
+                               : std::nullopt;
+}
+
+std::optional<UIGraphSelection>
+Runtime::graph_selection(WidgetId widget_id) const {
+  const UINodeId node_id = node_id_for(widget_id);
+  const auto *node = m_document != nullptr ? m_document->node(node_id) : nullptr;
+  if (node == nullptr || node->type != NodeType::GraphView) {
+    return std::nullopt;
+  }
+
+  return node->graph_view.model.selection;
 }
 
 float Runtime::measured_node_height(WidgetId widget_id) const {
@@ -253,6 +277,14 @@ void Runtime::install_callback_forwarders(
           slot_ptr->payload.on_mouse_wheel_callback(event);
       }
   );
+  m_document->set_on_view_transform_change(
+      node_id,
+      [slot_ptr](const UIViewTransformChangeEvent &event) {
+        if (slot_ptr->payload.on_view_transform_change_callback) {
+          slot_ptr->payload.on_view_transform_change_callback(event);
+        }
+      }
+  );
   m_document->set_on_change(
       node_id,
       [slot_ptr](const std::string &value) {
@@ -287,6 +319,34 @@ void Runtime::install_callback_forwarders(
       [slot_ptr](size_t index, const std::string &value, bool selected) {
         if (slot_ptr->payload.on_chip_toggle_callback)
           slot_ptr->payload.on_chip_toggle_callback(index, value, selected);
+      }
+  );
+
+  m_document->set_on_graph_selection_change(
+      node_id,
+      [slot_ptr](const UIGraphSelection &selection) {
+        if (slot_ptr->payload.on_graph_selection_change_callback) {
+          slot_ptr->payload.on_graph_selection_change_callback(selection);
+        }
+      }
+  );
+  m_document->set_on_graph_node_move(
+      node_id,
+      [slot_ptr](UIGraphId node_id, glm::vec2 position) {
+        if (slot_ptr->payload.on_graph_node_move_callback) {
+          slot_ptr->payload.on_graph_node_move_callback(node_id, position);
+        }
+      }
+  );
+  m_document->set_on_graph_connection_drag_end(
+      node_id,
+      [slot_ptr](UIGraphId from_port_id, std::optional<UIGraphId> to_port_id) {
+        if (slot_ptr->payload.on_graph_connection_drag_end_callback) {
+          slot_ptr->payload.on_graph_connection_drag_end_callback(
+              from_port_id,
+              to_port_id
+          );
+        }
       }
   );
 }
@@ -329,6 +389,7 @@ void Runtime::apply_node(
   const auto &text_payload = frame.text_payload(state);
   const auto &option_payload = frame.option_payload(state);
   const auto &line_chart_payload = frame.line_chart_payload(state);
+  const auto &graph_payload = frame.graph_payload(state);
 
   if (ui::detail::node_supports_text(header.kind)) {
     m_document->set_text(node_id, text_payload.text);
@@ -458,6 +519,31 @@ void Runtime::apply_node(
     );
   }
 
+  m_document->set_view_transform_enabled(
+      node_id,
+      im::bool_value_or(
+          header,
+          im::NodeScalarField::ViewTransformEnabled,
+          defaults.view_transform_interaction.enabled
+      )
+  );
+  m_document->set_view_transform_middle_mouse_pan(
+      node_id,
+      im::bool_value_or(
+          header,
+          im::NodeScalarField::ViewTransformMiddleMousePan,
+          defaults.view_transform_interaction.middle_mouse_pan
+      )
+  );
+  m_document->set_view_transform_wheel_zoom(
+      node_id,
+      im::bool_value_or(
+          header,
+          im::NodeScalarField::ViewTransformWheelZoom,
+          defaults.view_transform_interaction.wheel_zoom
+      )
+  );
+
   if (header.kind == dsl::NodeKind::SegmentedControl) {
     m_document->set_segmented_options(node_id, option_payload.option_values);
     m_document->set_segmented_selected_index(
@@ -494,6 +580,41 @@ void Runtime::apply_node(
     }
   }
 
+  auto slot_it = m_callback_slots.find(header.widget_id);
+  CallbackSlot *slot_ptr =
+      slot_it != m_callback_slots.end() ? slot_it->second.get() : nullptr;
+  if (header.kind != dsl::NodeKind::GraphView && slot_ptr != nullptr &&
+      slot_ptr->payload.on_pointer_event_callback) {
+    m_document->set_on_pointer_event(
+        node_id,
+        [slot_ptr](const UIPointerEvent &event) {
+          if (slot_ptr->payload.on_pointer_event_callback) {
+            slot_ptr->payload.on_pointer_event_callback(event);
+          }
+        }
+    );
+  } else if (header.kind != dsl::NodeKind::GraphView) {
+    m_document->set_on_pointer_event(node_id, {});
+  }
+
+  if (header.kind != dsl::NodeKind::GraphView && slot_ptr != nullptr &&
+      slot_ptr->payload.on_custom_hit_test_callback) {
+    m_document->set_on_custom_hit_test(
+        node_id,
+        [slot_ptr](glm::vec2 local_position)
+            -> std::optional<UICustomHitData> {
+          if (slot_ptr->payload.on_custom_hit_test_callback) {
+            return slot_ptr->payload.on_custom_hit_test_callback(
+                local_position
+            );
+          }
+          return std::nullopt;
+        }
+    );
+  } else if (header.kind != dsl::NodeKind::GraphView) {
+    m_document->set_on_custom_hit_test(node_id, {});
+  }
+
   if (header.kind == dsl::NodeKind::LineChart) {
     const bool auto_range =
         line_chart_payload.auto_range.value_or(defaults.line_chart.auto_range);
@@ -509,6 +630,11 @@ void Runtime::apply_node(
         node_id,
         line_chart_payload.has_series ? line_chart_payload.series
                                       : defaults.line_chart.series
+    );
+  } else if (header.kind == dsl::NodeKind::GraphView) {
+    m_document->set_graph_view_model(
+        node_id,
+        graph_payload.spec.model
     );
   }
 
@@ -778,6 +904,20 @@ void Runtime::apply_requests(const Frame &frame) {
     }
   }
 
+  for (const auto &request : frame.pointer_capture_requests()) {
+    const UINodeId node_id = node_id_for(request.widget_id);
+    if (node_id != k_invalid_node_id) {
+      m_document->request_pointer_capture(node_id, request.button);
+    }
+  }
+
+  for (const auto &request : frame.pointer_capture_release_requests()) {
+    const UINodeId node_id = node_id_for(request.widget_id);
+    if (node_id != k_invalid_node_id) {
+      m_document->release_pointer_capture(node_id, request.button);
+    }
+  }
+
   for (const auto &request : frame.text_selection_requests()) {
     const UINodeId node_id = node_id_for(request.widget_id);
     if (node_id != k_invalid_node_id) {
@@ -796,6 +936,13 @@ void Runtime::apply_requests(const Frame &frame) {
     const UINodeId node_id = node_id_for(request.widget_id);
     if (node_id != k_invalid_node_id) {
       m_document->set_scroll_offset(node_id, request.offset);
+    }
+  }
+
+  for (const auto &request : frame.view_transform_requests()) {
+    const UINodeId node_id = node_id_for(request.widget_id);
+    if (node_id != k_invalid_node_id) {
+      m_document->set_view_transform(node_id, request.transform);
     }
   }
 }

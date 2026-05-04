@@ -48,6 +48,9 @@ enum class StyleOpCode : uint8_t {
   PaddingY,
   PaddingX,
   PaddingBottom,
+  PaddingRight,
+  PaddingLeft,
+  PaddingTop,
   BackgroundColor,
   Border,
   BorderRadius,
@@ -392,7 +395,16 @@ inline void apply_style_op(UIStyle &style, const StyleOp &op) {
       );
       return;
     case StyleOpCode::PaddingBottom:
-      style.padding = UIEdges{.bottom = op.payload.float_value};
+      style.padding.bottom = op.payload.float_value;
+      return;
+    case StyleOpCode::PaddingRight:
+      style.padding.right = op.payload.float_value;
+      return;
+    case StyleOpCode::PaddingLeft:
+      style.padding.left = op.payload.float_value;
+      return;
+    case StyleOpCode::PaddingTop:
+      style.padding.top = op.payload.float_value;
       return;
     case StyleOpCode::FontSize:
       style.font_size = op.payload.float_value;
@@ -756,6 +768,24 @@ public:
     );
   }
 
+  StyleBuilder &padding_right(float value) {
+    return add(
+        StyleOp{StyleTarget::Base, StyleOpCode::PaddingRight, value}
+    );
+  }
+
+  StyleBuilder &padding_left(float value) {
+    return add(
+        StyleOp{StyleTarget::Base, StyleOpCode::PaddingLeft, value}
+    );
+  }
+
+  StyleBuilder &padding_top(float value) {
+    return add(
+        StyleOp{StyleTarget::Base, StyleOpCode::PaddingTop, value}
+    );
+  }
+
   StyleBuilder &background(glm::vec4 color) {
     return add(
         StyleOp{StyleTarget::Base, StyleOpCode::BackgroundColor, color}
@@ -905,6 +935,17 @@ public:
     });
   }
 
+  StyleBuilder &resizable(ResizeMode mode, uint8_t edges) {
+    return add(StyleOp{
+        StyleTarget::Base,
+        StyleOpCode::ResizeMode,
+        StyleResizeValue{
+            .mode = mode,
+            .edges = edges,
+        },
+    });
+  }
+
   StyleBuilder &draggable() {
     return add(StyleOp{StyleTarget::Base, StyleOpCode::Draggable});
   }
@@ -1032,6 +1073,9 @@ inline StyleBuilder panel() { return StyleBuilder{}; }
 inline StyleBuilder absolute() { return StyleBuilder{}.absolute(); }
 inline StyleBuilder relative() { return StyleBuilder{}.relative(); }
 inline StyleBuilder resizable_all() { return StyleBuilder{}.resizable_all(); }
+inline StyleBuilder resizable(ResizeMode mode, uint8_t edges) {
+  return StyleBuilder{}.resizable(mode, edges);
+}
 inline StyleBuilder draggable() { return StyleBuilder{}.draggable(); }
 inline StyleBuilder drag_handle() { return StyleBuilder{}.drag_handle(); }
 inline StyleBuilder cursor_pointer() { return StyleBuilder{}.cursor_pointer(); }
@@ -1096,6 +1140,15 @@ inline StyleBuilder padding_y(float vertical) {
 }
 inline StyleBuilder padding_x(float horizontal) {
   return StyleBuilder{}.padding_x(horizontal);
+}
+inline StyleBuilder padding_right(float value) {
+  return StyleBuilder{}.padding_right(value);
+}
+inline StyleBuilder padding_left(float value) {
+  return StyleBuilder{}.padding_left(value);
+}
+inline StyleBuilder padding_top(float value) {
+  return StyleBuilder{}.padding_top(value);
 }
 inline StyleBuilder background(glm::vec4 color) {
   return StyleBuilder{}.background(color);
@@ -1199,6 +1252,7 @@ enum class NodeKind : uint8_t {
   Slider,
   Select,
   LineChart,
+  GraphView,
 };
 
 struct NodeSpec {
@@ -1228,6 +1282,7 @@ struct NodeSpec {
 
   std::optional<size_t> line_chart_grid_line_count;
   std::optional<glm::vec4> line_chart_grid_color;
+  GraphViewSpec graph_view_spec;
 
   UINodeId *bound_id = nullptr;
 
@@ -1243,6 +1298,8 @@ struct NodeSpec {
   std::function<void(const UICharacterInputEvent &)>
       on_character_input_callback;
   std::function<void(const UIMouseWheelInputEvent &)> on_mouse_wheel_callback;
+  std::function<void(const UIViewTransformChangeEvent &)>
+      on_view_transform_change_callback;
   std::function<void(const std::string &)> on_change_callback;
   std::function<void(const std::string &)> on_submit_callback;
   std::function<void(bool)> on_toggle_callback;
@@ -1250,6 +1307,11 @@ struct NodeSpec {
   std::function<void(size_t, const std::string &)> on_select_callback;
   std::function<void(size_t, const std::string &, bool)>
       on_chip_toggle_callback;
+  std::function<void(const UIGraphSelection &)>
+      on_graph_selection_change_callback;
+  std::function<void(UIGraphId, glm::vec2)> on_graph_node_move_callback;
+  std::function<void(UIGraphId, std::optional<UIGraphId>)>
+      on_graph_connection_drag_end_callback;
 
   NodeSpec &bind(UINodeId &target) {
     bound_id = &target;
@@ -1417,6 +1479,13 @@ public:
     return *this;
   }
 
+  NodeSpec &on_view_transform_change(
+      std::function<void(const UIViewTransformChangeEvent &)> callback
+  ) {
+    on_view_transform_change_callback = std::move(callback);
+    return *this;
+  }
+
   NodeSpec &on_change(std::function<void(const std::string &)> callback) {
     on_change_callback = std::move(callback);
     return *this;
@@ -1449,6 +1518,27 @@ public:
     on_chip_toggle_callback = std::move(callback);
     return *this;
   }
+
+  NodeSpec &on_selection_change(
+      std::function<void(const UIGraphSelection &)> callback
+  ) {
+    on_graph_selection_change_callback = std::move(callback);
+    return *this;
+  }
+
+  NodeSpec &on_node_move(
+      std::function<void(UIGraphId, glm::vec2)> callback
+  ) {
+    on_graph_node_move_callback = std::move(callback);
+    return *this;
+  }
+
+  NodeSpec &on_connection_drag_end(
+      std::function<void(UIGraphId, std::optional<UIGraphId>)> callback
+  ) {
+    on_graph_connection_drag_end_callback = std::move(callback);
+    return *this;
+  }
 };
 
 namespace detail {
@@ -1473,6 +1563,7 @@ inline bool spec_allows_children(NodeKind kind) {
     case NodeKind::Checkbox:
     case NodeKind::Slider:
     case NodeKind::Select:
+    case NodeKind::GraphView:
     default:
       return false;
   }
@@ -1493,21 +1584,22 @@ inline void validate_spec(const NodeSpec &spec) {
   MAP(select_all_on_focus_value, set_select_all_on_focus) \
   MAP(checked_value, set_checked)
 
-#define ASTRA_NODE_CALLBACK_PROPERTIES(MAP)                \
-  MAP(on_hover_callback, set_on_hover)                     \
-  MAP(on_press_callback, set_on_press)                     \
-  MAP(on_release_callback, set_on_release)                 \
-  MAP(on_secondary_click_callback, set_on_secondary_click) \
-  MAP(on_focus_callback, set_on_focus)                     \
-  MAP(on_blur_callback, set_on_blur)                       \
-  MAP(on_key_input_callback, set_on_key_input)             \
-  MAP(on_character_input_callback, set_on_character_input) \
-  MAP(on_mouse_wheel_callback, set_on_mouse_wheel)         \
-  MAP(on_change_callback, set_on_change)                   \
-  MAP(on_submit_callback, set_on_submit)                   \
-  MAP(on_toggle_callback, set_on_toggle)                   \
-  MAP(on_value_change_callback, set_on_value_change)       \
-  MAP(on_select_callback, set_on_select)                   \
+#define ASTRA_NODE_CALLBACK_PROPERTIES(MAP)                            \
+  MAP(on_hover_callback, set_on_hover)                                 \
+  MAP(on_press_callback, set_on_press)                                 \
+  MAP(on_release_callback, set_on_release)                             \
+  MAP(on_secondary_click_callback, set_on_secondary_click)             \
+  MAP(on_focus_callback, set_on_focus)                                 \
+  MAP(on_blur_callback, set_on_blur)                                   \
+  MAP(on_key_input_callback, set_on_key_input)                         \
+  MAP(on_character_input_callback, set_on_character_input)             \
+  MAP(on_mouse_wheel_callback, set_on_mouse_wheel)                     \
+  MAP(on_view_transform_change_callback, set_on_view_transform_change) \
+  MAP(on_change_callback, set_on_change)                               \
+  MAP(on_submit_callback, set_on_submit)                               \
+  MAP(on_toggle_callback, set_on_toggle)                               \
+  MAP(on_value_change_callback, set_on_value_change)                   \
+  MAP(on_select_callback, set_on_select)                               \
   MAP(on_chip_toggle_callback, set_on_chip_toggle)
 
 inline void apply_properties(
@@ -1566,6 +1658,10 @@ inline void apply_properties(
     );
   }
 
+  if (spec.kind == NodeKind::GraphView) {
+    document.set_graph_view_model(node_id, spec.graph_view_spec.model);
+  }
+
 #define APPLY_CALLBACK_PROPERTY(field, setter) \
   if (spec.field) {                            \
     document.setter(node_id, spec.field);      \
@@ -1575,6 +1671,24 @@ inline void apply_properties(
 
   if (spec.on_click_callback && spec.kind != NodeKind::Button) {
     document.set_on_click(node_id, spec.on_click_callback);
+  }
+
+  if (spec.on_graph_selection_change_callback) {
+    document.set_on_graph_selection_change(
+        node_id,
+        spec.on_graph_selection_change_callback
+    );
+  }
+
+  if (spec.on_graph_node_move_callback) {
+    document.set_on_graph_node_move(node_id, spec.on_graph_node_move_callback);
+  }
+
+  if (spec.on_graph_connection_drag_end_callback) {
+    document.set_on_graph_connection_drag_end(
+        node_id,
+        spec.on_graph_connection_drag_end_callback
+    );
   }
 
   if (spec.line_chart_grid_line_count.has_value() ||

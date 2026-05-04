@@ -91,6 +91,10 @@ bool apply_material_numeric_field(
     material.normal_scale = value;
     return true;
   }
+  if (field_name == "height_scale") {
+    material.height_scale = value;
+    return true;
+  }
   if (field_name == "bloom_intensity") {
     material.bloom_intensity = value;
     return true;
@@ -203,6 +207,34 @@ void InspectorPanelController::set_enum_field(
   }
 
   field->value = std::move(value);
+  serialization::apply_component_snapshot(
+      scene->world().entity(*m_snapshot.entity_id), *component
+  );
+  refresh(true);
+}
+
+void InspectorPanelController::set_float_field(
+    std::string component_name,
+    std::string field_name,
+    float value
+) {
+  Scene *scene = active_scene();
+  if (scene == nullptr || !m_snapshot.entity_id.has_value() ||
+      !scene->world().contains(*m_snapshot.entity_id)) {
+    return;
+  }
+
+  auto *component = panel::find_component_snapshot(m_snapshot.components, component_name);
+  if (component == nullptr) {
+    return;
+  }
+
+  auto *field = panel::find_field(component->fields, field_name);
+  if (field == nullptr) {
+    return;
+  }
+
+  field->value = value;
   serialization::apply_component_snapshot(
       scene->world().entity(*m_snapshot.entity_id), *component
   );

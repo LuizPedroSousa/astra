@@ -14,7 +14,7 @@ constexpr NodeId k_invalid_immediate_node_id =
 using PayloadIndex = uint32_t;
 constexpr PayloadIndex k_invalid_immediate_payload_index =
     std::numeric_limits<PayloadIndex>::max();
-using NodeScalarMask = uint16_t;
+using NodeScalarMask = uint32_t;
 
 struct PopoverState {
   bool open = false;
@@ -50,11 +50,18 @@ struct NodeLineChartPayload {
   std::optional<float> y_max;
 };
 
+struct NodeGraphPayload {
+  GraphViewSpec spec;
+};
+
 struct NodePopoverPayload {
   std::optional<PopoverState> state;
 };
 
 struct NodeCallbackPayload {
+  std::function<void(const UIPointerEvent &)> on_pointer_event_callback;
+  std::function<std::optional<UICustomHitData>(glm::vec2 local_position)>
+      on_custom_hit_test_callback;
   std::function<void()> on_hover_callback;
   std::function<void()> on_press_callback;
   std::function<void()> on_release_callback;
@@ -67,6 +74,8 @@ struct NodeCallbackPayload {
   std::function<void(const UICharacterInputEvent &)>
       on_character_input_callback;
   std::function<void(const UIMouseWheelInputEvent &)> on_mouse_wheel_callback;
+  std::function<void(const UIViewTransformChangeEvent &)>
+      on_view_transform_change_callback;
   std::function<void(const std::string &)> on_change_callback;
   std::function<void(const std::string &)> on_submit_callback;
   std::function<void(bool)> on_toggle_callback;
@@ -74,6 +83,11 @@ struct NodeCallbackPayload {
   std::function<void(size_t, const std::string &)> on_select_callback;
   std::function<void(size_t, const std::string &, bool)>
       on_chip_toggle_callback;
+  std::function<void(const UIGraphSelection &)>
+      on_graph_selection_change_callback;
+  std::function<void(UIGraphId, glm::vec2)> on_graph_node_move_callback;
+  std::function<void(UIGraphId, std::optional<UIGraphId>)>
+      on_graph_connection_drag_end_callback;
 };
 
 enum class NodeScalarField : NodeScalarMask {
@@ -93,6 +107,9 @@ enum class NodeScalarField : NodeScalarMask {
   SelectOpen = 1u << 13,
   ComboboxOpenOnArrowKeys = 1u << 14,
   Collapsed = 1u << 15,
+  ViewTransformEnabled = 1u << 16,
+  ViewTransformMiddleMousePan = 1u << 17,
+  ViewTransformWheelZoom = 1u << 18,
 };
 
 constexpr NodeScalarMask node_scalar_bit(NodeScalarField field) {
@@ -121,6 +138,7 @@ struct NodeState {
   PayloadIndex text_payload_index = k_invalid_immediate_payload_index;
   PayloadIndex option_payload_index = k_invalid_immediate_payload_index;
   PayloadIndex line_chart_payload_index = k_invalid_immediate_payload_index;
+  PayloadIndex graph_payload_index = k_invalid_immediate_payload_index;
   PayloadIndex popover_payload_index = k_invalid_immediate_payload_index;
   PayloadIndex callback_payload_index = k_invalid_immediate_payload_index;
   std::optional<RenderImageExportKey> render_image_key;

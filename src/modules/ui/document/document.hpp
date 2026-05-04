@@ -40,7 +40,13 @@ public:
     UISegmentedControlState segmented_control;
     UIChipGroupState chip_group;
     UILineChartState line_chart;
+    UIGraphViewState graph_view;
+    std::optional<UIViewTransform2D> view_transform;
+    UIViewTransformInteraction view_transform_interaction;
 
+    std::function<void(const UIPointerEvent &)> on_pointer_event;
+    std::function<std::optional<UICustomHitData>(glm::vec2 local_position)>
+        on_custom_hit_test;
     std::function<void()> on_hover;
     std::function<void()> on_press;
     std::function<void()> on_release;
@@ -51,6 +57,8 @@ public:
     std::function<void(const UIKeyInputEvent &)> on_key_input;
     std::function<void(const UICharacterInputEvent &)> on_character_input;
     std::function<void(const UIMouseWheelInputEvent &)> on_mouse_wheel;
+    std::function<void(const UIViewTransformChangeEvent &)>
+        on_view_transform_change;
     std::function<void(const std::string &)> on_change;
     std::function<void(const std::string &)> on_submit;
     std::function<void(bool)> on_toggle;
@@ -104,6 +112,7 @@ public:
       size_t selected_index = 0u,
       std::string placeholder = {}
   );
+  UINodeId create_graph_view();
   UINodeId create_button(
       const std::string &label,
       const std::function<void()> &on_click
@@ -161,6 +170,15 @@ public:
   const std::vector<std::string> *chip_options(UINodeId node_id) const;
   void set_chip_selected(UINodeId node_id, size_t index, bool selected);
   bool chip_selected(UINodeId node_id, size_t index) const;
+  void set_on_pointer_event(
+      UINodeId node_id,
+      std::function<void(const UIPointerEvent &)> callback
+  );
+  void set_on_custom_hit_test(
+      UINodeId node_id,
+      std::function<std::optional<UICustomHitData>(glm::vec2 local_position)>
+          callback
+  );
   void set_on_hover(UINodeId node_id, std::function<void()> callback);
   void set_on_press(UINodeId node_id, std::function<void()> callback);
   void set_on_release(UINodeId node_id, std::function<void()> callback);
@@ -180,6 +198,10 @@ public:
       UINodeId node_id,
       std::function<void(const UIMouseWheelInputEvent &)> callback
   );
+  void set_on_view_transform_change(
+      UINodeId node_id,
+      std::function<void(const UIViewTransformChangeEvent &)> callback
+  );
   void set_on_change(UINodeId node_id, std::function<void(const std::string &)> callback);
   void set_on_submit(UINodeId node_id, std::function<void(const std::string &)> callback);
   void set_on_toggle(UINodeId node_id, std::function<void(bool)> callback);
@@ -198,6 +220,25 @@ public:
   void clear_caret(UINodeId node_id);
   void reset_caret_blink(UINodeId node_id);
   void set_scroll_offset(UINodeId node_id, glm::vec2 offset);
+  void set_view_transform(UINodeId node_id, UIViewTransform2D transform);
+  std::optional<UIViewTransform2D> view_transform(UINodeId node_id) const;
+  void set_view_transform_enabled(UINodeId node_id, bool enabled);
+  void set_view_transform_middle_mouse_pan(UINodeId node_id, bool enabled);
+  void set_view_transform_wheel_zoom(UINodeId node_id, bool enabled);
+  void set_graph_view_model(UINodeId node_id, UIGraphViewModel model);
+  void set_on_graph_selection_change(
+      UINodeId node_id,
+      std::function<void(const UIGraphSelection &)> callback
+  );
+  void set_on_graph_node_move(
+      UINodeId node_id,
+      std::function<void(UIGraphId node_id, glm::vec2 position)> callback
+  );
+  void set_on_graph_connection_drag_end(
+      UINodeId node_id,
+      std::function<void(UIGraphId from_port_id, std::optional<UIGraphId>)>
+          callback
+  );
   void set_line_chart_series(
       UINodeId node_id,
       std::vector<UILineChartSeries> series
@@ -228,6 +269,9 @@ public:
 
   void queue_callback(const std::function<void()> &callback);
   void flush_callbacks();
+  void request_pointer_capture(UINodeId node_id, input::MouseButton button);
+  void release_pointer_capture(UINodeId node_id, input::MouseButton button);
+  std::vector<UIPointerCaptureRequest> consume_pointer_capture_requests();
 
   void set_hot_node(UINodeId node_id);
   void set_active_node(UINodeId node_id);
@@ -286,6 +330,7 @@ private:
 
   UIDrawList m_draw_list;
   std::vector<std::function<void()>> m_callback_queue;
+  std::vector<UIPointerCaptureRequest> m_pointer_capture_requests;
 
   bool m_structure_dirty = true;
   bool m_layout_dirty = true;

@@ -4,6 +4,27 @@
 
 namespace astralix::ui {
 
+void UIDocument::set_on_pointer_event(
+    UINodeId node_id,
+    std::function<void(const UIPointerEvent &)> callback
+) {
+  UINode *target = node(node_id);
+  if (target != nullptr) {
+    target->on_pointer_event = std::move(callback);
+  }
+}
+
+void UIDocument::set_on_custom_hit_test(
+    UINodeId node_id,
+    std::function<std::optional<UICustomHitData>(glm::vec2 local_position)>
+        callback
+) {
+  UINode *target = node(node_id);
+  if (target != nullptr) {
+    target->on_custom_hit_test = std::move(callback);
+  }
+}
+
 void UIDocument::set_on_hover(UINodeId node_id, std::function<void()> callback) {
   UINode *target = node(node_id);
   if (target != nullptr) {
@@ -89,6 +110,16 @@ void UIDocument::set_on_mouse_wheel(
   }
 }
 
+void UIDocument::set_on_view_transform_change(
+    UINodeId node_id,
+    std::function<void(const UIViewTransformChangeEvent &)> callback
+) {
+  UINode *target = node(node_id);
+  if (target != nullptr) {
+    target->on_view_transform_change = std::move(callback);
+  }
+}
+
 void UIDocument::set_on_change(
     UINodeId node_id,
     std::function<void(const std::string &)> callback
@@ -168,6 +199,43 @@ void UIDocument::flush_callbacks() {
       callback();
     }
   }
+}
+
+void UIDocument::request_pointer_capture(
+    UINodeId node_id,
+    input::MouseButton button
+) {
+  if (!is_valid_node(node_id)) {
+    return;
+  }
+
+  m_pointer_capture_requests.push_back(UIPointerCaptureRequest{
+      .node_id = node_id,
+      .button = button,
+      .action = UIPointerCaptureAction::Capture,
+  });
+}
+
+void UIDocument::release_pointer_capture(
+    UINodeId node_id,
+    input::MouseButton button
+) {
+  if (!is_valid_node(node_id)) {
+    return;
+  }
+
+  m_pointer_capture_requests.push_back(UIPointerCaptureRequest{
+      .node_id = node_id,
+      .button = button,
+      .action = UIPointerCaptureAction::Release,
+  });
+}
+
+std::vector<UIPointerCaptureRequest>
+UIDocument::consume_pointer_capture_requests() {
+  auto requests = std::move(m_pointer_capture_requests);
+  m_pointer_capture_requests.clear();
+  return requests;
 }
 
 } // namespace astralix::ui

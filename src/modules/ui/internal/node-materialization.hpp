@@ -43,6 +43,8 @@ inline UINodeId create_common_node(
       return document.create_select();
     case dsl::NodeKind::LineChart:
       return document.create_line_chart();
+    case dsl::NodeKind::GraphView:
+      return document.create_graph_view();
     case dsl::NodeKind::IconButton:
       return document.create_icon_button();
     case dsl::NodeKind::Button:
@@ -229,6 +231,7 @@ inline void apply_common_properties(
   const auto &option_payload = frame.option_payload(state);
   const auto &callback_payload = frame.callback_payload(state);
   const auto &line_chart_payload = frame.line_chart_payload(state);
+  const auto &graph_payload = frame.graph_payload(state);
   const auto &popover_payload = frame.popover_payload(state);
 
   if (node_supports_text(header.kind)) {
@@ -392,6 +395,10 @@ inline void apply_common_properties(
   }
 
   document.set_on_hover(node_id, callback_payload.on_hover_callback);
+  document.set_on_pointer_event(
+      node_id,
+      callback_payload.on_pointer_event_callback
+  );
   document.set_on_press(node_id, callback_payload.on_press_callback);
   document.set_on_release(node_id, callback_payload.on_release_callback);
   document.set_on_click(node_id, callback_payload.on_click_callback);
@@ -410,6 +417,10 @@ inline void apply_common_properties(
       node_id,
       callback_payload.on_mouse_wheel_callback
   );
+  document.set_on_view_transform_change(
+      node_id,
+      callback_payload.on_view_transform_change_callback
+  );
   document.set_on_change(node_id, callback_payload.on_change_callback);
   document.set_on_submit(node_id, callback_payload.on_submit_callback);
   document.set_on_toggle(node_id, callback_payload.on_toggle_callback);
@@ -421,6 +432,18 @@ inline void apply_common_properties(
   document.set_on_chip_toggle(
       node_id,
       callback_payload.on_chip_toggle_callback
+  );
+  document.set_on_graph_selection_change(
+      node_id,
+      callback_payload.on_graph_selection_change_callback
+  );
+  document.set_on_graph_node_move(
+      node_id,
+      callback_payload.on_graph_node_move_callback
+  );
+  document.set_on_graph_connection_drag_end(
+      node_id,
+      callback_payload.on_graph_connection_drag_end_callback
   );
 
   if (header.kind == dsl::NodeKind::LineChart) {
@@ -439,6 +462,8 @@ inline void apply_common_properties(
         line_chart_payload.has_series ? line_chart_payload.series
                                       : defaults.line_chart.series
     );
+  } else if (header.kind == dsl::NodeKind::GraphView) {
+    document.set_graph_view_model(node_id, graph_payload.spec.model);
   }
 
   target = document.node(node_id);

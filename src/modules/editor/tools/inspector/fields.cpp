@@ -97,7 +97,10 @@ bool panel::same_entity(
 }
 
 bool panel::is_material_properties_component(std::string_view name) {
-  return name == k_material_properties_component_name;
+  return name == k_material_properties_component_name ||
+         name.starts_with(
+             std::string(k_material_properties_component_name) + "::"
+         );
 }
 
 serialization::ComponentSnapshot *panel::find_component_snapshot(
@@ -278,6 +281,10 @@ std::vector<panel::FieldGroup> panel::build_field_groups(
 
   for (size_t index = 0u; index < component.fields.size(); ++index) {
     const auto &field = component.fields[index];
+    if (field.name.starts_with("__")) {
+      continue;
+    }
+
     if (auto base_axis = vector_field_base_and_axis(field.name);
         base_axis.has_value()) {
       const std::string &base = base_axis->first;
@@ -321,6 +328,10 @@ std::vector<panel::FieldGroup> panel::build_field_groups(
     group.values.push_back(field.value);
     group.options = enum_options(field.name);
 
+    const auto *hint = (descriptor != nullptr && descriptor->slider_hint != nullptr)
+                            ? descriptor->slider_hint(field.name)
+                            : nullptr;
+
     if (group.options != nullptr && std::holds_alternative<std::string>(field.value)) {
       group.mode = FieldMode::Enum;
     } else if (!editable(field.name)) {
@@ -329,6 +340,9 @@ std::vector<panel::FieldGroup> panel::build_field_groups(
       group.mode = FieldMode::Toggle;
     } else if (std::holds_alternative<std::string>(field.value)) {
       group.mode = FieldMode::Text;
+    } else if (hint != nullptr && std::holds_alternative<float>(field.value)) {
+      group.mode = FieldMode::Slider;
+      group.slider_hint = *hint;
     } else {
       group.mode = FieldMode::Numeric;
     }

@@ -6,6 +6,7 @@
 #include "guid.hpp"
 #include "containers/vector.hpp"
 #include "systems/render-system/render-image-export.hpp"
+#include "widgets/graph-view.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -35,6 +36,7 @@ enum class NodeType : uint8_t {
   Slider,
   Select,
   LineChart,
+  GraphView,
 };
 
 enum class FlexDirection : uint8_t {
@@ -388,6 +390,26 @@ struct UIChipGroupState {
   std::vector<bool> selected;
 };
 
+struct UIViewTransform2D {
+  glm::vec2 pan = glm::vec2(0.0f);
+  float zoom = 1.0f;
+  float min_zoom = 0.25f;
+  float max_zoom = 4.0f;
+};
+
+struct UIViewTransformChangeEvent {
+  UIViewTransform2D previous;
+  UIViewTransform2D current;
+  glm::vec2 anchor_screen = glm::vec2(0.0f);
+  glm::vec2 anchor_world = glm::vec2(0.0f);
+};
+
+struct UIViewTransformInteraction {
+  bool enabled = false;
+  bool middle_mouse_pan = false;
+  bool wheel_zoom = false;
+};
+
 struct UIScrollState {
   glm::vec2 offset = glm::vec2(0.0f);
   glm::vec2 max_offset = glm::vec2(0.0f);
@@ -403,6 +425,40 @@ struct UIScrollState {
   bool vertical_thumb_active = false;
   bool horizontal_thumb_hovered = false;
   bool horizontal_thumb_active = false;
+};
+
+struct UIGraphNodeLayoutInfo {
+  UIGraphId id = 0u;
+  UIRect world_bounds;
+  UIRect header_world_bounds;
+};
+
+struct UIGraphPortLayoutInfo {
+  UIGraphId id = 0u;
+  UIGraphId node_id = 0u;
+  UIGraphPortDirection direction = UIGraphPortDirection::Input;
+  UIRect row_world_bounds;
+  glm::vec2 socket_world_center = glm::vec2(0.0f);
+  float socket_world_radius = 0.0f;
+  float label_width = 0.0f;
+};
+
+struct UIGraphEdgeLayoutInfo {
+  UIGraphId id = 0u;
+  UIGraphId from_port_id = 0u;
+  UIGraphId to_port_id = 0u;
+  glm::vec2 start_world = glm::vec2(0.0f);
+  glm::vec2 control_a_world = glm::vec2(0.0f);
+  glm::vec2 control_b_world = glm::vec2(0.0f);
+  glm::vec2 end_world = glm::vec2(0.0f);
+  glm::vec4 color = glm::vec4(1.0f);
+  float thickness = 2.0f;
+};
+
+struct UIGraphViewLayoutInfo {
+  std::vector<UIGraphNodeLayoutInfo> node_layouts;
+  std::vector<UIGraphPortLayoutInfo> port_layouts;
+  std::vector<UIGraphEdgeLayoutInfo> edge_layouts;
 };
 
 struct UILayoutMetrics {
@@ -465,6 +521,7 @@ struct UILayoutMetrics {
   SegmentedControlLayout segmented_control;
   ChipGroupLayout chip_group;
   UIScrollState scroll;
+  UIGraphViewLayoutInfo graph_view;
   UIHitPart resize_hovered_part = UIHitPart::Body;
   UIHitPart resize_active_part = UIHitPart::Body;
   bool has_content_clip = false;
@@ -505,7 +562,24 @@ struct UICharacterInputEvent {
 
 struct UIMouseWheelInputEvent {
   glm::vec2 offset = glm::vec2(0.0f);
+  glm::vec2 screen_position = glm::vec2(0.0f);
+  glm::vec2 local_position = glm::vec2(0.0f);
   input::KeyModifiers modifiers;
+};
+
+enum class UIPointerEventPhase : uint8_t {
+  Move,
+  Press,
+  Release,
+  DragStart,
+  DragUpdate,
+  DragEnd,
+};
+
+struct UIPointerButtons {
+  bool left = false;
+  bool middle = false;
+  bool right = false;
 };
 
 struct UIPointerButtonEvent {
@@ -514,10 +588,43 @@ struct UIPointerButtonEvent {
   input::KeyModifiers modifiers;
 };
 
+struct UICustomHitData {
+  uint32_t semantic = 0u;
+  uint64_t primary_id = 0u;
+  uint64_t secondary_id = 0u;
+  glm::vec2 local_position = glm::vec2(0.0f);
+};
+
+struct UIPointerEvent {
+  UIPointerEventPhase phase = UIPointerEventPhase::Move;
+  glm::vec2 screen_position = glm::vec2(0.0f);
+  glm::vec2 local_position = glm::vec2(0.0f);
+  glm::vec2 delta = glm::vec2(0.0f);
+  glm::vec2 total_delta = glm::vec2(0.0f);
+  std::optional<input::MouseButton> button;
+  UIPointerButtons buttons;
+  input::KeyModifiers modifiers;
+  UIHitPart part = UIHitPart::Body;
+  std::optional<size_t> item_index;
+  std::optional<UICustomHitData> custom;
+};
+
+enum class UIPointerCaptureAction : uint8_t {
+  Capture,
+  Release,
+};
+
+struct UIPointerCaptureRequest {
+  UINodeId node_id = k_invalid_node_id;
+  input::MouseButton button = input::MouseButton::Left;
+  UIPointerCaptureAction action = UIPointerCaptureAction::Capture;
+};
+
 struct UIHitResult {
   UINodeId node_id = k_invalid_node_id;
   UIHitPart part = UIHitPart::Body;
   std::optional<size_t> item_index;
+  std::optional<UICustomHitData> custom;
 };
 
 struct UIResolvedStyle {
@@ -540,6 +647,54 @@ enum class DrawCommandType : uint8_t {
   RenderImageView,
   Text,
   Polyline,
+  Path,
+};
+
+enum class UIPathVerb : uint8_t {
+  MoveTo,
+  LineTo,
+  CubicTo,
+  Close,
+};
+
+enum class UIPathFillRule : uint8_t {
+  NonZero,
+  EvenOdd,
+};
+
+enum class UIStrokeCap : uint8_t {
+  Butt,
+  Round,
+  Square,
+};
+
+enum class UIStrokeJoin : uint8_t {
+  Miter,
+  Round,
+  Bevel,
+};
+
+struct UIPathElement {
+  UIPathVerb verb = UIPathVerb::MoveTo;
+  glm::vec2 p0 = glm::vec2(0.0f);
+  glm::vec2 p1 = glm::vec2(0.0f);
+  glm::vec2 p2 = glm::vec2(0.0f);
+};
+
+struct UIPathStyle {
+  bool fill = false;
+  bool stroke = true;
+  glm::vec4 fill_color = glm::vec4(0.0f);
+  glm::vec4 stroke_color = glm::vec4(1.0f);
+  float stroke_width = 1.0f;
+  UIPathFillRule fill_rule = UIPathFillRule::NonZero;
+  UIStrokeCap line_cap = UIStrokeCap::Round;
+  UIStrokeJoin line_join = UIStrokeJoin::Round;
+};
+
+struct UIPathCommand {
+  std::vector<UIPathElement> elements;
+  UIPathStyle style;
 };
 
 struct UIPolylineVertex {
@@ -585,6 +740,7 @@ struct UIDrawCommand {
   std::optional<RenderImageExportKey> render_image_key;
   glm::vec4 tint = glm::vec4(1.0f);
   std::vector<UIPolylineSeries> polyline_series;
+  std::vector<UIPathCommand> path_commands;
 };
 
 struct UIDrawList {

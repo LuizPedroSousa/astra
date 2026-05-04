@@ -12,11 +12,18 @@ enum class LayoutNodeKind : uint8_t {
   Leaf,
 };
 
+struct LayoutSplitBehavior {
+  bool resizable = true;
+  bool show_divider = true;
+  ui::UILength first_extent = ui::UILength::auto_value();
+};
+
 struct LayoutNode {
   LayoutNodeKind kind = LayoutNodeKind::Leaf;
 
   ui::FlexDirection split_axis = ui::FlexDirection::Row;
   float split_ratio = 0.5f;
+  LayoutSplitBehavior split_behavior;
   Scope<LayoutNode> first;
   Scope<LayoutNode> second;
 
@@ -35,6 +42,7 @@ struct LayoutNode {
     kind = other.kind;
     split_axis = other.split_axis;
     split_ratio = other.split_ratio;
+    split_behavior = other.split_behavior;
     first = other.first != nullptr
                 ? create_scope<LayoutNode>(*other.first)
                 : nullptr;
@@ -67,12 +75,17 @@ struct LayoutNode {
   }
 
   static LayoutNode split(
-      ui::FlexDirection axis, float ratio, LayoutNode first, LayoutNode second
+      ui::FlexDirection axis,
+      float ratio,
+      LayoutNode first,
+      LayoutNode second,
+      LayoutSplitBehavior behavior = {}
   ) {
     LayoutNode node;
     node.kind = LayoutNodeKind::Split;
     node.split_axis = axis;
     node.split_ratio = ratio;
+    node.split_behavior = behavior;
     node.first = create_scope<LayoutNode>(std::move(first));
     node.second = create_scope<LayoutNode>(std::move(second));
     return node;

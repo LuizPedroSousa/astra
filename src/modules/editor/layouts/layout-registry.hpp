@@ -9,6 +9,7 @@ class LayoutRegistry : public BaseManager<LayoutRegistry> {
 public:
   bool register_template(LayoutTemplate layout);
   const LayoutTemplate *find(std::string_view id) const;
+  void clear();
 
 private:
   std::vector<LayoutTemplate> m_layouts;

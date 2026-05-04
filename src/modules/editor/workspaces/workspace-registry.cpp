@@ -36,4 +36,6 @@ std::vector<const WorkspaceDefinition *> WorkspaceRegistry::workspaces() const {
   return out;
 }
 
+void WorkspaceRegistry::clear() { m_workspaces.clear(); }
+
 } // namespace astralix::editor

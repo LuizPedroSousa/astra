@@ -57,6 +57,11 @@ private:
       std::string field_name,
       std::string value
   );
+  void set_float_field(
+      std::string component_name,
+      std::string field_name,
+      float value
+  );
   void commit_numeric_field(
       std::string component_name,
       std::string field_name,
@@ -80,6 +85,8 @@ private:
   std::unordered_map<std::string, std::string> m_scalar_drafts;
   std::unordered_map<std::string, std::vector<std::string>> m_group_drafts;
   std::unordered_map<std::string, bool> m_component_expansion;
+  ui::im::WidgetId m_entity_name_widget = ui::im::k_invalid_widget_id;
+  bool m_pending_entity_name_focus = false;
 };
 
 } // namespace astralix::editor

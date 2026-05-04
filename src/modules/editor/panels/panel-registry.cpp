@@ -36,4 +36,6 @@ std::vector<const PanelProviderDescriptor *> PanelRegistry::providers() const {
   return out;
 }
 
+void PanelRegistry::clear() { m_providers.clear(); }
+
 } // namespace astralix::editor
