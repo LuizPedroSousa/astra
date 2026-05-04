@@ -12,12 +12,16 @@
 #include "resources/descriptors/svg-descriptor.hpp"
 #include "resources/descriptors/texture-descriptor.hpp"
 #include "resources/font.hpp"
+#include "resources/material.hpp"
 #include "resources/model.hpp"
 #include "resources/shader.hpp"
 #include "resources/svg.hpp"
-#include "unordered_map"
+#include "trace.hpp"
 #include <initializer_list>
+#include <mutex>
+#include "unordered_map"
 #include <unordered_map>
+#include <unordered_set>
 
 namespace astralix {
 
@@ -54,14 +58,18 @@ public:
       return it != descriptor_to_id.end();
     }
 
-    ResourceHandle register_or_get(RendererBackend backend, Ref<D> desc) {
-      ResourceDescriptorID desc_id = desc->id;
-
+    template <typename Factory>
+    ResourceHandle register_or_get_with_factory(
+        const ResourceDescriptorID &desc_id,
+        Factory &&factory
+    ) {
       auto it = descriptor_to_id.find(desc_id);
 
       if (it != descriptor_to_id.end()) {
         return it->second;
       }
+
+      ASTRA_PROFILE_DYN(desc_id.c_str(), desc_id.size());
 
       uint32_t slot_idx;
       uint32_t gen;
@@ -77,18 +85,27 @@ public:
       }
 
       Handle handle{slot_idx, gen};
+      Ref<T> resource = std::forward<Factory>(factory)(handle);
+
+      slots[slot_idx] = {std::move(resource), gen};
+      descriptor_to_id.emplace(desc_id, handle);
+
+      return handle;
+    }
+
+    ResourceHandle register_or_get(RendererBackend backend, Ref<D> desc) {
+      ResourceDescriptorID desc_id = desc->id;
 
       if constexpr (std::is_same_v<D, ShaderDescriptor> || std::is_same_v<D, Texture2DDescriptor> || std::is_same_v<D, Texture3DDescriptor> || std::is_same_v<D, FontDescriptor>) {
         desc->backend = backend;
       }
 
-      Ref<T> resource = T::from_descriptor(handle, desc);
-
-      slots[slot_idx] = {std::move(resource), gen};
-
-      descriptor_to_id.emplace(desc_id, handle);
-
-      return handle;
+      return register_or_get_with_factory(
+          desc_id,
+          [&](const ResourceHandle &handle) {
+            return T::from_descriptor(handle, desc);
+          }
+      );
     }
 
     Ref<T> get(Handle handle) const {
@@ -225,6 +242,12 @@ public:
   Ref<AudioClipDescriptor> register_audio_clip(Ref<AudioClipDescriptor> clip);
   Ref<TerrainRecipeDescriptor> register_terrain_recipe(Ref<TerrainRecipeDescriptor> recipe);
   std::vector<Ref<ShaderDescriptor>> shader_descriptors() const;
+  bool reload_shader(const ResourceDescriptorID &descriptor_id);
+  void request_texture_2d_async(
+      RendererBackend backend,
+      const ResourceDescriptorID &descriptor_id
+  );
+  void request_model_async(const ResourceDescriptorID &descriptor_id);
   void register_models(std::initializer_list<Ref<ModelDescriptor>> models);
 
   void
@@ -270,6 +293,21 @@ public:
   }
 
   template <class Descriptor>
+  void release_by_descriptor_id(const ResourceDescriptorID &id) {
+    auto &resource_pool = get_resource_pool_of<Descriptor>();
+    resource_pool.release(id);
+
+    auto &descriptor_pool = get_pool_for<Descriptor>();
+    descriptor_pool.release(id);
+  }
+
+  template <class Descriptor>
+  void release_descriptor_by_id(const ResourceDescriptorID &id) {
+    auto &descriptor_pool = get_pool_for<Descriptor>();
+    descriptor_pool.release(id);
+  }
+
+  template <class Descriptor>
   Ref<Descriptor>
   get_descriptor_by_id(const ResourceDescriptorID &id) {
     auto &pool = get_pool_for<Descriptor>();
@@ -299,6 +337,7 @@ public:
 
   template <class Descriptor>
   void load_from_descriptor(RendererBackend backend) {
+    ASTRA_PROFILE_DYN(type_name<Descriptor>().data(), type_name<Descriptor>().size());
     auto &descriptor_pool = get_pool_for<Descriptor>();
     auto &resource_pool = get_resource_pool_of<Descriptor>();
 
@@ -309,6 +348,7 @@ public:
 
   template <class... Descriptors>
   void load_from_descriptors(RendererBackend backend) {
+    ASTRA_PROFILE_N("load_from_descriptors");
     (load_from_descriptor<Descriptors>(backend), ...);
   }
 
@@ -360,6 +400,9 @@ private:
   ResourcePool<Material, MaterialDescriptor> m_material_pool;
   ResourcePool<Font, FontDescriptor> m_font_pool;
   ResourcePool<Svg, SvgDescriptor> m_svg_pool;
+  mutable std::mutex m_async_resource_mutex;
+  std::unordered_set<ResourceDescriptorID> m_pending_texture_2d_loads;
+  std::unordered_set<ResourceDescriptorID> m_pending_model_loads;
 
   template <class T>
   auto &get_pool_for();
